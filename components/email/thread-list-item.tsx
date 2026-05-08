@@ -71,7 +71,8 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
     const accountColor = email.accountId ? getAccountById(email.accountId)?.avatarColor : undefined;
     const isChecked = selectedEmailIds.has(email.id);
     const isFocusedMailLayout = mailLayout === 'focus';
-    const inlinePreview = showPreview && email.preview ? ` ${email.preview}` : '';
+    const trimmedPreview = email.preview?.replace(/^\s+/, '') ?? '';
+    const inlinePreview = showPreview && trimmedPreview ? ` ${trimmedPreview}` : '';
 
     // Resolve color tags using keyword definitions; unknown tags fall back to gray
     const tagIds = getEmailColorTags(email.keywords);
@@ -316,7 +317,7 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                       ? "text-muted-foreground"
                       : "text-muted-foreground/80"
                   )}>
-                    {email.preview || "No preview available"}
+                    {trimmedPreview || "No preview available"}
                   </p>
                 )}
               </>
@@ -366,7 +367,8 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
     const isMobile = useUIStore((state) => state.isMobile);
     const { latestEmail, participantNames, hasUnread, hasStarred, hasAttachment, hasAnswered, hasForwarded, emailCount } = thread;
     const isFocusedMailLayout = mailLayout === 'focus';
-    const inlinePreview = showPreview && latestEmail.preview ? ` ${latestEmail.preview}` : '';
+    const trimmedPreview = latestEmail.preview?.replace(/^\s+/, '') ?? '';
+    const inlinePreview = showPreview && trimmedPreview ? ` ${trimmedPreview}` : '';
 
     const { selectedMailbox, mailboxes, selectedEmailIds, toggleEmailSelection, selectRangeEmails, clearSelection, isUnifiedView } = useEmailStore();
     const getAccountById = useAccountStore((state) => state.getAccountById);
@@ -722,7 +724,7 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                         ? "text-muted-foreground"
                         : "text-muted-foreground/80"
                     )}>
-                      {latestEmail.preview || "No preview available"}
+                      {trimmedPreview || "No preview available"}
                     </p>
                   )}
                 </>

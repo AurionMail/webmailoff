@@ -51,7 +51,8 @@ export function EmailListItem({ email, selected, onClick, onContextMenu, onToggl
   const sender = showRecipient ? (email.to?.[0] ?? email.from?.[0]) : email.from?.[0];
   const isFocusedMailLayout = mailLayout === 'focus';
   const hideJunkAvatarImages = currentMailboxRole === 'junk' && !showAvatarsInJunk;
-  const inlinePreview = showPreview && email.preview ? ` ${email.preview}` : '';
+  const trimmedPreview = email.preview?.replace(/^\s+/, '') ?? '';
+  const inlinePreview = showPreview && trimmedPreview ? ` ${trimmedPreview}` : '';
 
   // Resolve color tags using keyword definitions from settings; unknown tags fall back to gray
   const colorTagIds = getEmailColorTags(email.keywords);
@@ -295,7 +296,7 @@ export function EmailListItem({ email, selected, onClick, onContextMenu, onToggl
                     ? "text-muted-foreground"
                     : "text-muted-foreground/80"
                 )}>
-                  {email.preview || "No preview available"}
+                  {trimmedPreview || "No preview available"}
                 </p>
               )}
             </>
