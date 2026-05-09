@@ -49,7 +49,6 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
   const switchAccount = useAuthStore((s) => s.switchAccount);
   const logout = useAuthStore((s) => s.logout);
   const logoutAll = useAuthStore((s) => s.logoutAll);
-  const primaryIdentity = useAuthStore((s) => s.primaryIdentity);
 
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
@@ -115,9 +114,11 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
     setDefaultAccount(accountId);
   };
 
-  // Display name for the active account
-  const displayName = primaryIdentity?.name || activeAccount?.displayName || activeAccount?.label || "";
-  const displayEmail = primaryIdentity?.email || activeAccount?.email || activeAccount?.username || "";
+  // Show the account's own identity, not the preferred sending identity —
+  // primaryIdentity can be an alias (e.g. info@korazo.net) that differs from
+  // the actually logged-in account (info@linusrath.de).
+  const displayName = activeAccount?.displayName || activeAccount?.label || "";
+  const displayEmail = activeAccount?.email || activeAccount?.username || "";
 
   return (
     <>
