@@ -977,6 +977,10 @@
         "above_quote": "Przed cytowanym tekstem",
         "below_quote": "Po cytowanym tekście"
       },
+      "signature_separator": {
+        "label": "Separator podpisu",
+        "description": "Poprzedź podpis standardową linią separatora \"-- \" (RFC 3676). Wyłącz, jeśli chcesz przejść bezpośrednio z treści wiadomości do podpisu."
+      },
       "sub_address_delimiter": {
         "label": "Separator sub-adresu",
         "description": "Znak oddzielający Twoją nazwę użytkownika od tagu sub-adresu. Użyj separatora zgodnego z Twoim serwerem pocztowym (np. user{delimiter}tag@domain.com).",

@@ -972,6 +972,10 @@
         "above_quote": "Pirms citētā teksta",
         "below_quote": "Pēc citētā teksta"
       },
+      "signature_separator": {
+        "label": "Paraksta atdalītājs",
+        "description": "Pirms paraksta pievienot standarta atdalītāju \"-- \" (RFC 3676). Izslēdziet, ja vēlaties pāriet no ziņojuma tieši uz parakstu."
+      },
       "sub_address_delimiter": {
         "label": "Apakšadreses atdalītājs",
         "description": "Zīme, kas atdala lietotājvārdu no apakšadreses tagu. Izvēlieties atdalītāju, ko lieto jūsu pasta serveris (piem. lietotajs{delimiter}tags@domens.lv).",

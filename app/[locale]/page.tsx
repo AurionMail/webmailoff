@@ -1659,7 +1659,9 @@ export default function Home() {
 
     // Append signature from the sending identity (fall back to primary
     // when the reply-from lives on the same identity but a different alias).
-    const finalBody = appendPlainTextSignature(body, sendingIdentity);
+    const finalBody = appendPlainTextSignature(body, sendingIdentity, {
+      separator: useSettingsStore.getState().signatureSeparatorEnabled,
+    });
 
     const originalEmailId = selectedEmail.id;
 

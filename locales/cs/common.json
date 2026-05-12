@@ -977,6 +977,10 @@
         "above_quote": "Před citovaným textem",
         "below_quote": "Za citovaným textem"
       },
+      "signature_separator": {
+        "label": "Oddělovač podpisu",
+        "description": "Před podpis přidat standardní oddělovací řádek \"-- \" (RFC 3676). Vypněte, pokud chcete plynule přejít z textu zprávy do podpisu."
+      },
       "sub_address_delimiter": {
         "label": "Oddělovač sub-adresy",
         "description": "Znak oddělující uživatelské jméno od sub-adresy. Zvolte oddělovač používaný vaším poštovním serverem (např. uzivatel{delimiter}stitek@domena.cz).",

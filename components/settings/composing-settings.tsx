@@ -28,6 +28,7 @@ export function ComposingSettings() {
     attachmentReminderKeywords,
     subAddressDelimiter,
     signaturePosition,
+    signatureSeparatorEnabled,
     updateSetting,
   } = useSettingsStore();
 
@@ -59,6 +60,13 @@ export function ComposingSettings() {
             { value: 'above_quote', label: t('signature_position.above_quote') },
             { value: 'below_quote', label: t('signature_position.below_quote') },
           ]}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('signature_separator.label')} description={t('signature_separator.description')}>
+        <ToggleSwitch
+          checked={signatureSeparatorEnabled}
+          onChange={(checked) => updateSetting('signatureSeparatorEnabled', checked)}
         />
       </SettingItem>
 

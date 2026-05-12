@@ -977,6 +977,10 @@
         "above_quote": "引用文本之前",
         "below_quote": "引用文本之后"
       },
+      "signature_separator": {
+        "label": "签名分隔符",
+        "description": "在签名前加入标准的 “-- ” 分隔行（RFC 3676）。如果希望正文直接连到签名，请关闭。"
+      },
       "sub_address_delimiter": {
         "label": "子地址分隔符",
         "description": "用于分隔用户名和子地址标签的字符。请选择与您的邮件服务器一致的分隔符（例如 user{delimiter}tag@domain.com）。",

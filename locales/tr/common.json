@@ -977,6 +977,10 @@
         "above_quote": "Alıntılanan metinden önce",
         "below_quote": "Alıntılanan metinden sonra"
       },
+      "signature_separator": {
+        "label": "İmza ayırıcı",
+        "description": "İmzayı standart \"-- \" ayırıcı satırıyla başlat (RFC 3676). Mesajdan doğrudan imzaya geçmek istiyorsanız kapatın."
+      },
       "sub_address_delimiter": {
         "label": "Alt Adres Ayırıcı",
         "description": "Kullanıcı adını alt adres etiketinden ayıran karakter. Posta sunucunuzun kullandığı ayırıcıyı seçin (ör. kullanici{delimiter}etiket@domain.com).",

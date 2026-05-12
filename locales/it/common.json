@@ -972,6 +972,10 @@
         "above_quote": "Prima del testo citato",
         "below_quote": "Dopo il testo citato"
       },
+      "signature_separator": {
+        "label": "Delimitatore firma",
+        "description": "Anteporre alla firma la riga di delimitazione standard \"-- \" (RFC 3676). Disattiva se preferisci passare direttamente dal messaggio alla firma."
+      },
       "sub_address_delimiter": {
         "label": "Delimitatore sub-indirizzo",
         "description": "Carattere che separa il tuo nome utente dall'etichetta del sub-indirizzo. Usa il delimitatore configurato sul tuo server di posta (es. utente{delimiter}tag@dominio.com).",

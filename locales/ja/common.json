@@ -972,6 +972,10 @@
         "above_quote": "引用テキストの前",
         "below_quote": "引用テキストの後"
       },
+      "signature_separator": {
+        "label": "署名区切り",
+        "description": "署名の前に標準の区切り行「-- 」（RFC 3676）を付けます。本文から署名へ直接続けたい場合はオフにしてください。"
+      },
       "sub_address_delimiter": {
         "label": "サブアドレス区切り文字",
         "description": "ユーザー名とサブアドレスタグを区切る文字です。お使いのメールサーバーが使用する区切り文字に合わせてください（例: user{delimiter}tag@domain.com）。",

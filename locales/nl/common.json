@@ -972,6 +972,10 @@
         "above_quote": "Voor geciteerde tekst",
         "below_quote": "Na geciteerde tekst"
       },
+      "signature_separator": {
+        "label": "Handtekening-scheider",
+        "description": "De handtekening voorafgaan met de standaard scheidingsregel \"-- \" (RFC 3676). Zet uit als je liever direct van het bericht in de handtekening overgaat."
+      },
       "sub_address_delimiter": {
         "label": "Sub-adres scheidingsteken",
         "description": "Teken dat je gebruikersnaam scheidt van het sub-adres-label. Gebruik het scheidingsteken dat je mailserver gebruikt (bv. gebruiker{delimiter}tag@domein.nl).",

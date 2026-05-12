@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useCallback, useState, useRef } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Paragraph from "@tiptap/extension-paragraph";
+import Heading from "@tiptap/extension-heading";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -44,6 +46,51 @@ export interface InlineImageUpload {
   cid?: string;
 }
 
+// Pasted email content (signatures, replies, quoted text) commonly carries
+// inline styles on block elements. StarterKit's default Paragraph/Heading
+// drop unknown attributes; extend them to round-trip `style` and `class` so
+// signature formatting survives the editor.
+const styledBlockAttributes = {
+  style: {
+    default: null as string | null,
+    parseHTML: (el: HTMLElement) => el.getAttribute("style"),
+    renderHTML: (attrs: Record<string, string | null>) =>
+      attrs.style ? { style: attrs.style } : {},
+  },
+  class: {
+    default: null as string | null,
+    parseHTML: (el: HTMLElement) => el.getAttribute("class"),
+    renderHTML: (attrs: Record<string, string | null>) =>
+      attrs.class ? { class: attrs.class } : {},
+  },
+  "data-signature-block": {
+    default: null as string | null,
+    parseHTML: (el: HTMLElement) => el.getAttribute("data-signature-block"),
+    renderHTML: (attrs: Record<string, string | null>) =>
+      attrs["data-signature-block"]
+        ? { "data-signature-block": attrs["data-signature-block"] }
+        : {},
+  },
+};
+
+const StyledParagraph = Paragraph.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      ...styledBlockAttributes,
+    };
+  },
+});
+
+const StyledHeading = Heading.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      ...styledBlockAttributes,
+    };
+  },
+});
+
 interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
@@ -51,6 +98,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   hasError?: boolean;
+  onEditorReady?: (editor: Editor) => void;
 }
 
 function ToolbarButton({
@@ -131,17 +179,23 @@ export function RichTextEditor({
   placeholder,
   className,
   hasError,
+  onEditorReady,
 }: RichTextEditorProps) {
   const onImageUploadRef = React.useRef(onImageUpload);
   onImageUploadRef.current = onImageUpload;
+  const onEditorReadyRef = React.useRef(onEditorReady);
+  onEditorReadyRef.current = onEditorReady;
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2] },
+        heading: false,
+        paragraph: false,
         link: false,
         underline: false,
       }),
+      StyledParagraph,
+      StyledHeading.configure({ levels: [1, 2] }),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -238,6 +292,12 @@ export function RichTextEditor({
       editor.commands.setContent(content, { emitUpdate: false });
     }
   }, [content, editor]);
+
+  // Expose the editor instance once it's ready so parents can target
+  // specific nodes (e.g. swap the embedded signature on identity change).
+  useEffect(() => {
+    if (editor) onEditorReadyRef.current?.(editor);
+  }, [editor]);
 
   const addLink = useCallback(() => {
     if (!editor) return;

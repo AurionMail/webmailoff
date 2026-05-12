@@ -977,6 +977,10 @@
         "above_quote": "Vor zitiertem Text",
         "below_quote": "Nach zitiertem Text"
       },
+      "signature_separator": {
+        "label": "Signatur-Trenner",
+        "description": "Der Signatur die Standard-Trennerzeile \"-- \" voranstellen (RFC 3676). Deaktivieren, wenn der Nachrichtentext direkt in die Signatur übergehen soll."
+      },
       "sub_address_delimiter": {
         "label": "Sub-Adress-Trennzeichen",
         "description": "Zeichen, das Ihren Benutzernamen vom Sub-Adress-Tag trennt. Verwenden Sie das von Ihrem Mailserver verwendete Trennzeichen (z. B. benutzer{delimiter}tag@domain.de).",

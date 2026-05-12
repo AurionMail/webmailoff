@@ -110,13 +110,18 @@ export function getPlainTextSignature(signature?: SignatureSource | null): strin
   return '';
 }
 
-export function appendPlainTextSignature(body: string, signature?: SignatureSource | null): string {
+export function appendPlainTextSignature(
+  body: string,
+  signature?: SignatureSource | null,
+  options: { separator?: boolean } = {},
+): string {
   const plainTextSignature = getPlainTextSignature(signature);
   if (!plainTextSignature) {
     return body;
   }
 
-  return `${body}\n\n-- \n${plainTextSignature}`;
+  const sep = options.separator === false ? '\n\n' : '\n\n-- \n';
+  return `${body}${sep}${plainTextSignature}`;
 }
 
 export function hasMeaningfulHtmlBody(html: string): boolean {

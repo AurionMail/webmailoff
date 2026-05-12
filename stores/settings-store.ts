@@ -145,6 +145,7 @@ interface SettingsState {
   plainTextMode: boolean; // Send plain text only (no rich text editor)
   subAddressDelimiter: string; // Character separating user from tag (e.g. "user+tag@")
   signaturePosition: SignaturePosition; // Position of the signature relative to quoted text in replies/forwards
+  signatureSeparatorEnabled: boolean; // Prefix the signature with the RFC 3676 "-- " delimiter
 
   // Privacy & Security
   sessionTimeout: number; // minutes (0 = never)
@@ -298,6 +299,7 @@ const DEFAULT_SETTINGS = {
   plainTextMode: false,
   subAddressDelimiter: DEFAULT_SUB_ADDRESS_DELIMITER,
   signaturePosition: 'below_quote' as SignaturePosition,
+  signatureSeparatorEnabled: true,
 
   // Privacy & Security
   sessionTimeout: 0, // Never
@@ -470,6 +472,7 @@ export const useSettingsStore = create<SettingsState>()(
           plainTextMode: state.plainTextMode,
           subAddressDelimiter: state.subAddressDelimiter,
           signaturePosition: state.signaturePosition,
+          signatureSeparatorEnabled: state.signatureSeparatorEnabled,
           sessionTimeout: state.sessionTimeout,
           emailNotificationsEnabled: state.emailNotificationsEnabled,
           emailNotificationSound: state.emailNotificationSound,

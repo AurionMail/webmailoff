@@ -980,6 +980,10 @@
         "above_quote": "Before quoted text",
         "below_quote": "After quoted text"
       },
+      "signature_separator": {
+        "label": "Signature Delimiter",
+        "description": "Prefix the signature with the standard \"-- \" delimiter line (RFC 3676). Turn off if you'd rather flow straight from your message into the signature."
+      },
       "sub_address_delimiter": {
         "label": "Sub-Address Delimiter",
         "description": "Character separating your username from a sub-address tag. Match the delimiter your mail server uses (e.g. user{delimiter}tag@domain.com).",

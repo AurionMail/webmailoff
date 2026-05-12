@@ -977,6 +977,10 @@
         "above_quote": "인용 텍스트 앞",
         "below_quote": "인용 텍스트 뒤"
       },
+      "signature_separator": {
+        "label": "서명 구분선",
+        "description": "서명 앞에 표준 구분선 \"-- \" (RFC 3676)을 추가합니다. 본문에서 바로 서명으로 이어지길 원하면 해제하세요."
+      },
       "sub_address_delimiter": {
         "label": "서브 주소 구분자",
         "description": "사용자 이름과 서브 주소 태그를 나누는 문자예요. 메일 서버가 사용하는 구분자에 맞춰 주세요 (예: user{delimiter}tag@domain.com).",

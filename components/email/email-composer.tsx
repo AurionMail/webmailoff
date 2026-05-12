@@ -35,6 +35,7 @@ import { appendPlainTextSignature, getPlainTextSignature } from "@/lib/signature
 import { resolveReplyFrom } from "@/lib/reply-identity";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
 import { RichTextEditor } from "@/components/email/rich-text-editor";
+import type { Editor } from "@tiptap/react";
 
 /** Strip HTML tags and decode entities to get a plain-text version */
 function htmlToPlainText(html: string): string {
@@ -116,6 +117,39 @@ type ComposerAttachment = {
   abortController?: AbortController;
 };
 
+type SignatureIdentityLike = {
+  htmlSignature?: string;
+  textSignature?: string;
+} | null | undefined;
+
+// Render the embedded signature for "above quote" mode. Bracketed with
+// `data-signature-block` marker paragraphs so we can swap the inner content
+// when the user switches identity without losing the surrounding draft or
+// quoted message. The markers are preserved through TipTap by the
+// StyledParagraph extension.
+function buildEmbeddedSignatureHtml(
+  identity: SignatureIdentityLike,
+  options: { embed: boolean; separator: boolean }
+): string {
+  if (!options.embed) return '';
+  const startMarker = options.separator
+    ? `<p data-signature-block="separator">-- </p>`
+    : `<p data-signature-block="start"></p>`;
+  const endMarker = `<p data-signature-block="end"></p>`;
+  if (identity?.htmlSignature) {
+    return `${startMarker}${sanitizeEmailHtml(identity.htmlSignature)}${endMarker}`;
+  }
+  if (identity?.textSignature) {
+    const escaped = identity.textSignature
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    return `${startMarker}<p>${escaped}</p>${endMarker}`;
+  }
+  return '';
+}
+
 export function EmailComposer({
   onSend,
   onClose,
@@ -136,6 +170,7 @@ export function EmailComposer({
   const attachmentReminderEnabled = useSettingsStore((state) => state.attachmentReminderEnabled);
   const attachmentReminderKeywords = useSettingsStore((state) => state.attachmentReminderKeywords);
   const signaturePosition = useSettingsStore((state) => state.signaturePosition);
+  const signatureSeparatorEnabled = useSettingsStore((state) => state.signatureSeparatorEnabled);
   const identities = useIdentityStore((s) => s.identities);
   const primaryIdentity = identities[0] ?? null;
 
@@ -206,8 +241,9 @@ export function EmailComposer({
       // drafting area and the quoted content so it reads naturally as a
       // closing for the reply body. Send-time append is skipped — see
       // shouldEmbedSignatureAboveQuote.
+      const plainSep = signatureSeparatorEnabled ? '\n\n-- \n' : '\n\n';
       const signatureBlock = shouldEmbedSignatureAboveQuote
-        ? `\n\n-- \n${getPlainTextSignature(initialSignatureIdentity)}`
+        ? `${plainSep}${getPlainTextSignature(initialSignatureIdentity)}`
         : '';
 
       if (mode === 'forward') {
@@ -225,21 +261,10 @@ export function EmailComposer({
     const from = replyTo.from?.[0];
     const fromStr = from ? `${from.name || from.email}` : tCommon('unknown');
 
-    // When "above quote" is configured, splice signature between the user's
-    // drafting area and the quoted content so it reads naturally as a closing
-    // for the reply body. Send-time append is skipped — see
-    // shouldEmbedSignatureAboveQuote.
-    const buildEmbeddedSignatureHtml = (): string => {
-      if (!shouldEmbedSignatureAboveQuote) return '';
-      if (initialSignatureIdentity?.htmlSignature) {
-        return `<br><br>-- <br>${sanitizeEmailHtml(initialSignatureIdentity.htmlSignature)}`;
-      }
-      if (initialSignatureIdentity?.textSignature) {
-        return `<br><br>-- <br>${initialSignatureIdentity.textSignature.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}`;
-      }
-      return '';
-    };
-    const signatureBlock = buildEmbeddedSignatureHtml();
+    const signatureBlock = buildEmbeddedSignatureHtml(initialSignatureIdentity, {
+      embed: shouldEmbedSignatureAboveQuote,
+      separator: signatureSeparatorEnabled,
+    });
 
     // Build quoted content as HTML
     if (replyTo.htmlBody && (mode === 'reply' || mode === 'replyAll' || mode === 'forward')) {
@@ -335,6 +360,69 @@ export function EmailComposer({
   const signatureIdentity = (currentIdentity?.htmlSignature || currentIdentity?.textSignature)
     ? currentIdentity
     : primaryIdentity;
+
+  // Hold the TipTap editor instance so we can swap the embedded signature
+  // when the user switches identity in "above quote" mode without rebuilding
+  // the whole body (which would lose user edits to the surrounding draft).
+  const editorRef = useRef<Editor | null>(null);
+  const prevSignatureIdentityIdRef = useRef<string | null | undefined>(signatureIdentity?.id);
+  const prevSignatureSeparatorRef = useRef<boolean>(signatureSeparatorEnabled);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const identityChanged = prevSignatureIdentityIdRef.current !== signatureIdentity?.id;
+    const separatorChanged = prevSignatureSeparatorRef.current !== signatureSeparatorEnabled;
+    prevSignatureIdentityIdRef.current = signatureIdentity?.id;
+    prevSignatureSeparatorRef.current = signatureSeparatorEnabled;
+    if (!editor) return;
+    if (!identityChanged && !separatorChanged) return;
+    if (plainTextMode) return;
+    if (mode !== 'reply' && mode !== 'replyAll' && mode !== 'forward') return;
+    if (signaturePosition !== 'above_quote') return;
+
+    const currentHtml = editor.getHTML();
+    const doc = new DOMParser().parseFromString(currentHtml, 'text/html');
+    const startEl = doc.querySelector('[data-signature-block="separator"], [data-signature-block="start"]');
+    if (!startEl) return;
+    const endEl = doc.querySelector('[data-signature-block="end"]');
+
+    const newSignature = buildEmbeddedSignatureHtml(signatureIdentity, {
+      embed: true,
+      separator: signatureSeparatorEnabled,
+    });
+    if (!newSignature) return;
+
+    // Build a temporary container holding the replacement nodes so we can
+    // splice them in without re-serializing/parsing twice.
+    const replacementHost = doc.createElement('div');
+    replacementHost.innerHTML = newSignature;
+    const replacementNodes = Array.from(replacementHost.childNodes);
+
+    const parent = startEl.parentNode;
+    if (!parent) return;
+
+    // Remove the existing signature range [startEl … endEl] inclusive, or
+    // from startEl to the next blockquote if no end marker is present.
+    const removeUntil = endEl && endEl.parentNode === parent ? endEl : null;
+    let cursor: ChildNode | null = startEl;
+    const toRemove: ChildNode[] = [];
+    while (cursor) {
+      toRemove.push(cursor);
+      if (cursor === removeUntil) break;
+      const next: ChildNode | null = cursor.nextSibling;
+      if (!removeUntil && next && (next as Element).tagName === 'BLOCKQUOTE') break;
+      cursor = next;
+    }
+    const insertBefore = toRemove[toRemove.length - 1]?.nextSibling ?? null;
+    toRemove.forEach((node) => parent.removeChild(node));
+    replacementNodes.forEach((node) => parent.insertBefore(node, insertBefore));
+
+    const nextHtml = doc.body.innerHTML;
+    if (nextHtml !== currentHtml) {
+      editor.commands.setContent(nextHtml, { emitUpdate: true });
+    }
+  }, [signatureIdentity?.id, signatureIdentity?.htmlSignature, signatureIdentity?.textSignature, signatureSeparatorEnabled, signaturePosition, mode, plainTextMode]);
+
   useEffect(() => {
     if (!autoSelectReplyIdentity) return;
     if (selectedIdentityId || initialData?.selectedIdentityId) return;
@@ -1038,11 +1126,12 @@ export function EmailComposer({
     // Build HTML signature block (used only in rich text mode)
     const buildSignatureHtml = (): string => {
       if (signatureAlreadyInBody) return '';
+      const sep = signatureSeparatorEnabled ? `<br><br>-- <br>` : `<br><br>`;
       if (signatureIdentity?.htmlSignature) {
-        return `<br><br>-- <br>${sanitizeEmailHtml(signatureIdentity.htmlSignature)}`;
+        return `${sep}${sanitizeEmailHtml(signatureIdentity.htmlSignature)}`;
       }
       if (signatureIdentity?.textSignature) {
-        return `<br><br>-- <br>${signatureIdentity.textSignature.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}`;
+        return `${sep}${signatureIdentity.textSignature.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}`;
       }
       return '';
     };
@@ -1053,9 +1142,10 @@ export function EmailComposer({
       : null;
 
     // In plain text mode, send text/plain only (no HTML body)
+    const signatureOpts = { separator: signatureSeparatorEnabled };
     const finalBody = plainTextMode
-      ? (signatureAlreadyInBody ? body : appendPlainTextSignature(body, signatureIdentity))
-      : (signatureAlreadyInBody ? htmlToPlainText(body) : appendPlainTextSignature(htmlToPlainText(body), signatureIdentity));
+      ? (signatureAlreadyInBody ? body : appendPlainTextSignature(body, signatureIdentity, signatureOpts))
+      : (signatureAlreadyInBody ? htmlToPlainText(body) : appendPlainTextSignature(htmlToPlainText(body), signatureIdentity, signatureOpts));
 
     const rewritten = plainTextMode ? null : rewriteInlineImages(body);
     const finalHtmlBody = plainTextMode
@@ -1628,6 +1718,7 @@ export function EmailComposer({
               onImageUpload={handleImageUpload}
               placeholder={t('body_placeholder')}
               hasError={validationErrors.body}
+              onEditorReady={(ed) => { editorRef.current = ed; }}
             />
           </div>
         )}
@@ -1638,13 +1729,13 @@ export function EmailComposer({
           : plainTextMode ? (
           getPlainTextSignature(signatureIdentity) ? (
             <div className="px-4 pb-3 text-sm leading-6 text-muted-foreground break-words whitespace-pre-wrap font-mono">
-              {'-- \n'}{getPlainTextSignature(signatureIdentity)}
+              {signatureSeparatorEnabled ? '-- \n' : ''}{getPlainTextSignature(signatureIdentity)}
             </div>
           ) : null
         ) : composerSignatureHtml ? (
           <div
             className="px-4 pb-3 text-sm leading-6 text-foreground break-words [&_a]:text-primary [&_a]:underline-offset-2 [&_a:hover]:underline"
-            dangerouslySetInnerHTML={{ __html: `<div>-- </div>${composerSignatureHtml}` }}
+            dangerouslySetInnerHTML={{ __html: `${signatureSeparatorEnabled ? '<div>-- </div>' : ''}${composerSignatureHtml}` }}
           />
         ) : null}
       </div>
