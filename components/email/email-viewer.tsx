@@ -5283,7 +5283,7 @@ export function EmailViewer({
 
     {/* Mobile bottom action bar */}
     {isMobile && (
-      <nav className="fixed bottom-0 left-0 right-0 z-[50] bg-background border-t border-border sm:hidden overflow-hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border sm:hidden overflow-hidden pb-[calc(env(safe-area-inset-bottom)/2)]">
         <div className="flex items-center overflow-x-auto mobile-scroll-hidden">
           <button
             onClick={onNavigatePrev}

@@ -1793,7 +1793,7 @@ export function EmailComposer({
         )}
 
         {/* Bottom toolbar */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t bg-background shrink-0">
+        <div className="flex items-center justify-between px-4 py-2.5 border-t bg-background shrink-0 pb-[calc(env(safe-area-inset-bottom)/2)]">
           {/* Left side actions */}
           <div className="flex items-center gap-1">
             <input
