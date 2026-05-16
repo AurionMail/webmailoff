@@ -1266,14 +1266,22 @@ export const useAuthStore = create<AuthState>()(
             if (restore.ok) {
               const data = await restore.json();
               if (data?.serverUrl && data?.username && data?.password) {
+                // Stalwart master-user impersonation uses "target%master" as
+                // the auth username. The full string must be preserved for
+                // JMAP auth, but the user-facing display (avatar, switcher,
+                // sign-out copy) should only show the target mailbox.
+                const fullUsername: string = data.username;
+                const displayMailbox = fullUsername.includes('%')
+                  ? fullUsername.split('%', 1)[0]
+                  : fullUsername;
                 accountStore.addAccount({
-                  label: data.username,
+                  label: displayMailbox,
                   serverUrl: data.serverUrl,
-                  username: data.username,
+                  username: fullUsername,
                   authMode: 'basic',
                   rememberMe: true,
-                  displayName: data.username,
-                  email: data.username,
+                  displayName: displayMailbox,
+                  email: displayMailbox,
                   lastLoginAt: Date.now(),
                   isConnected: false,
                   hasError: false,
