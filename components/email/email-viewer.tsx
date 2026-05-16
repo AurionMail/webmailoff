@@ -4226,7 +4226,7 @@ export function EmailViewer({
 
                 return (
                 <div className="mt-3 pt-3 border-t border-border grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-5">
-                  <section>
+                  <section className="min-w-0">
                   <SectionHeader>{t('details.recipients_routing')}</SectionHeader>
                   <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-1.5">
                     <Row label={t('from')}>
@@ -4283,7 +4283,7 @@ export function EmailViewer({
                   </section>
 
                   {hasAuthSection && (
-                    <section>
+                    <section className="min-w-0">
                       <SectionHeader>{t('details.authentication_security')}</SectionHeader>
                       <div className="flex flex-wrap gap-1.5">
                         {auth?.spf && (
@@ -4351,7 +4351,7 @@ export function EmailViewer({
                   )}
 
                   {hasIdentifiers && (
-                    <section>
+                    <section className="min-w-0">
                       <SectionHeader>{t('details.identifiers_threading')}</SectionHeader>
                       <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-1.5">
                         {email.messageId && (
@@ -4384,7 +4384,7 @@ export function EmailViewer({
                     </section>
                   )}
 
-                  <section>
+                  <section className="min-w-0">
                     <SectionHeader>{t('details.message_properties')}</SectionHeader>
                     <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-1.5">
                       {email.subject !== undefined && (
@@ -4411,7 +4411,7 @@ export function EmailViewer({
                   </section>
 
                   {hasListInfo && (
-                    <section className="lg:col-span-2">
+                    <section className="lg:col-span-2 min-w-0">
                       <SectionHeader>{t('details.mailing_list')}</SectionHeader>
                       <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-1.5">
                         {listHeaders?.listId && (

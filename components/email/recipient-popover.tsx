@@ -127,7 +127,7 @@ export function RecipientPopover({ name, email, displayLabel, onViewContact, cla
         ref={triggerRef}
         onClick={handleOpen}
         className={cn(
-          "text-foreground hover:text-primary hover:underline cursor-pointer transition-colors",
+          "text-foreground hover:text-primary hover:underline cursor-pointer transition-colors min-w-0 break-words",
           className
         )}
       >
