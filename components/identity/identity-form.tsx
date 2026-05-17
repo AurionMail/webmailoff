@@ -36,10 +36,10 @@ function truncateToUtf8Bytes(s: string, maxBytes: number): string {
 interface IdentityFormData {
   name: string;
   email: string;
-  replyTo?: EmailAddress[];
-  bcc?: EmailAddress[];
-  textSignature?: string;
-  htmlSignature?: string;
+  replyTo?: EmailAddress[] | null;
+  bcc?: EmailAddress[] | null;
+  textSignature?: string | null;
+  htmlSignature?: string | null;
 }
 
 interface IdentityFormProps {
@@ -121,14 +121,16 @@ export function IdentityForm({ identity, onSave, onCancel }: IdentityFormProps) 
     setIsSubmitting(true);
 
     try {
-      // Sanitize HTML signature before sending to server
+      // JMAP needs explicit null to clear a field; undefined would be dropped
+      // from the JSON payload and leave the server-side value untouched.
+      const trimmedText = formData.textSignature?.trim() ?? '';
+      const trimmedHtml = formData.htmlSignature?.trim() ?? '';
       const sanitizedData: IdentityFormData = {
         ...formData,
-        replyTo: parseEmailList(replyToInput),
-        bcc: parseEmailList(bccInput),
-        htmlSignature: formData.htmlSignature
-          ? sanitizeSignatureHtml(formData.htmlSignature)
-          : undefined,
+        textSignature: trimmedText ? formData.textSignature : null,
+        htmlSignature: trimmedHtml ? sanitizeSignatureHtml(formData.htmlSignature!) : null,
+        replyTo: parseEmailList(replyToInput) ?? null,
+        bcc: parseEmailList(bccInput) ?? null,
       };
 
       await onSave(sanitizedData);
@@ -271,7 +273,7 @@ export function IdentityForm({ identity, onSave, onCancel }: IdentityFormProps) 
         </label>
         <textarea
           id="identity-text-sig"
-          value={formData.textSignature}
+          value={formData.textSignature ?? ''}
           onChange={(e) => setFormData({ ...formData, textSignature: truncateToUtf8Bytes(e.target.value, SIGNATURE_MAX_BYTES) })}
           rows={3}
           disabled={isSubmitting}
@@ -289,7 +291,7 @@ export function IdentityForm({ identity, onSave, onCancel }: IdentityFormProps) 
         </label>
         <textarea
           id="identity-html-sig"
-          value={formData.htmlSignature}
+          value={formData.htmlSignature ?? ''}
           onChange={(e) => setFormData({ ...formData, htmlSignature: truncateToUtf8Bytes(e.target.value, SIGNATURE_MAX_BYTES) })}
           rows={5}
           disabled={isSubmitting}

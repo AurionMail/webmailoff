@@ -183,17 +183,17 @@ export interface IJMAPClient {
     email: string,
     replyTo?: EmailAddress[] | null,
     bcc?: EmailAddress[] | null,
-    htmlSignature?: string,
-    textSignature?: string,
+    textSignature?: string | null,
+    htmlSignature?: string | null,
   ): Promise<Identity>;
   updateIdentity(
     identityId: string,
     updates: {
-      name?: string;
+      name?: string | null;
       replyTo?: EmailAddress[] | null;
       bcc?: EmailAddress[] | null;
-      htmlSignature?: string;
-      textSignature?: string;
+      textSignature?: string | null;
+      htmlSignature?: string | null;
     },
   ): Promise<void>;
   deleteIdentity(identityId: string): Promise<void>;

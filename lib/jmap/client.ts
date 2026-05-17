@@ -1813,10 +1813,10 @@ export class JMAPClient implements IJMAPClient {
   async createIdentity(
     name: string,
     email: string,
-    replyTo?: EmailAddress[],
-    bcc?: EmailAddress[],
-    textSignature?: string,
-    htmlSignature?: string
+    replyTo?: EmailAddress[] | null,
+    bcc?: EmailAddress[] | null,
+    textSignature?: string | null,
+    htmlSignature?: string | null
   ): Promise<Identity> {
     const response = await this.request([
       ["Identity/set", {
@@ -1859,11 +1859,11 @@ export class JMAPClient implements IJMAPClient {
   async updateIdentity(
     identityId: string,
     updates: {
-      name?: string;
-      replyTo?: EmailAddress[];
-      bcc?: EmailAddress[];
-      textSignature?: string;
-      htmlSignature?: string;
+      name?: string | null;
+      replyTo?: EmailAddress[] | null;
+      bcc?: EmailAddress[] | null;
+      textSignature?: string | null;
+      htmlSignature?: string | null;
     }
   ): Promise<void> {
     const response = await this.request([

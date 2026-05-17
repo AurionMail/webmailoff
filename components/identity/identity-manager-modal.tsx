@@ -32,10 +32,10 @@ function emailMatchesUsername(email: string, username: string): boolean {
 interface IdentityFormData {
   name: string;
   email: string;
-  replyTo?: EmailAddress[];
-  bcc?: EmailAddress[];
-  textSignature?: string;
-  htmlSignature?: string;
+  replyTo?: EmailAddress[] | null;
+  bcc?: EmailAddress[] | null;
+  textSignature?: string | null;
+  htmlSignature?: string | null;
 }
 
 interface IdentityManagerModalProps {
