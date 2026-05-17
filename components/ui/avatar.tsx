@@ -235,11 +235,10 @@ export function Avatar({ name, email, contactPhotoUri, size = "md", className, d
   // Priority: contact photo > plugin avatar (e.g. Gravatar) > custom avatar > profile picture > company favicon > initials
   const customAvatar = devMode && email ? CUSTOM_AVATARS[email.toLowerCase()] : null;
   const pluginAvatar = pluginAvatarFailed ? null : pluginAvatarUrl;
-  const imgSrc = disableImages
-    ? null
-    : !imgError && !domainFailed
-      ? resolvedContactPhoto || pluginAvatar || customAvatar || profilePic || (showFavicon ? `/api/favicon?domain=${encodeURIComponent(faviconDomain!)}` : null)
-      : (resolvedContactPhoto || pluginAvatar || customAvatar || profilePic || null);
+  const photoSrc = resolvedContactPhoto || pluginAvatar || customAvatar || profilePic || null;
+  const faviconSrc = !imgError && !domainFailed && showFavicon ? `/api/favicon?domain=${encodeURIComponent(faviconDomain!)}` : null;
+  const imgSrc = disableImages ? null : (photoSrc || faviconSrc);
+  const isFavicon = imgSrc !== null && imgSrc === faviconSrc;
 
   const handleImgError = useCallback(() => {
     // If the plugin avatar just failed, mark it and fall through to the next source
@@ -261,7 +260,7 @@ export function Avatar({ name, email, contactPhotoUri, size = "md", className, d
         sizeClasses[size],
         className
       )}
-      style={{ backgroundColor: imgSrc ? "#ffffff" : (fallbackColor ?? getBackgroundColor()) }}
+      style={{ backgroundColor: imgSrc ? (isFavicon ? "#ffffff" : "transparent") : (fallbackColor ?? getBackgroundColor()) }}
       title={name || email}
     >
       {imgSrc ? (
