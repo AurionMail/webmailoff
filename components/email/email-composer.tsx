@@ -9,7 +9,7 @@ import { X, Paperclip, Send, Save, Check, Loader2, AlertCircle, FileText, Bookma
 import { cn, formatFileSize, formatDateTime, generateUUID } from "@/lib/utils";
 import { debug } from "@/lib/debug";
 import { toast } from "@/stores/toast-store";
-import { sanitizeEmailHtml } from "@/lib/email-sanitization";
+import { sanitizeSignatureHtml } from "@/lib/email-sanitization";
 import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
 import type { OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
@@ -137,7 +137,7 @@ function buildEmbeddedSignatureHtml(
     : `<p data-signature-block="start"></p>`;
   const endMarker = `<p data-signature-block="end"></p>`;
   if (identity?.htmlSignature) {
-    return `${startMarker}${sanitizeEmailHtml(identity.htmlSignature)}${endMarker}`;
+    return `${startMarker}${sanitizeSignatureHtml(identity.htmlSignature)}${endMarker}`;
   }
   if (identity?.textSignature) {
     const escaped = identity.textSignature
@@ -471,7 +471,7 @@ export function EmailComposer({
   ]);
 
   const composerSignatureHtml = signatureIdentity?.htmlSignature
-    ? `<div>${sanitizeEmailHtml(signatureIdentity.htmlSignature)}</div>`
+    ? `<div>${sanitizeSignatureHtml(signatureIdentity.htmlSignature)}</div>`
     : signatureIdentity?.textSignature
       ? `<div>${getPlainTextSignature(signatureIdentity).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
       : '';
@@ -1128,7 +1128,7 @@ export function EmailComposer({
       if (signatureAlreadyInBody) return '';
       const sep = signatureSeparatorEnabled ? `<br><br>-- <br>` : `<br><br>`;
       if (signatureIdentity?.htmlSignature) {
-        return `${sep}${sanitizeEmailHtml(signatureIdentity.htmlSignature)}`;
+        return `${sep}${sanitizeSignatureHtml(signatureIdentity.htmlSignature)}`;
       }
       if (signatureIdentity?.textSignature) {
         return `${sep}${signatureIdentity.textSignature.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}`;

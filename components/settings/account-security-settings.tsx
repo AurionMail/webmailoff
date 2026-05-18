@@ -12,6 +12,7 @@ import { useAccountSecurityStore, type AppPasswordInfo, type ApiKeyInfo, type Ap
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from '@/stores/toast-store';
 import { cn } from '@/lib/utils';
+import { sanitizeI18nHtml } from '@/lib/email-sanitization';
 
 function PasswordChangeSection() {
   const t = useTranslations('settings.security');
@@ -671,7 +672,7 @@ export function AccountSecuritySettings() {
   if (isStalwart === false) {
     return (
       <SettingsSection title={t('title')} description={t('description')}>
-        <div className="text-sm text-muted-foreground py-4" dangerouslySetInnerHTML={{ __html: t('not_available') }} />
+        <div className="text-sm text-muted-foreground py-4" dangerouslySetInnerHTML={{ __html: sanitizeI18nHtml(t('not_available')) }} />
       </SettingsSection>
     );
   }

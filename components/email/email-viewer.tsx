@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { Email, ContactCard, Mailbox } from "@/lib/jmap/types";
-import { EMAIL_IFRAME_SANITIZE_CONFIG, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, sanitizeEmailHtml } from "@/lib/email-sanitization";
+import { EMAIL_IFRAME_SANITIZE_CONFIG, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, sanitizeEmailHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -5178,7 +5178,7 @@ export function EmailViewer({
             ) : (
               <div
                 className="email-content-text text-foreground"
-                dangerouslySetInnerHTML={{ __html: effectiveEmailContent.html }}
+                dangerouslySetInnerHTML={{ __html: sanitizePlainTextRenderedHtml(effectiveEmailContent.html) }}
                 style={{
                   fontFamily: 'ui-monospace, "SF Mono", Consolas, monospace',
                   fontSize: '14px',

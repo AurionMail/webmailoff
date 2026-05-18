@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { Email, ThreadGroup } from "@/lib/jmap/types";
-import { EMAIL_SANITIZE_CONFIG, collapseBlockedImageContainers, plainTextToSafeHtml } from "@/lib/email-sanitization";
+import { EMAIL_SANITIZE_CONFIG, collapseBlockedImageContainers, plainTextToSafeHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
 import { transformInlineStyles, transformColorForDarkMode, transformBgColorForDarkMode } from "@/lib/color-transform";
 import { useThemeStore } from "@/stores/theme-store";
@@ -598,7 +598,7 @@ function EmailCard({
                   "[&_img]:max-w-full [&_img]:h-auto"
                 )}
                 style={{ whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, "SF Mono", Consolas, monospace', fontSize: '13px' }}
-                dangerouslySetInnerHTML={{ __html: emailContent.html }}
+                dangerouslySetInnerHTML={{ __html: sanitizePlainTextRenderedHtml(emailContent.html) }}
               />
             )}
           </div>
