@@ -9,9 +9,6 @@ import type { SlotName } from '@/lib/plugin-types';
 import { offersForSlot, subscribe } from '@/lib/plugin-sandbox/registry';
 
 export function usePluginSlotOffers(slotName: SlotName) {
-  return useSyncExternalStore(
-    subscribe,
-    () => offersForSlot(slotName),
-    () => [],
-  );
+  const getSnapshot = () => offersForSlot(slotName);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

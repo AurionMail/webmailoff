@@ -1,6 +1,10 @@
 // Process-wide registry of active sandboxed plugins. The loader populates it
 // after a successful boot; PluginIframeSlot reads it to spawn slot iframes
 // and to call evaluateShouldShow on the background instance.
+//
+// `offersForSlot` results are memoised per slot name so that
+// `useSyncExternalStore` sees a stable reference between unrelated renders.
+// The cache is invalidated whenever the set of active plugins changes.
 
 import type { Disposable, InstalledPlugin, SlotName } from '../plugin-types';
 import type { SandboxInstance } from './host-bridge';
@@ -20,21 +24,36 @@ export interface ActivePlugin {
   hookDisposables: Disposable[];
 }
 
+export interface ResolvedSlotOffer {
+  pluginId: string;
+  order: number;
+  hasShouldShow: boolean;
+}
+
 const active = new Map<string, ActivePlugin>();
 const listeners = new Set<() => void>();
 
-function emit(): void { for (const l of listeners) try { l(); } catch { /* ignore */ } }
+// Per-slot snapshot cache. Cleared on any registry mutation.
+const offersCache = new Map<SlotName, readonly ResolvedSlotOffer[]>();
+const EMPTY: readonly ResolvedSlotOffer[] = Object.freeze([]);
+
+function invalidate(): void {
+  offersCache.clear();
+  for (const l of listeners) {
+    try { l(); } catch { /* ignore */ }
+  }
+}
 
 export function register(entry: ActivePlugin): void {
   active.set(entry.plugin.id, entry);
-  emit();
+  invalidate();
 }
 
 export function deregister(pluginId: string): ActivePlugin | undefined {
   const e = active.get(pluginId);
   if (!e) return undefined;
   active.delete(pluginId);
-  emit();
+  invalidate();
   return e;
 }
 
@@ -46,9 +65,15 @@ export function all(): ActivePlugin[] {
   return [...active.values()];
 }
 
-/** Returns active plugins ordered by `order`, that offer the requested slot. */
-export function offersForSlot(slot: SlotName): Array<{ pluginId: string; order: number; hasShouldShow: boolean }> {
-  const out: Array<{ pluginId: string; order: number; hasShouldShow: boolean }> = [];
+/**
+ * Returns the cached, frozen list of plugins offering this slot, sorted by
+ * `order`. The returned array is referentially stable until the active-plugin
+ * set changes, so it is safe to pass to `useSyncExternalStore`.
+ */
+export function offersForSlot(slot: SlotName): readonly ResolvedSlotOffer[] {
+  const cached = offersCache.get(slot);
+  if (cached) return cached;
+  const out: ResolvedSlotOffer[] = [];
   for (const entry of active.values()) {
     for (const offer of entry.slotOffers) {
       if (offer.name === slot) {
@@ -57,7 +82,9 @@ export function offersForSlot(slot: SlotName): Array<{ pluginId: string; order: 
     }
   }
   out.sort((a, b) => a.order - b.order);
-  return out;
+  const snapshot = out.length === 0 ? EMPTY : Object.freeze(out);
+  offersCache.set(slot, snapshot);
+  return snapshot;
 }
 
 export function subscribe(listener: () => void): () => void {

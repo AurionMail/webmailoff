@@ -12,11 +12,8 @@ interface PluginSlotProps {
 }
 
 export function PluginSlot({ name, className, extraProps }: PluginSlotProps) {
-  const offers = useSyncExternalStore(
-    subscribe,
-    () => offersForSlot(name),
-    () => [],
-  );
+  const getSnapshot = () => offersForSlot(name);
+  const offers = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   if (offers.length === 0) return null;
 
