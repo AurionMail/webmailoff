@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "彩色侧边栏图标",
         "description": "按类型为文件夹和标签图标着色（蓝色收件箱、红色垃圾邮件、绿色已发送等）。禁用以获得单色侧边栏。"
+      },
+      "pro_interface": {
+        "label": "Pro 界面（实验性）",
+        "description": "仅限桌面的高级用户布局，支持多标签消息浏览和跨账户工作流。标准界面不受影响，您可以随时切换回来。",
+        "open_label": "打开 Pro 界面",
+        "back_to_standard": "返回标准"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "活动举行时",
       "minutes_before": "{count, plural, one {提前 # 分钟} other {提前 # 分钟}}",
       "hours_before": "{count, plural, one {提前 # 小时} other {提前 # 小时}}",
-      "days_before": "{count, plural, one {提前 # 天} other {提前 # 天}}"
+      "days_before": "{count, plural, one {提前 # 天} other {提前 # 天}}",
+      "weeks_before": "{count, plural, one {提前 # 周} other {提前 # 周}}",
+      "unit_minutes_before": "分钟前",
+      "unit_hours_before": "小时前",
+      "unit_days_before": "天前",
+      "unit_weeks_before": "周前",
+      "add": "添加提醒",
+      "remove": "移除提醒",
+      "amount": "提醒数量",
+      "unit": "提醒单位"
     },
     "settings": {
       "title": "日历设置",

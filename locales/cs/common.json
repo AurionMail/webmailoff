@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Barevné ikony postranního panelu",
         "description": "Obarví ikony složek a štítků podle typu (modré Doručené, červený Spam, zelené Odeslané atd.). Vypněte pro jednobarevný postranní panel."
+      },
+      "pro_interface": {
+        "label": "Pro rozhraní (experimentální)",
+        "description": "Rozložení pro pokročilé uživatele pouze pro stolní počítače s prohlížením zpráv na více kartách a pracovními postupy napříč účty. Standardní rozhraní zůstává nedotčeno; kdykoli se můžete vrátit.",
+        "open_label": "Otevřít Pro rozhraní",
+        "back_to_standard": "Zpět na standard"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "V čase události",
       "minutes_before": "{count, plural, one {1 minutu před} few {# minuty před} other {# minut před}}",
       "hours_before": "{count, plural, one {1 hodinu před} few {# hodiny před} other {# hodin před}}",
-      "days_before": "{count, plural, one {1 den před} few {# dny před} other {# dnů před}}"
+      "days_before": "{count, plural, one {1 den před} few {# dny před} other {# dnů před}}",
+      "weeks_before": "{count, plural, one {1 týden před} few {# týdny před} other {# týdnů před}}",
+      "unit_minutes_before": "minut před",
+      "unit_hours_before": "hodin před",
+      "unit_days_before": "dní před",
+      "unit_weeks_before": "týdnů před",
+      "add": "Přidat připomenutí",
+      "remove": "Odebrat připomenutí",
+      "amount": "Množství připomenutí",
+      "unit": "Jednotka připomenutí"
     },
     "settings": {
       "title": "Nastavení kalendáře",

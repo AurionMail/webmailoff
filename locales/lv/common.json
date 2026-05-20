@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Krāsainas sānjoslas ikonas",
         "description": "Iekrāsojiet mapju un birku ikonas pēc to veida (zila Iesūtne, sarkana Mēstules, zaļa Nosūtītie utt.). Atspējojiet, lai iegūtu vienkrāsainu sānjoslu."
+      },
+      "pro_interface": {
+        "label": "Pro saskarne (eksperimentāla)",
+        "description": "Tikai darbvirsmas pieredzējušu lietotāju izkārtojums ar ziņojumu pārlūkošanu vairākās cilnēs un kontu pārvaldību. Standarta saskarne netiek ietekmēta; varat jebkurā brīdī pārslēgties atpakaļ.",
+        "open_label": "Atvērt Pro saskarni",
+        "back_to_standard": "Atpakaļ uz standartu"
       }
     },
     "keywords": {
@@ -2361,7 +2367,16 @@
       "at_time": "Pasākuma laikā",
       "minutes_before": "Pirms {count} minūtes",
       "hours_before": "Pirms {count} stundas",
-      "days_before": "Pirms {count} dienas"
+      "days_before": "Pirms {count} dienas",
+      "weeks_before": "Pirms {count} nedēļām",
+      "unit_minutes_before": "minūtes pirms",
+      "unit_hours_before": "stundas pirms",
+      "unit_days_before": "dienas pirms",
+      "unit_weeks_before": "nedēļas pirms",
+      "add": "Pievienot atgādinājumu",
+      "remove": "Noņemt atgādinājumu",
+      "amount": "Atgādinājuma daudzums",
+      "unit": "Atgādinājuma vienība"
     },
     "settings": {
       "title": "Kalendāra iestatījumi",

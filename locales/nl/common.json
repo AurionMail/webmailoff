@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Gekleurde zijbalkpictogrammen",
         "description": "Kleur map- en tagpictogrammen op type (blauw Postvak IN, rood Spam, groen Verzonden, enz.). Schakel uit voor een monochrome zijbalk."
+      },
+      "pro_interface": {
+        "label": "Pro-interface (experimenteel)",
+        "description": "Power user-indeling alleen voor desktop met meertabs berichtweergave en accountoverschrijdende workflows. De standaardinterface blijft onveranderd; u kunt op elk moment terugkeren.",
+        "open_label": "Pro-interface openen",
+        "back_to_standard": "Terug naar standaard"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "Op het tijdstip van het evenement",
       "minutes_before": "{count, plural, one {# minuut van tevoren} other {# minuten van tevoren}}",
       "hours_before": "{count, plural, one {# uur van tevoren} other {# uur van tevoren}}",
-      "days_before": "{count, plural, one {# dag van tevoren} other {# dagen van tevoren}}"
+      "days_before": "{count, plural, one {# dag van tevoren} other {# dagen van tevoren}}",
+      "weeks_before": "{count, plural, one {# week van tevoren} other {# weken van tevoren}}",
+      "unit_minutes_before": "minuten van tevoren",
+      "unit_hours_before": "uur van tevoren",
+      "unit_days_before": "dagen van tevoren",
+      "unit_weeks_before": "weken van tevoren",
+      "add": "Herinnering toevoegen",
+      "remove": "Herinnering verwijderen",
+      "amount": "Herinneringshoeveelheid",
+      "unit": "Herinneringseenheid"
     },
     "settings": {
       "title": "Agenda-instellingen",

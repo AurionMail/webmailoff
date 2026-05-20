@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Renkli Kenar Çubuğu Simgeleri",
         "description": "Klasör ve etiket simgelerini türe göre renklendir (mavi Gelen Kutusu, kırmızı İstem Dışı vb.). Tek renkli kenar çubuğu için kapatın."
+      },
+      "pro_interface": {
+        "label": "Pro Arayüz (Deneysel)",
+        "description": "Yalnızca masaüstü için güçlü kullanıcı düzeni: çoklu sekmede ileti gezme ve hesaplar arası iş akışları. Standart arayüz etkilenmez; istediğiniz zaman geri dönebilirsiniz.",
+        "open_label": "Pro Arayüzü Aç",
+        "back_to_standard": "Standarda dön"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "Etkinlik saatinde",
       "minutes_before": "{count, plural, one {# dakika önce} other {# dakika önce}}",
       "hours_before": "{count, plural, one {# saat önce} other {# saat önce}}",
-      "days_before": "{count, plural, one {# gün önce} other {# gün önce}}"
+      "days_before": "{count, plural, one {# gün önce} other {# gün önce}}",
+      "weeks_before": "{count, plural, one {# hafta önce} other {# hafta önce}}",
+      "unit_minutes_before": "dakika önce",
+      "unit_hours_before": "saat önce",
+      "unit_days_before": "gün önce",
+      "unit_weeks_before": "hafta önce",
+      "add": "Hatırlatıcı ekle",
+      "remove": "Hatırlatıcıyı kaldır",
+      "amount": "Hatırlatıcı miktarı",
+      "unit": "Hatırlatıcı birimi"
     },
     "settings": {
       "title": "Takvim ayarları",

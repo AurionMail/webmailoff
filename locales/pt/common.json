@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Ícones coloridos na barra lateral",
         "description": "Colorir ícones de pastas e etiquetas por tipo (Caixa de entrada azul, Spam vermelho, Enviados verde, etc.). Desative para uma barra lateral monocromática."
+      },
+      "pro_interface": {
+        "label": "Interface Pro (experimental)",
+        "description": "Layout para utilizadores avançados apenas em desktop com navegação de mensagens em múltiplos separadores e fluxos entre contas. A interface padrão não é afetada; pode voltar a qualquer momento.",
+        "open_label": "Abrir interface Pro",
+        "back_to_standard": "Voltar ao padrão"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "No momento do evento",
       "minutes_before": "{count, plural, one {# minuto antes} other {# minutos antes}}",
       "hours_before": "{count, plural, one {# hora antes} other {# horas antes}}",
-      "days_before": "{count, plural, one {# dia antes} other {# dias antes}}"
+      "days_before": "{count, plural, one {# dia antes} other {# dias antes}}",
+      "weeks_before": "{count, plural, one {# semana antes} other {# semanas antes}}",
+      "unit_minutes_before": "minutos antes",
+      "unit_hours_before": "horas antes",
+      "unit_days_before": "dias antes",
+      "unit_weeks_before": "semanas antes",
+      "add": "Adicionar lembrete",
+      "remove": "Remover lembrete",
+      "amount": "Quantidade do lembrete",
+      "unit": "Unidade do lembrete"
     },
     "settings": {
       "title": "Configurações do calendário",

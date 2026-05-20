@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "カラフルなサイドバーアイコン",
         "description": "フォルダーとタグのアイコンを種類別に色分けします（受信トレイは青、迷惑メールは赤、送信済みは緑など）。モノクロのサイドバーにするには無効にしてください。"
+      },
+      "pro_interface": {
+        "label": "Pro インターフェイス（実験的）",
+        "description": "デスクトップ専用のパワーユーザー向けレイアウトで、マルチタブのメッセージ閲覧やアカウント横断のワークフローに対応します。標準インターフェイスには影響せず、いつでも元に戻せます。",
+        "open_label": "Pro インターフェイスを開く",
+        "back_to_standard": "標準に戻る"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "予定の時刻",
       "minutes_before": "{count}分前",
       "hours_before": "{count}時間前",
-      "days_before": "{count}日前"
+      "days_before": "{count}日前",
+      "weeks_before": "{count}週間前",
+      "unit_minutes_before": "分前",
+      "unit_hours_before": "時間前",
+      "unit_days_before": "日前",
+      "unit_weeks_before": "週間前",
+      "add": "リマインダーを追加",
+      "remove": "リマインダーを削除",
+      "amount": "リマインダー値",
+      "unit": "リマインダー単位"
     },
     "settings": {
       "title": "カレンダー設定",

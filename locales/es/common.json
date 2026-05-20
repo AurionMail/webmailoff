@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Iconos de barra lateral a color",
         "description": "Colorea los iconos de carpetas y etiquetas según su tipo (azul para Bandeja de entrada, rojo para Spam, verde para Enviados, etc.). Desactívalo para una barra lateral monocroma."
+      },
+      "pro_interface": {
+        "label": "Interfaz Pro (experimental)",
+        "description": "Diseño de escritorio para usuarios avanzados con exploración de mensajes en varias pestañas y flujos de trabajo entre cuentas. La interfaz estándar no se ve afectada; puedes volver en cualquier momento.",
+        "open_label": "Abrir interfaz Pro",
+        "back_to_standard": "Volver al estándar"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "En el momento del evento",
       "minutes_before": "{count, plural, one {# minuto antes} other {# minutos antes}}",
       "hours_before": "{count, plural, one {# hora antes} other {# horas antes}}",
-      "days_before": "{count, plural, one {# día antes} other {# días antes}}"
+      "days_before": "{count, plural, one {# día antes} other {# días antes}}",
+      "weeks_before": "{count, plural, one {# semana antes} other {# semanas antes}}",
+      "unit_minutes_before": "minutos antes",
+      "unit_hours_before": "horas antes",
+      "unit_days_before": "días antes",
+      "unit_weeks_before": "semanas antes",
+      "add": "Añadir recordatorio",
+      "remove": "Eliminar recordatorio",
+      "amount": "Cantidad del recordatorio",
+      "unit": "Unidad del recordatorio"
     },
     "settings": {
       "title": "Configuración del calendario",

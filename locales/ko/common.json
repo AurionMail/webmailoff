@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "컬러풀한 사이드바 아이콘",
         "description": "폴더와 태그 아이콘을 유형별로 색상 표시합니다(받은편지함 파란색, 스팸 빨간색, 보낸편지함 녹색 등). 모노크롬 사이드바를 원하면 비활성화하세요."
+      },
+      "pro_interface": {
+        "label": "Pro 인터페이스 (실험적)",
+        "description": "데스크톱 전용 파워 유저 레이아웃으로, 다중 탭 메시지 탐색과 계정 간 워크플로우를 지원합니다. 표준 인터페이스에는 영향이 없으며 언제든지 되돌릴 수 있습니다.",
+        "open_label": "Pro 인터페이스 열기",
+        "back_to_standard": "표준으로 돌아가기"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "일정 시작 시",
       "minutes_before": "{count}분 전",
       "hours_before": "{count}시간 전",
-      "days_before": "{count}일 전"
+      "days_before": "{count}일 전",
+      "weeks_before": "{count}주 전",
+      "unit_minutes_before": "분 전",
+      "unit_hours_before": "시간 전",
+      "unit_days_before": "일 전",
+      "unit_weeks_before": "주 전",
+      "add": "알림 추가",
+      "remove": "알림 제거",
+      "amount": "알림 값",
+      "unit": "알림 단위"
     },
     "settings": {
       "title": "캘린더 설정",

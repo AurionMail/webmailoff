@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Icone colorate nella barra laterale",
         "description": "Colora le icone di cartelle ed etichette per tipo (Posta in arrivo blu, Spam rosso, Inviati verde, ecc.). Disattiva per una barra laterale monocromatica."
+      },
+      "pro_interface": {
+        "label": "Interfaccia Pro (sperimentale)",
+        "description": "Layout per utenti esperti solo desktop con esplorazione messaggi a più schede e flussi tra account. L'interfaccia standard non è influenzata; puoi tornare indietro in qualsiasi momento.",
+        "open_label": "Apri interfaccia Pro",
+        "back_to_standard": "Torna allo standard"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "All'ora dell'evento",
       "minutes_before": "{count, plural, one {# minuto prima} other {# minuti prima}}",
       "hours_before": "{count, plural, one {# ora prima} other {# ore prima}}",
-      "days_before": "{count, plural, one {# giorno prima} other {# giorni prima}}"
+      "days_before": "{count, plural, one {# giorno prima} other {# giorni prima}}",
+      "weeks_before": "{count, plural, one {# settimana prima} other {# settimane prima}}",
+      "unit_minutes_before": "minuti prima",
+      "unit_hours_before": "ore prima",
+      "unit_days_before": "giorni prima",
+      "unit_weeks_before": "settimane prima",
+      "add": "Aggiungi promemoria",
+      "remove": "Rimuovi promemoria",
+      "amount": "Quantità promemoria",
+      "unit": "Unità promemoria"
     },
     "settings": {
       "title": "Impostazioni calendario",

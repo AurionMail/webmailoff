@@ -851,6 +851,12 @@
       "colorful_sidebar_icons": {
         "label": "Farverige sidepane-ikoner",
         "description": "Farvelæg mappe- og tag-ikoner efter type (blå indbakke, rød spam, grøn sendt osv.). Deaktivér for et monokromt sidepanel."
+      },
+      "pro_interface": {
+        "label": "Pro-grænseflade (eksperimentel)",
+        "description": "Power user-layout kun til skrivebordet med beskedvisning på flere faner og arbejdsforløb på tværs af konti. Standardgrænsefladen påvirkes ikke; du kan skifte tilbage når som helst.",
+        "open_label": "Åbn Pro-grænsefladen",
+        "back_to_standard": "Tilbage til standard"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "På begivenhedstidspunktet",
       "minutes_before": "{count, plural, one {# minut før} other {# minutter før}}",
       "hours_before": "{count, plural, one {# time før} other {# timer før}}",
-      "days_before": "{count, plural, one {# dag før} other {# dage før}}"
+      "days_before": "{count, plural, one {# dag før} other {# dage før}}",
+      "weeks_before": "{count, plural, one {# uge før} other {# uger før}}",
+      "unit_minutes_before": "minutter før",
+      "unit_hours_before": "timer før",
+      "unit_days_before": "dage før",
+      "unit_weeks_before": "uger før",
+      "add": "Tilføj påmindelse",
+      "remove": "Fjern påmindelse",
+      "amount": "Påmindelsesmængde",
+      "unit": "Påmindelsesenhed"
     },
     "settings": {
       "title": "Kalenderindstillinger",

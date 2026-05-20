@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Farbige Seitenleistensymbole",
         "description": "Ordner- und Tag-Symbole nach Typ einfärben (blauer Posteingang, roter Spam, grüner Gesendet usw.). Für eine monochrome Seitenleiste deaktivieren."
+      },
+      "pro_interface": {
+        "label": "Pro-Oberfläche (experimentell)",
+        "description": "Desktop-Power-User-Layout mit Multi-Tab-Nachrichtenansicht und kontoübergreifenden Workflows. Die Standardoberfläche bleibt unverändert; Sie können jederzeit zurückwechseln.",
+        "open_label": "Pro-Oberfläche öffnen",
+        "back_to_standard": "Zurück zum Standard"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "Zum Zeitpunkt des Termins",
       "minutes_before": "{count, plural, one {# Minute vorher} other {# Minuten vorher}}",
       "hours_before": "{count, plural, one {# Stunde vorher} other {# Stunden vorher}}",
-      "days_before": "{count, plural, one {# Tag vorher} other {# Tage vorher}}"
+      "days_before": "{count, plural, one {# Tag vorher} other {# Tage vorher}}",
+      "weeks_before": "{count, plural, one {# Woche vorher} other {# Wochen vorher}}",
+      "unit_minutes_before": "Minuten vorher",
+      "unit_hours_before": "Stunden vorher",
+      "unit_days_before": "Tage vorher",
+      "unit_weeks_before": "Wochen vorher",
+      "add": "Erinnerung hinzufügen",
+      "remove": "Erinnerung entfernen",
+      "amount": "Erinnerungsmenge",
+      "unit": "Erinnerungseinheit"
     },
     "settings": {
       "title": "Kalendereinstellungen",

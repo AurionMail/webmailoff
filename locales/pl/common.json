@@ -848,6 +848,12 @@
       "colorful_sidebar_icons": {
         "label": "Kolorowe ikony paska bocznego",
         "description": "Koloruj ikony folderów i tagów według typu (niebieska Skrzynka odbiorcza, czerwona Spam, zielona Wysłane itp.). Wyłącz, aby uzyskać monochromatyczny pasek boczny."
+      },
+      "pro_interface": {
+        "label": "Interfejs Pro (eksperymentalny)",
+        "description": "Układ dla zaawansowanych użytkowników (tylko na komputerze) z przeglądaniem wiadomości w wielu kartach i obiegami pracy między kontami. Standardowy interfejs pozostaje nietknięty; możesz wrócić w dowolnej chwili.",
+        "open_label": "Otwórz interfejs Pro",
+        "back_to_standard": "Powrót do standardu"
       }
     },
     "keywords": {
@@ -2362,7 +2368,16 @@
       "at_time": "W czasie wydarzenia",
       "minutes_before": "{count, plural, one {# minutę przed} other {# minut przed}}",
       "hours_before": "{count, plural, one {# godzinę przed} other {# godzin przed}}",
-      "days_before": "{count, plural, one {# dzień przed} other {# dni przed}}"
+      "days_before": "{count, plural, one {# dzień przed} other {# dni przed}}",
+      "weeks_before": "{count, plural, one {# tydzień przed} few {# tygodnie przed} many {# tygodni przed} other {# tygodnia przed}}",
+      "unit_minutes_before": "minut przed",
+      "unit_hours_before": "godzin przed",
+      "unit_days_before": "dni przed",
+      "unit_weeks_before": "tygodni przed",
+      "add": "Dodaj przypomnienie",
+      "remove": "Usuń przypomnienie",
+      "amount": "Wartość przypomnienia",
+      "unit": "Jednostka przypomnienia"
     },
     "settings": {
       "title": "Ustawienia kalendarza",
