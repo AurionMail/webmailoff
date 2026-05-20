@@ -101,10 +101,14 @@ export default function SetupWizardPage() {
   const [config, setConfig] = useState<WizardConfig>(EMPTY_CONFIG);
   const [stepIndex, setStepIndex] = useState(0);
   const [completed, setCompleted] = useState(false);
-  // Detect synchronously on first client render so the cleartext-credentials
-  // warning is in the first paint instead of popping in after hydration.
-  const [insecureContext] = useState<boolean>(detectInsecureContext);
+  // Resolved in a post-mount effect, not at render, so the server-rendered
+  // HTML (where window is absent) matches the client's first paint and
+  // doesn't trip a hydration mismatch.
+  const [insecureContext, setInsecureContext] = useState(false);
   const [insecureAcknowledged, setInsecureAcknowledged] = useState(false);
+  useEffect(() => {
+    setInsecureContext(detectInsecureContext());
+  }, []);
 
   // ─── Initial status load ────────────────────────────────────────────────
   useEffect(() => {
