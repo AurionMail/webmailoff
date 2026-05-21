@@ -52,6 +52,7 @@ import { useEmailStore } from "@/stores/email-store";
 import { toast } from "@/stores/toast-store";
 import { debug } from "@/lib/debug";
 import { AccountSwitcher } from "./account-switcher";
+import { useIsEmbedded } from "@/hooks/use-is-embedded";
 import { useTour } from "@/components/tour/tour-provider";
 
 interface SidebarProps {
@@ -696,7 +697,11 @@ export function Sidebar({
     } catch { return new Set(); }
   });
   const emailKeywords = useSettingsStore(s => s.emailKeywords);
-  const hideAccountSwitcher = useSettingsStore(s => s.hideAccountSwitcher);
+  const isEmbedded = useIsEmbedded();
+  // The Pro shell owns the global chrome (rail + tab bar), so the sidebar's
+  // own AccountSwitcher would be a redundant second account UI in the same
+  // pane.
+  const hideAccountSwitcher = useSettingsStore(s => s.hideAccountSwitcher) || isEmbedded;
   const enableUnifiedMailbox = useSettingsStore(s => s.enableUnifiedMailbox);
   const colorfulSidebarIcons = useSettingsStore(s => s.colorfulSidebarIcons);
   const tagCounts = useEmailStore(s => s.tagCounts);
