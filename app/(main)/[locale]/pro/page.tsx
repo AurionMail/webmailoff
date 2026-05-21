@@ -9,6 +9,7 @@ import { InlineAppView } from "@/components/layout/inline-app-view";
 import { useSidebarApps } from "@/hooks/use-sidebar-apps";
 import { useAuthStore, redirectToLogin } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { useDeviceDetection } from "@/hooks/use-media-query";
 import { EmbeddedContext } from "@/hooks/use-is-embedded";
 import { PaneSizeContext } from "@/hooks/use-pane-size";
@@ -128,6 +129,7 @@ export default function ProHome() {
   const authLoading = useAuthStore((s) => s.isLoading);
   const quota = useEmailStore((s) => s.quota);
   const isPushConnected = useEmailStore((s) => s.isPushConnected);
+  const proInterface = useSettingsStore((s) => s.proInterface);
 
   const tabs = useProTabStore((s) => s.tabs);
   const activeMainTabId = useProTabStore((s) => s.activeTabId);
@@ -165,10 +167,14 @@ export default function ProHome() {
   }, [initialCheckDone, isAuthenticated, authLoading]);
 
   useEffect(() => {
-    if (initialCheckDone && (isMobile || isTablet) && typeof window !== "undefined") {
+    if (!initialCheckDone || typeof window === "undefined") return;
+    // Pro is desktop-only, and only used when the user has explicitly
+    // enabled it. If either precondition stops holding, hand the user back
+    // to the standard shell.
+    if (isMobile || isTablet || !proInterface) {
       window.location.replace("/");
     }
-  }, [initialCheckDone, isMobile, isTablet]);
+  }, [initialCheckDone, isMobile, isTablet, proInterface]);
 
   const mainTabs = useMemo(() => tabs.filter((t) => t.paneId === 'main'), [tabs]);
   const splitTabs = useMemo(() => tabs.filter((t) => t.paneId === 'split'), [tabs]);

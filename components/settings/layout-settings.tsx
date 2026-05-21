@@ -1,13 +1,11 @@
 "use client";
 
 import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/navigation';
 import { useSettingsStore, type ToolbarPosition, type MailLayout } from '@/stores/settings-store';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import { cn } from '@/lib/utils';
 import { usePolicyStore } from '@/stores/policy-store';
 import { useAccountStore } from '@/stores/account-store';
-import { useMediaQuery } from '@/hooks/use-media-query';
 
 const MAIL_LAYOUT_PREVIEW_ROWS = [
   { sender: 'Alice', subject: 'Quarterly roadmap', preview: 'The draft is ready for review.', selected: false },
@@ -120,7 +118,6 @@ export function LayoutSettings() {
   const { toolbarPosition, showToolbarLabels, hideAccountSwitcher, showRailAccountList, enableUnifiedMailbox, colorfulSidebarIcons, mailLayout, proInterface, updateSetting } = useSettingsStore();
   const { isSettingLocked, isSettingHidden } = usePolicyStore();
   const accounts = useAccountStore(s => s.accounts);
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   return (
     <SettingsSection title={t('title')} description={t('description')}>
@@ -193,20 +190,10 @@ export function LayoutSettings() {
       )}
 
       <SettingItem label={t('pro_interface.label')} description={t('pro_interface.description')}>
-        <div className="flex items-center gap-3">
-          {proInterface && isDesktop && (
-            <Link
-              href="/pro"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              {t('pro_interface.open_label')}
-            </Link>
-          )}
-          <ToggleSwitch
-            checked={proInterface}
-            onChange={(v) => updateSetting('proInterface', v)}
-          />
-        </div>
+        <ToggleSwitch
+          checked={proInterface}
+          onChange={(v) => updateSetting('proInterface', v)}
+        />
       </SettingItem>
     </SettingsSection>
   );
