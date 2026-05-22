@@ -120,9 +120,10 @@ export function ReadingSettings() {
         <div className="flex flex-col gap-2">
           <Select
             value={deleteAction}
-            onChange={(value) => updateSetting('deleteAction', value as 'trash' | 'permanent')}
+            onChange={(value) => updateSetting('deleteAction', value as 'trash' | 'trash-and-read' | 'permanent')}
             options={[
               { value: 'trash', label: t('delete_action.trash') },
+              { value: 'trash-and-read', label: t('delete_action.trash_and_read') },
               { value: 'permanent', label: t('delete_action.permanent') },
             ]}
           />

@@ -96,9 +96,9 @@ export interface IJMAPClient {
   setKeyword(emailId: string, keyword: string): Promise<void>;
   migrateKeyword(oldKeyword: string, newKeyword: string): Promise<number>;
   deleteEmail(emailId: string): Promise<void>;
-  moveToTrash(emailId: string, trashMailboxId: string, accountId?: string): Promise<void>;
+  moveToTrash(emailId: string, trashMailboxId: string, accountId?: string, markAsRead?: boolean): Promise<void>;
   batchDeleteEmails(emailIds: string[]): Promise<void>;
-  batchMoveEmails(emailIds: string[], toMailboxId: string, accountId?: string): Promise<void>;
+  batchMoveEmails(emailIds: string[], toMailboxId: string, accountId?: string, markAsRead?: boolean): Promise<void>;
   batchArchiveEmails(
     emails: Array<{ id: string; receivedAt: string }>,
     archiveMailboxId: string,
@@ -110,7 +110,7 @@ export interface IJMAPClient {
   emptyMailbox(mailboxId: string): Promise<number>;
   markMailboxAsRead(mailboxId: string, accountId?: string): Promise<number>;
   markAllAsRead(excludeMailboxIds?: string[], accountId?: string): Promise<number>;
-  markAsSpam(emailId: string, accountId?: string): Promise<void>;
+  markAsSpam(emailId: string, accountId?: string, markAsRead?: boolean): Promise<void>;
   undoSpam(emailId: string, originalMailboxId: string, accountId?: string): Promise<void>;
 
   // ── Threads ───────────────────────────────────────────────────

@@ -773,14 +773,18 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         forceDelete = true;
       }
 
-      // If deleteAction is 'trash' and not forced permanent delete, try to move to trash mailbox
-      if (deleteAction === 'trash' && !forceDelete) {
+      // If deleteAction is 'trash' or 'trash-and-read' and not forced permanent delete, try to move to trash mailbox
+      if ((deleteAction === 'trash' || deleteAction === 'trash-and-read') && !forceDelete) {
         const trashMailbox = findTrashMailbox(mailboxes, { accountId });
+        const alsoMarkRead = deleteAction === 'trash-and-read' && isUnread;
 
         if (trashMailbox) {
           // Use originalId for shared mailboxes if available
           const trashId = trashMailbox.originalId || trashMailbox.id;
-          await effectiveClient.moveToTrash(emailId, trashId, accountId);
+          await effectiveClient.moveToTrash(emailId, trashId, accountId, alsoMarkRead);
+
+          // After marking read in the same request, the email arrives in trash as read.
+          const arrivesUnread = isUnread && !alsoMarkRead;
 
           // Remove from local state (email moved to trash, not in current view)
           set((state) => {
@@ -803,9 +807,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
                   return {
                     ...mailbox,
                     totalEmails: mailbox.totalEmails + 1,
-                    unreadEmails: isUnread ? mailbox.unreadEmails + 1 : mailbox.unreadEmails,
+                    unreadEmails: arrivesUnread ? mailbox.unreadEmails + 1 : mailbox.unreadEmails,
                     totalThreads: mailbox.totalThreads + 1,
-                    unreadThreads: isUnread ? mailbox.unreadThreads + 1 : mailbox.unreadThreads
+                    unreadThreads: arrivesUnread ? mailbox.unreadThreads + 1 : mailbox.unreadThreads
                   };
                 }
                 return mailbox;
@@ -1514,6 +1518,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       const permanentlyDeleteJunk = useSettingsStore.getState().permanentlyDeleteJunk;
       const isInJunk = currentMailbox?.role === 'junk';
       const forceDestroy = permanent || isInTrash || (isInJunk && permanentlyDeleteJunk);
+      const alsoMarkRead = useSettingsStore.getState().deleteAction === 'trash-and-read';
 
       // Group emails by accountId (handles unified view and search results spanning accounts).
       const emailsByAccount = new Map<string, string[]>();
@@ -1554,7 +1559,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
             return;
           }
           const trashId = trashMailbox.originalId || trashMailbox.id;
-          await acctClient.batchMoveEmails(ids, trashId, trashMailbox.accountId);
+          await acctClient.batchMoveEmails(ids, trashId, trashMailbox.accountId, alsoMarkRead);
           ids.forEach(id => movedEmailIds.add(id));
         });
         await Promise.allSettled(promises);
@@ -1745,7 +1750,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     });
 
     try {
-      await resolveActionClient(client).markAsSpam(emailId, currentMailbox.accountId);
+      const isUnread = !email.keywords?.$seen;
+      const alsoMarkRead = useSettingsStore.getState().deleteAction === 'trash-and-read' && isUnread;
+      await resolveActionClient(client).markAsSpam(emailId, currentMailbox.accountId, alsoMarkRead);
 
       set(state => ({
         emails: state.emails.filter(e => e.id !== emailId),
@@ -1800,16 +1807,20 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   },
 
   batchMarkAsSpam: async (client, emailIds) => {
-    const { selectedMailbox } = get();
+    const { selectedMailbox, emails } = get();
     const mailboxes = resolveActionMailboxes();
     const effectiveClient = resolveActionClient(client);
 
     const currentMailbox = mailboxes.find(m => m.id === selectedMailbox);
     if (!currentMailbox) return;
 
+    const alsoMarkRead = useSettingsStore.getState().deleteAction === 'trash-and-read';
+
     try {
       for (const emailId of emailIds) {
-        await effectiveClient.markAsSpam(emailId, currentMailbox.accountId);
+        const email = emails.find(e => e.id === emailId);
+        const markRead = alsoMarkRead && !!email && !email.keywords?.$seen;
+        await effectiveClient.markAsSpam(emailId, currentMailbox.accountId, markRead);
       }
 
       set(state => ({

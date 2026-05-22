@@ -28,7 +28,7 @@ export type FontSize = 'small' | 'medium' | 'large';
 export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
 /** @deprecated Use Density instead */
 export type ListDensity = Density;
-export type DeleteAction = 'trash' | 'permanent';
+export type DeleteAction = 'trash' | 'trash-and-read' | 'permanent';
 export type ReplyMode = 'reply' | 'replyAll';
 export type SignaturePosition = 'above_quote' | 'below_quote';
 export type DateFormat = 'regional' | 'iso' | 'custom';

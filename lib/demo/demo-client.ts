@@ -264,10 +264,11 @@ export class DemoJMAPClient implements IJMAPClient {
     this.recalcMailboxCounts();
   }
 
-  async moveToTrash(emailId: string, trashMailboxId: string): Promise<void> {
+  async moveToTrash(emailId: string, trashMailboxId: string, _accountId?: string, markAsRead?: boolean): Promise<void> {
     const email = this.data.emails.find(e => e.id === emailId);
     if (!email) return;
     email.mailboxIds = { [trashMailboxId]: true };
+    if (markAsRead) email.keywords.$seen = true;
     this.recalcMailboxCounts();
   }
 
@@ -277,10 +278,13 @@ export class DemoJMAPClient implements IJMAPClient {
     this.recalcMailboxCounts();
   }
 
-  async batchMoveEmails(emailIds: string[], toMailboxId: string): Promise<void> {
+  async batchMoveEmails(emailIds: string[], toMailboxId: string, _accountId?: string, markAsRead?: boolean): Promise<void> {
     for (const id of emailIds) {
       const email = this.data.emails.find(e => e.id === id);
-      if (email) email.mailboxIds = { [toMailboxId]: true };
+      if (email) {
+        email.mailboxIds = { [toMailboxId]: true };
+        if (markAsRead) email.keywords.$seen = true;
+      }
     }
     this.recalcMailboxCounts();
   }
@@ -355,10 +359,13 @@ export class DemoJMAPClient implements IJMAPClient {
     return count;
   }
 
-  async markAsSpam(emailId: string): Promise<void> {
+  async markAsSpam(emailId: string, _accountId?: string, markAsRead?: boolean): Promise<void> {
     const email = this.data.emails.find(e => e.id === emailId);
     const junkMb = this.data.mailboxes.find(m => m.role === 'junk');
-    if (email && junkMb) email.mailboxIds = { [junkMb.id]: true };
+    if (email && junkMb) {
+      email.mailboxIds = { [junkMb.id]: true };
+      if (markAsRead) email.keywords.$seen = true;
+    }
     this.recalcMailboxCounts();
   }
 

@@ -974,6 +974,7 @@
         "label": "Delete Action",
         "description": "What happens when you delete an email",
         "trash": "Move to Trash",
+        "trash_and_read": "Move to Trash and mark as read",
         "permanent": "Delete Permanently",
         "warning": "Emails will be permanently deleted and cannot be recovered. This action is irreversible."
       },

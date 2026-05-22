@@ -28,7 +28,7 @@ const RESTRICTABLE_SETTINGS = [
   { key: 'density', label: 'Density', category: 'Appearance', type: 'enum', allowedValues: ['compact', 'regular', 'spacious'] },
   { key: 'animationsEnabled', label: 'Animations', category: 'Appearance', type: 'boolean' },
   { key: 'markAsReadDelay', label: 'Mark as Read Delay', category: 'Email', type: 'number' },
-  { key: 'deleteAction', label: 'Delete Action', category: 'Email', type: 'enum', allowedValues: ['trash', 'permanent'] },
+  { key: 'deleteAction', label: 'Delete Action', category: 'Email', type: 'enum', allowedValues: ['trash', 'trash-and-read', 'permanent'] },
   { key: 'showPreview', label: 'Show Preview', category: 'Email', type: 'boolean' },
   { key: 'mailLayout', label: 'Mail Layout', category: 'Email', type: 'enum', allowedValues: ['split', 'focus', 'horizontal'] },
   { key: 'emailsPerPage', label: 'Emails Per Page', category: 'Email', type: 'number' },
