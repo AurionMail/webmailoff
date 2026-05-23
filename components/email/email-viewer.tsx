@@ -75,6 +75,7 @@ import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "
 import { toast } from "@/stores/toast-store";
 import { useDeviceDetection } from "@/hooks/use-media-query";
 import { useAuthStore } from "@/stores/auth-store";
+import { useAccountStore } from "@/stores/account-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { EmailIdentityBadge } from "./email-identity-badge";
@@ -944,6 +945,7 @@ export function EmailViewer({
   const { isTablet, isMobile } = useDeviceDetection();
   const { tabletListVisible } = useUIStore();
   const { identities, client, isDemoMode, activeAccountId } = useAuthStore();
+  const activeAccount = useAccountStore((s) => s.accounts.find((a) => a.id === activeAccountId));
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const { startTour } = useTour();
   const isEmbedded = useIsEmbedded();
@@ -5290,10 +5292,12 @@ export function EmailViewer({
             <div className="flex items-start" style={{ gap: 'var(--density-item-gap)' }}>
               <div className="flex-shrink-0">
                 <Avatar
-                  name={currentUserName || "You"}
-                  email={currentUserEmail || ""}
+                  name={activeAccount?.displayName || currentUserName || "You"}
+                  email={activeAccount?.email || activeAccount?.username || currentUserEmail || ""}
                   size="lg"
                   className="shadow-sm w-10 h-10"
+                  disableFavicon
+                  fallbackColor={activeAccount?.avatarColor}
                 />
               </div>
               <div className="flex-1 min-w-0 space-y-3">
