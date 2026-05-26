@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
 import type { JmapServerEntry } from '@/lib/admin/jmap-servers';
 
@@ -77,30 +77,17 @@ function emptyDraft(): RowDraft {
 
 export function JmapServersSection({ value, source, onChange, onRevert }: Props) {
   const [drafts, setDrafts] = useState<RowDraft[]>(() => value.map(entryToDraft));
+  const lastEmittedRef = useRef(value);
 
   useEffect(() => {
-    // Re-sync from props when the underlying config value changes (e.g. revert,
-    // initial load). Skip when drafts already represent the same array to avoid
-    // clobbering in-progress edits.
-    setDrafts((prev) => {
-      if (prev.length === value.length) {
-        const same = prev.every((d, i) => {
-          const e = value[i];
-          return d.id === e.id && d.url === e.url && d.label === e.label;
-        });
-        if (same) return prev;
-      }
-      return value.map(entryToDraft);
-    });
+    if (value === lastEmittedRef.current) return;
+    setDrafts(value.map(entryToDraft))
   }, [value]);
 
   function commit(next: RowDraft[]) {
     setDrafts(next);
-    const entries: JmapServerEntry[] = [];
-    for (const d of next) {
-      const e = draftToEntry(d);
-      if (e) entries.push(e);
-    }
+    const entries = next.map(draftToEntry).filter((e): e is JmapServerEntry => e !== null);
+    lastEmittedRef.current = entries;
     onChange(entries);
   }
 
