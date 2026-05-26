@@ -160,6 +160,10 @@ interface SettingsState {
   sessionTimeout: number; // minutes (0 = never)
   trustedSenders: string[]; // Email addresses that can load external content
   trustedSendersAddressBook: boolean; // Store trusted senders in a dedicated JMAP address book
+  // Tracks whether the user has explicitly toggled trustedSendersAddressBook.
+  // Lets us auto-enable the default once on contacts-capable servers without
+  // re-overriding a deliberate user choice on subsequent logins.
+  trustedSendersAddressBookUserSet: boolean;
 
   // Filters
   expandedFilterView: boolean;
@@ -272,6 +276,9 @@ interface SettingsState {
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
+  // Auto-enable the address-book backed Trusted Senders on contacts-capable
+  // accounts, but only if the user hasn't already made an explicit choice.
+  ensureTrustedSendersAddressBookDefault: () => void;
 
   // Keywords
   addKeyword: (keyword: KeywordDefinition) => void;
@@ -334,6 +341,7 @@ const DEFAULT_SETTINGS = {
   sessionTimeout: 0, // Never
   trustedSenders: [] as string[],
   trustedSendersAddressBook: false,
+  trustedSendersAddressBookUserSet: false,
 
   // Filters
   expandedFilterView: false,
@@ -467,6 +475,12 @@ export const useSettingsStore = create<SettingsState>()(
 
       updateSetting: (key, value) => {
         set({ [key]: value });
+
+        // Record explicit user choice so we don't override it with the
+        // contacts-available auto-default on subsequent logins.
+        if (key === 'trustedSendersAddressBook') {
+          set({ trustedSendersAddressBookUserSet: true });
+        }
 
         // Apply font size to document root
         if (key === 'fontSize') {
@@ -645,6 +659,17 @@ export const useSettingsStore = create<SettingsState>()(
       isSenderTrusted: (email: string) => {
         const normalizedEmail = email.toLowerCase().trim();
         return get().trustedSenders.includes(normalizedEmail);
+      },
+
+      ensureTrustedSendersAddressBookDefault: () => {
+        const state = get();
+        if (state.trustedSendersAddressBookUserSet) return;
+        if (state.trustedSendersAddressBook) {
+          // Already enabled (e.g. by migration or sync); just mark as set.
+          set({ trustedSendersAddressBookUserSet: true });
+          return;
+        }
+        set({ trustedSendersAddressBook: true, trustedSendersAddressBookUserSet: true });
       },
 
       // Keyword methods

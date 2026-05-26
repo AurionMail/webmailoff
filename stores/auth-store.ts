@@ -9,6 +9,7 @@ import { useVacationStore } from './vacation-store';
 import { useCalendarStore } from './calendar-store';
 import { useFilterStore } from './filter-store';
 import { useSettingsStore } from './settings-store';
+import { usePolicyStore } from './policy-store';
 import { useAccountStore } from './account-store';
 import { fetchConfig } from '@/hooks/use-config';
 import { debug } from '@/lib/debug';
@@ -235,6 +236,9 @@ function initializeFeatureStores(client: IJMAPClient): void {
     contactStore.setSupportsSync(true);
     contactStore.fetchAddressBooks(client).catch((err) => debug.error('Failed to fetch address books:', err));
     contactStore.fetchContacts(client).catch((err) => debug.error('Failed to fetch contacts:', err));
+    if (usePolicyStore.getState().isFeatureEnabled('contactsEnabled')) {
+      useSettingsStore.getState().ensureTrustedSendersAddressBookDefault();
+    }
   } else {
     useContactStore.getState().setSupportsSync(false);
   }
