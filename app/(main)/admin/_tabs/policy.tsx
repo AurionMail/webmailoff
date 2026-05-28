@@ -74,6 +74,18 @@ export function PolicyTab() {
     setMessage(null);
   }
 
+  function setPushRelayUrl(value: string) {
+    setPolicy(prev => ({ ...prev, pushRelayUrl: value }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function togglePushRelayLocked() {
+    setPolicy(prev => ({ ...prev, pushRelayUrlLocked: !prev.pushRelayUrlLocked }));
+    setDirty(true);
+    setMessage(null);
+  }
+
   function toggleLocked(settingKey: string) {
     setPolicy(prev => {
       const existing = prev.restrictions[settingKey] || {};
@@ -180,6 +192,34 @@ export function PolicyTab() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="border border-border rounded-lg">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
+          <h2 className="text-sm font-medium text-foreground">Push Relay</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Override the Web Push relay URL shown in user notification settings. Leave empty to use the built-in default.</p>
+        </div>
+        <div className="px-4 py-3 space-y-3">
+          <input
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            value={policy.pushRelayUrl ?? ''}
+            onChange={(e) => setPushRelayUrl(e.target.value)}
+            placeholder="https://notifications.relay.example.com"
+            className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+          />
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!policy.pushRelayUrlLocked}
+              onChange={togglePushRelayLocked}
+              className="rounded border-input"
+            />
+            <Lock className="w-3 h-3" /> Lock - users cannot change this URL
+          </label>
         </div>
       </div>
 

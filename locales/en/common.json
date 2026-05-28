@@ -927,6 +927,8 @@
         "description": "Receive system notifications for new mail when this site is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
         "relay_label": "Push relay",
         "relay_desc": "Defaults to the hosted Bulwark relay. Change only if you self-host.",
+        "relay_locked": "Set by administrator",
+        "relay_locked_desc": "The push relay URL has been set by your administrator and cannot be changed.",
         "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Active on this device",
         "status_inactive": "Not enabled on this device",

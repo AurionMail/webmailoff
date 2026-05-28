@@ -7,7 +7,7 @@ import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-s
 import { playNotificationSound, NOTIFICATION_SOUNDS } from '@/lib/notification-sound';
 import type { NotificationSoundChoice } from '@/lib/notification-sound';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Volume2, XCircle } from 'lucide-react';
+import { CheckCircle2, Lock, Volume2, XCircle } from 'lucide-react';
 import { usePolicyStore } from '@/stores/policy-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -40,15 +40,29 @@ export function NotificationSettings() {
     updateSetting,
   } = useSettingsStore();
   const { isSettingLocked, isSettingHidden } = usePolicyStore();
+  const adminPushRelayUrl = usePolicyStore((s) => s.policy.pushRelayUrl);
+  const pushRelayLocked = usePolicyStore((s) => s.policy.pushRelayUrlLocked) === true;
   const client = useAuthStore((s) => s.client);
   const username = useAuthStore((s) => s.username);
   const { dialogProps: confirmDialogProps, confirm: confirmDialog } = useConfirmDialog();
 
   const supported = typeof window !== 'undefined' && isWebPushSupported();
-  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_BASE_URL);
+  const adminUrl = (adminPushRelayUrl ?? '').trim();
+  const [relayUrl, setRelayUrl] = useState(adminUrl || DEFAULT_RELAY_BASE_URL);
   const [pushStatus, setPushStatus] = useState<PushStatus>(
     supported ? { kind: 'idle' } : { kind: 'unsupported' },
   );
+
+  // Pull the admin-configured URL into local state when policy loads/changes.
+  // When locked, the admin value always wins; when only set (not locked), use
+  // it as the initial default but let the user override.
+  useEffect(() => {
+    if (pushRelayLocked && adminUrl) {
+      setRelayUrl(adminUrl);
+    } else if (adminUrl) {
+      setRelayUrl((current) => (current === DEFAULT_RELAY_BASE_URL ? adminUrl : current));
+    }
+  }, [adminUrl, pushRelayLocked]);
 
   useEffect(() => {
     if (!supported) return;
@@ -125,12 +139,17 @@ export function NotificationSettings() {
       <SettingsSection title={t('push.title')} description={t('push.description')}>
         <div className="rounded-md border p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <label className="text-sm font-medium" htmlFor="push-relay-url">
+            <label className="text-sm font-medium inline-flex items-center gap-1.5" htmlFor="push-relay-url">
               {t('push.relay_label')}
+              {pushRelayLocked && (
+                <Lock className="w-3 h-3 text-muted-foreground" aria-label={t('push.relay_locked')} />
+              )}
             </label>
             <PushStatusBadge status={pushStatus} t={t} />
           </div>
-          <p className="text-xs text-muted-foreground">{t('push.relay_desc')}</p>
+          <p className="text-xs text-muted-foreground">
+            {pushRelayLocked ? t('push.relay_locked_desc') : t('push.relay_desc')}
+          </p>
           <input
             id="push-relay-url"
             type="url"
@@ -140,7 +159,8 @@ export function NotificationSettings() {
             value={relayUrl}
             onChange={(e) => setRelayUrl(e.target.value)}
             placeholder={t('push.relay_placeholder')}
-            disabled={busy || pushStatus.kind === 'unsupported'}
+            disabled={busy || pushStatus.kind === 'unsupported' || pushRelayLocked}
+            readOnly={pushRelayLocked}
             className="w-full rounded border bg-background px-3 py-2 text-sm disabled:opacity-50"
           />
           <div className="flex flex-wrap gap-2">

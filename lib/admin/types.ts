@@ -106,6 +106,10 @@ export interface SettingsPolicy {
   approvedPlugins: string[];
   /** Theme IDs that are force-enabled (users cannot deactivate) */
   forceEnabledThemes: string[];
+  /** Web Push relay base URL shown to users. Empty means the built-in default. */
+  pushRelayUrl?: string;
+  /** When true, users cannot change pushRelayUrl in notification settings. */
+  pushRelayUrlLocked?: boolean;
 }
 
 export const DEFAULT_POLICY: SettingsPolicy = {
@@ -116,6 +120,8 @@ export const DEFAULT_POLICY: SettingsPolicy = {
   forceEnabledPlugins: [],
   approvedPlugins: [],
   forceEnabledThemes: [],
+  pushRelayUrl: '',
+  pushRelayUrlLocked: false,
 };
 
 export interface AuditEntry {
