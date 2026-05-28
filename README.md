@@ -211,6 +211,12 @@ LOGIN_COMPANY_NAME=My Company
 LOGIN_WEBSITE_URL=https://example.com
 LOGIN_IMPRINT_URL=https://example.com/imprint
 LOGIN_PRIVACY_POLICY_URL=https://example.com/privacy
+
+# Per-domain overrides (optional). When the webmail is served on multiple
+# hostnames, each host can override any subset of the branding fields above.
+# Match is on the request Host (or X-Forwarded-Host). Use "*.example.com" to
+# match any subdomain. Unset fields fall back to the global values.
+DOMAIN_BRANDING=[{"host":"maildomain1.com","loginCompanyName":"Company One","loginLogoLightUrl":"/branding/one.svg"},{"host":"maildomain2.com","loginCompanyName":"Company Two"}]
 ```
 
 </details>
