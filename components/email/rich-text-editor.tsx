@@ -16,6 +16,7 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
+import { QuotedHtml, serializeEditorContent } from "@/components/email/quoted-html";
 import { cn } from "@/lib/utils";
 import {
   Bold,
@@ -231,6 +232,9 @@ export function RichTextEditor({
           style: "padding:6px 8px;border:1px solid #ccc;vertical-align:top;",
         },
       }),
+      // Quoted/forwarded original email body - held verbatim as an atomic
+      // node so layout-heavy HTML survives 1:1 (see quoted-html.ts).
+      QuotedHtml,
     ],
     content,
     editorProps: {
@@ -281,14 +285,18 @@ export function RichTextEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      // serializeEditorContent (not getHTML) so the verbatim quoted-original
+      // HTML held in the QuotedHtml atom node is emitted intact.
+      onChange(serializeEditorContent(editor));
     },
     immediatelyRender: false,
   });
 
-  // Sync external content changes (e.g. template application)
+  // Sync external content changes (e.g. template application). Compare against
+  // the custom serialization so a doc that only differs inside a QuotedHtml
+  // island isn't needlessly re-parsed (which would reset the island DOM).
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (editor && content !== serializeEditorContent(editor)) {
       editor.commands.setContent(content, { emitUpdate: false });
     }
   }, [content, editor]);

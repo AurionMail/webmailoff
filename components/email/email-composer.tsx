@@ -9,8 +9,9 @@ import { X, Paperclip, Send, Save, Check, Loader2, AlertCircle, FileText, Bookma
 import { cn, formatFileSize, formatDateTime, generateUUID } from "@/lib/utils";
 import { debug } from "@/lib/debug";
 import { toast } from "@/stores/toast-store";
-import { sanitizeSignatureHtml } from "@/lib/email-sanitization";
+import { sanitizeSignatureHtml, sanitizeEmailHtml } from "@/lib/email-sanitization";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
+import { buildQuotedHtmlBlock, serializeEditorContent } from "@/components/email/quoted-html";
 import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
 import type { OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
@@ -358,15 +359,22 @@ export function EmailComposer({
 
     // Plugin override (resolved at composer open via onBuildQuoteHeader).
     if (replyTo.quoteHeaderHtml !== undefined && (mode === 'reply' || mode === 'replyAll' || mode === 'forward')) {
+      if (replyTo.htmlBody) {
+        // Layout-heavy original: embed verbatim as a QuotedHtml island so
+        // nested tables / MJML survive 1:1 (sanitize strips scripts/styles
+        // first; cid rewrite runs after so its data-cid markers survive).
+        const island = buildQuotedHtmlBlock(
+          rewriteCidImagesForEditor(sanitizeEmailHtml(replyTo.htmlBody))
+        );
+        return `${prefix}${signatureBlock}<br>${replyTo.quoteHeaderHtml}${island}`;
+      }
+      const escaped = replyTo.body
+        ? replyTo.body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+        : '';
       const wrap = replyTo.quoteWrapInBlockquote !== false;
-      const originalHtml = replyTo.htmlBody
-        ? rewriteCidImagesForEditor(replyTo.htmlBody)
-        : (replyTo.body
-          ? replyTo.body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
-          : '');
       const bodyHtml = wrap
-        ? `<blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${originalHtml}</blockquote>`
-        : originalHtml;
+        ? `<blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${escaped}</blockquote>`
+        : escaped;
       return `${prefix}${signatureBlock}<br>${replyTo.quoteHeaderHtml}${bodyHtml}`;
     }
 
@@ -375,10 +383,14 @@ export function EmailComposer({
       const quoteHeader = mode === 'forward'
         ? `${tQuote('forwarded_separator')}<br>${tQuote('from_label')}: ${fromStrFull}<br>${tQuote('date_label')}: ${date}<br>${tQuote('subject_label')}: ${replyTo.subject || ''}<br><br>`
         : `${tQuote('reply_line', { date, from: fromStr })}<br>`;
-      // cid: image refs are rewritten so they render in the editor (browsers
-      // can't fetch cid: URLs); see useEffect below for the data-URL backfill.
-      const quotedHtml = rewriteCidImagesForEditor(replyTo.htmlBody);
-      return `${prefix}${signatureBlock}<br><div>${quoteHeader}</div><blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${quotedHtml}</blockquote>`;
+      // Embed the original as a QuotedHtml island (verbatim, schema-free) so
+      // its layout survives the editor round-trip. Sanitize first to strip
+      // scripts/styles/head; cid rewrite afterwards so data-cid markers
+      // aren't dropped by the sanitizer's ALLOW_DATA_ATTR:false.
+      const island = buildQuotedHtmlBlock(
+        rewriteCidImagesForEditor(sanitizeEmailHtml(replyTo.htmlBody))
+      );
+      return `${prefix}${signatureBlock}<br><div>${quoteHeader}</div>${island}`;
     }
 
     if (replyTo.body) {
@@ -518,7 +530,9 @@ export function EmailComposer({
     if (!isReplyLike && mode !== 'compose') return;
     if (isReplyLike && signaturePosition !== 'above_quote') return;
 
-    const currentHtml = editor.getHTML();
+    // serializeEditorContent (not getHTML) so a QuotedHtml island's verbatim
+    // body isn't lost during the signature splice + setContent round-trip.
+    const currentHtml = serializeEditorContent(editor);
     const doc = new DOMParser().parseFromString(currentHtml, 'text/html');
     const startEl = doc.querySelector('[data-signature-block="separator"], [data-signature-block="start"]');
     if (!startEl) return;
@@ -540,15 +554,23 @@ export function EmailComposer({
     if (!parent) return;
 
     // Remove the existing signature range [startEl … endEl] inclusive, or
-    // from startEl to the next blockquote if no end marker is present.
+    // from startEl to the next quote boundary if no end marker is present.
+    // The quote boundary is either a legacy <blockquote> or the QuotedHtml
+    // island wrapper (<div data-quoted-html>) - stop before either so the
+    // signature splice never eats into the quoted body.
     const removeUntil = endEl && endEl.parentNode === parent ? endEl : null;
+    const isQuoteBoundary = (n: Node | null): boolean => {
+      if (!n || n.nodeType !== 1) return false;
+      const el = n as Element;
+      return el.tagName === 'BLOCKQUOTE' || el.hasAttribute('data-quoted-html');
+    };
     const toRemove: Node[] = [];
     let cursor: Node | null = startEl;
     while (cursor) {
       toRemove.push(cursor);
       if (cursor === removeUntil) break;
       const next: Node | null = cursor.nextSibling;
-      if (!removeUntil && next && (next as Element).tagName === 'BLOCKQUOTE') break;
+      if (!removeUntil && isQuoteBoundary(next)) break;
       cursor = next;
     }
     const insertBefore = toRemove[toRemove.length - 1]?.nextSibling ?? null;
