@@ -95,10 +95,25 @@ export default async function manifest(): Promise<ExtendedManifest> {
     background_color: backgroundColor,
     icons,
     categories: ["productivity"],
-    screenshots: [
-      { src: withBase("/screenshot-540x720.png"), sizes: "540x720", type: "image/png" },
-      { src: withBase("/screenshot-1280x720.png"), sizes: "1280x720", type: "image/png" },
-    ],
+    // Use admin-uploaded screenshots when configured (per-domain override,
+    // admin/env global; resized on the fly via /api/pwa-screenshot/[variant]);
+    // otherwise fall back to the built-in Bulwark screenshots from public/.
+    screenshots: (() => {
+      const hasMobile =
+        !!domainOverrides.pwaScreenshotMobileUrl ||
+        sources.pwaScreenshotMobileUrl?.source !== "default";
+      const hasDesktop =
+        !!domainOverrides.pwaScreenshotDesktopUrl ||
+        sources.pwaScreenshotDesktopUrl?.source !== "default";
+      return [
+        hasMobile
+          ? { src: withBase("/api/pwa-screenshot/mobile"), sizes: "540x720", type: "image/png" }
+          : { src: withBase("/screenshot-540x720.png"), sizes: "540x720", type: "image/png" },
+        hasDesktop
+          ? { src: withBase("/api/pwa-screenshot/desktop"), sizes: "1280x720", type: "image/png" }
+          : { src: withBase("/screenshot-1280x720.png"), sizes: "1280x720", type: "image/png" },
+      ];
+    })(),
     protocol_handlers: [
       { protocol: "mailto", url: withBase("/protocol/mailto?url=%s") },
       { protocol: "webcal", url: withBase("/protocol/webcal?url=%s") },

@@ -15,6 +15,8 @@ export const BRANDING_OVERRIDE_KEYS = [
   'appDescription',
   'faviconUrl',
   'pwaIconUrl',
+  'pwaScreenshotMobileUrl',
+  'pwaScreenshotDesktopUrl',
   'pwaThemeColor',
   'pwaBackgroundColor',
   'appLogoLightUrl',
@@ -42,6 +44,8 @@ export interface DomainBrandingEntry {
   appDescription?: string;
   faviconUrl?: string;
   pwaIconUrl?: string;
+  pwaScreenshotMobileUrl?: string;
+  pwaScreenshotDesktopUrl?: string;
   pwaThemeColor?: string;
   pwaBackgroundColor?: string;
   appLogoLightUrl?: string;

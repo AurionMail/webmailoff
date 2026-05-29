@@ -33,6 +33,8 @@ const TEXT_FIELDS = [
 
 const PWA_IMAGE_FIELDS = [
   { key: 'pwaIconUrl', label: 'PWA Icon', accept: '.svg,.png,.jpg,.webp' },
+  { key: 'pwaScreenshotMobileUrl', label: 'PWA Screenshot (Mobile)', accept: '.png,.jpg,.webp' },
+  { key: 'pwaScreenshotDesktopUrl', label: 'PWA Screenshot (Desktop)', accept: '.png,.jpg,.webp' },
 ] as const;
 
 const PWA_TEXT_FIELDS = [

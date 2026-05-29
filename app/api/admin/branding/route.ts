@@ -26,14 +26,18 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/vnd.microsoft.icon',
 ]);
 
+type UploadSlot = BrandingOverrideKey;
+
 /** Slots that correspond to branding config keys */
-const VALID_SLOTS = new Set<BrandingOverrideKey>([
+const VALID_SLOTS = new Set<UploadSlot>([
   'faviconUrl',
   'pwaIconUrl',
   'appLogoLightUrl',
   'appLogoDarkUrl',
   'loginLogoLightUrl',
   'loginLogoDarkUrl',
+  'pwaScreenshotMobileUrl',
+  'pwaScreenshotDesktopUrl',
 ]);
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -131,7 +135,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing file or slot' }, { status: 400 });
     }
 
-    if (!VALID_SLOTS.has(slot as BrandingOverrideKey)) {
+    if (!VALID_SLOTS.has(slot as UploadSlot)) {
       return NextResponse.json({ error: `Invalid slot: ${slot}` }, { status: 400 });
     }
 
@@ -226,7 +230,7 @@ export async function DELETE(request: NextRequest) {
     const slot = body.slot;
     const rawHost = body.host ?? '';
 
-    if (!slot || !VALID_SLOTS.has(slot as BrandingOverrideKey)) {
+    if (!slot || !VALID_SLOTS.has(slot as UploadSlot)) {
       return NextResponse.json({ error: 'Invalid or missing slot' }, { status: 400 });
     }
 

@@ -142,6 +142,8 @@ export const CONFIG_ENV_MAP: Record<string, { envVar: string; fileEnvVar?: strin
   devMode: { envVar: 'DEV_MOCK_JMAP', type: 'boolean', defaultValue: false },
   faviconUrl: { envVar: 'FAVICON_URL', type: 'url', defaultValue: '/branding/Bulwark_Favicon.svg' },
   pwaIconUrl: { envVar: 'PWA_ICON_URL', type: 'url', defaultValue: '' },
+  pwaScreenshotMobileUrl: { envVar: 'PWA_SCREENSHOT_MOBILE_URL', type: 'url', defaultValue: '' },
+  pwaScreenshotDesktopUrl: { envVar: 'PWA_SCREENSHOT_DESKTOP_URL', type: 'url', defaultValue: '' },
   pwaThemeColor: { envVar: 'PWA_THEME_COLOR', type: 'string', defaultValue: '#ffffff' },
   pwaBackgroundColor: { envVar: 'PWA_BACKGROUND_COLOR', type: 'string', defaultValue: '#ffffff' },
   appLogoLightUrl: { envVar: 'APP_LOGO_LIGHT_URL', type: 'url', defaultValue: '' },
