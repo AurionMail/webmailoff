@@ -723,7 +723,18 @@ const emails: MockEmail[] = [
 // Identities
 // ---------------------------------------------------------------------------
 
-const IDENTITIES = [
+type MockIdentity = {
+  id: string;
+  name: string;
+  email: string;
+  replyTo: Array<{ name?: string; email: string }> | null;
+  bcc: Array<{ name?: string; email: string }> | null;
+  textSignature: string | null;
+  htmlSignature: string | null;
+  mayDelete: boolean;
+};
+
+const IDENTITIES: MockIdentity[] = [
   {
     id: 'identity-001',
     name: 'Dev User',
@@ -1562,13 +1573,55 @@ function handleIdentityGet(_args: MethodArgs, callId: string): MethodResult {
 
 function handleIdentitySet(args: MethodArgs, callId: string): MethodResult {
   const created: Record<string, { id: string }> = {};
-  const create = args.create as Record<string, unknown> | undefined;
+  const updated: Record<string, null> = {};
+  const destroyed: string[] = [];
+
+  const create = args.create as Record<string, Record<string, unknown>> | undefined;
   if (create) {
-    for (const key of Object.keys(create)) {
-      created[key] = { id: `identity-new-${Date.now()}-${key}` };
+    for (const [key, data] of Object.entries(create)) {
+      const newId = `identity-${Date.now()}-${key}`;
+      IDENTITIES.push({
+        id: newId,
+        name: (data.name as string) || '',
+        email: (data.email as string) || '',
+        replyTo: (data.replyTo as MockIdentity['replyTo']) ?? null,
+        bcc: (data.bcc as MockIdentity['bcc']) ?? null,
+        textSignature: (data.textSignature as string | null) ?? null,
+        htmlSignature: (data.htmlSignature as string | null) ?? null,
+        mayDelete: true,
+      });
+      created[key] = { id: newId };
     }
   }
-  return ['Identity/set', { accountId: ACCOUNT_ID, oldState: nextState(), newState: nextState(), created, updated: null, destroyed: null }, callId];
+
+  const update = args.update as Record<string, Record<string, unknown>> | undefined;
+  if (update) {
+    for (const [id, changes] of Object.entries(update)) {
+      const identity = IDENTITIES.find((i) => i.id === id);
+      if (identity) {
+        // Email is immutable per the identity form, so it's never in `changes`.
+        if (changes.name !== undefined) identity.name = changes.name as string;
+        if (changes.replyTo !== undefined) identity.replyTo = changes.replyTo as MockIdentity['replyTo'];
+        if (changes.bcc !== undefined) identity.bcc = changes.bcc as MockIdentity['bcc'];
+        if (changes.textSignature !== undefined) identity.textSignature = changes.textSignature as string | null;
+        if (changes.htmlSignature !== undefined) identity.htmlSignature = changes.htmlSignature as string | null;
+        updated[id] = null;
+      }
+    }
+  }
+
+  const destroy = args.destroy as string[] | undefined;
+  if (destroy) {
+    for (const id of destroy) {
+      const idx = IDENTITIES.findIndex((i) => i.id === id);
+      if (idx !== -1) {
+        IDENTITIES.splice(idx, 1);
+        destroyed.push(id);
+      }
+    }
+  }
+
+  return ['Identity/set', { accountId: ACCOUNT_ID, oldState: nextState(), newState: nextState(), created, updated, destroyed, notCreated: null, notUpdated: null, notDestroyed: null }, callId];
 }
 
 function handleThreadGet(args: MethodArgs, callId: string): MethodResult {
