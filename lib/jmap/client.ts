@@ -1134,7 +1134,9 @@ export class JMAPClient implements IJMAPClient {
 
     const authResultsHeader = headersRecord['Authentication-Results'];
     if (authResultsHeader) {
-      const value = Array.isArray(authResultsHeader) ? authResultsHeader[0] : authResultsHeader;
+      // Multiple Authentication-Results headers (or multiple SPF identities in
+      // one header) must all be considered so the most severe result wins.
+      const value = Array.isArray(authResultsHeader) ? authResultsHeader.join('; ') : authResultsHeader;
       email.authenticationResults = parseAuthenticationResults(value);
     }
 

@@ -1,23 +1,83 @@
 import { AuthenticationResults } from './jmap/types';
 import { parseUnsubscribeUrls } from './validation';
 
+type SpfResult = 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
+type SpfEntry = NonNullable<NonNullable<AuthenticationResults['spf']>['all']>[number];
+
+/**
+ * Severity ranking for SPF results. Higher = more severe / more actionable.
+ * A hard `fail` is a definitive policy violation and must outrank ambiguous
+ * states like `temperror`, so a spoofed message isn't softened to a
+ * "temporary failure" headline when one identity hard-fails.
+ */
+const SPF_SEVERITY: Record<SpfResult, number> = {
+  fail: 6,
+  softfail: 5,
+  permerror: 4,
+  temperror: 3,
+  neutral: 2,
+  none: 1,
+  pass: 0,
+};
+
+/**
+ * Whether the authentication results indicate the visible From identity can't
+ * be trusted (i.e. the message is likely spoofed). Used to suppress UI that
+ * would otherwise imply the message legitimately came from one of the user's
+ * own identities (e.g. the "via <identity>" badge).
+ */
+export function isAuthenticationSpoofed(auth?: AuthenticationResults): boolean {
+  if (!auth) return false;
+  // DMARC aligns the visible From with SPF/DKIM, so a DMARC fail is the
+  // strongest single spoofing signal.
+  if (auth.dmarc?.result === 'fail') return true;
+  // Otherwise a hard SPF fail with no valid DKIM signature means the sender
+  // isn't authorized for the envelope domain.
+  if (auth.spf?.result === 'fail' && auth.dkim?.result !== 'pass') return true;
+  return false;
+}
+
 /**
  * Parse Authentication-Results header to extract SPF, DKIM, DMARC results
  */
 export function parseAuthenticationResults(header: string): AuthenticationResults {
   const results: AuthenticationResults = {};
 
-  type SpfResult = 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
   type DkimResult = 'pass' | 'fail' | 'policy' | 'neutral' | 'temperror' | 'permerror';
   type DmarcResult = 'pass' | 'fail' | 'none';
   type DmarcPolicy = 'reject' | 'quarantine' | 'none';
 
-  // Parse SPF
-  const spfMatch = header.match(/spf=(\w+)(?:\s+\([^)]*\))?\s+(?:smtp\.(?:mailfrom|helo)=([^\s;]+))?/);
-  if (spfMatch) {
+  // Parse SPF. A single Authentication-Results header can carry more than one
+  // SPF result when the server evaluates multiple identities (HELO and MAIL
+  // FROM). Collect them all and surface the most severe as the headline so a
+  // hard MAIL FROM `fail` isn't softened to a HELO `temperror`.
+  const spfRegex = /spf=(\w+)(?:\s+\([^)]*\))?(?:\s+smtp\.(mailfrom|helo)=([^\s;]+))?/g;
+  const spfResults: SpfEntry[] = [];
+  let spfM: RegExpExecArray | null;
+  while ((spfM = spfRegex.exec(header)) !== null) {
+    spfResults.push({
+      result: spfM[1] as SpfResult,
+      identity: spfM[2] as SpfEntry['identity'],
+      domain: spfM[3],
+    });
+  }
+  if (spfResults.length > 0) {
+    const severity = (r: string) => SPF_SEVERITY[r as SpfResult] ?? -1;
+    // Most severe wins; on a tie prefer the MAIL FROM identity (more meaningful
+    // than HELO) and otherwise keep the first occurrence.
+    const primary = spfResults.reduce((best, cur) => {
+      if (severity(cur.result) > severity(best.result)) return cur;
+      if (
+        severity(cur.result) === severity(best.result) &&
+        best.identity !== 'mailfrom' &&
+        cur.identity === 'mailfrom'
+      ) return cur;
+      return best;
+    });
     results.spf = {
-      result: spfMatch[1] as SpfResult,
-      domain: spfMatch[2]
+      result: primary.result,
+      domain: primary.domain,
+      ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };
   }
 

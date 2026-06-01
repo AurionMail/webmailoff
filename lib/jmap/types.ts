@@ -75,6 +75,16 @@ export interface AuthenticationResults {
     result: 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
     domain?: string;
     ip?: string;
+    /**
+     * All SPF results when the server evaluated multiple identities (HELO and
+     * MAIL FROM). Present only when more than one result was found; `result`
+     * above is the most severe of these.
+     */
+    all?: Array<{
+      result: 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
+      domain?: string;
+      identity?: 'helo' | 'mailfrom';
+    }>;
   };
   dkim?: {
     result: 'pass' | 'fail' | 'policy' | 'neutral' | 'temperror' | 'permerror';

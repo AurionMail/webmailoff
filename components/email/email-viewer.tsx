@@ -4817,9 +4817,27 @@ export function EmailViewer({
                   <section className="min-w-0">
                     <SectionHeader>{t('details.authentication_security')}</SectionHeader>
                     <div className="flex flex-wrap gap-1.5">
-                      {auth?.spf && (
-                        <AuthChip name="SPF" result={auth.spf.result} extra={auth.spf.domain} tooltip={t('authentication.tooltip_spf')} />
-                      )}
+                      {auth?.spf && (() => {
+                        // When multiple identities (HELO + MAIL FROM) were
+                        // evaluated, list each result in the tooltip for full
+                        // transparency; the chip itself shows the most severe.
+                        const breakdown = auth.spf.all && auth.spf.all.length > 1
+                          ? auth.spf.all
+                              .map((r) => {
+                                const label = r.identity === 'mailfrom' ? 'MAIL FROM' : r.identity === 'helo' ? 'HELO' : 'SPF';
+                                return `${label}: ${translateAuthResult(r.result)}${r.domain ? ` (${r.domain})` : ''}`;
+                              })
+                              .join('\n')
+                          : null;
+                        return (
+                          <AuthChip
+                            name="SPF"
+                            result={auth.spf.result}
+                            extra={auth.spf.domain}
+                            tooltip={breakdown ? `${t('authentication.tooltip_spf')}\n\n${breakdown}` : t('authentication.tooltip_spf')}
+                          />
+                        );
+                      })()}
                       {auth?.dkim && (
                         <AuthChip name="DKIM" result={auth.dkim.result} extra={auth.dkim.domain} tooltip={t('authentication.tooltip_dkim')} />
                       )}
