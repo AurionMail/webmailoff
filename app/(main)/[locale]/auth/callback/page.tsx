@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiFetch, getPathPrefix } from "@/lib/browser-navigation";
+import { apiFetch, getPathPrefix, toRouterPath } from "@/lib/browser-navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useParams } from "next/navigation";
@@ -60,7 +60,7 @@ function OAuthCallbackInner() {
             sessionStorage.setItem("settings-deep-link-tab", "security");
           } catch { /* ignore */ }
           const prefix = getPathPrefix(params.locale as string);
-          router.push(`${prefix}/${params.locale}/settings`);
+          router.push(toRouterPath(`${prefix}/${params.locale}/settings`));
         } catch {
           setError("token_exchange_failed");
         }
@@ -105,7 +105,7 @@ function OAuthCallbackInner() {
                 redirectTo = saved;
               }
             } catch { /* sessionStorage may be unavailable */ }
-            router.push(redirectTo);
+            router.push(toRouterPath(redirectTo));
           } else {
             setError("token_exchange_failed");
           }
@@ -189,7 +189,7 @@ function OAuthCallbackInner() {
                 redirectTo = saved;
               }
             } catch { /* sessionStorage may be unavailable */ }
-            router.push(redirectTo);
+            router.push(toRouterPath(redirectTo));
           } else {
             setError("token_exchange_failed");
           }
@@ -217,7 +217,7 @@ function OAuthCallbackInner() {
           </p>
           <Button
             variant="outline"
-            onClick={() => router.push(`${getPathPrefix(params.locale as string)}/${params.locale}/login`)}
+            onClick={() => router.push(toRouterPath(`${getPathPrefix(params.locale as string)}/${params.locale}/login`))}
           >
             {t("oauth_error.back_to_login")}
           </Button>

@@ -97,6 +97,27 @@ export function withBasePath(url: string | null | undefined): string {
 
 
 /**
+ * Converts a browser-style path (as found in `window.location.pathname`,
+ * which always includes the mount prefix) into a path safe to hand to Next's
+ * client router (`router.push` / `router.replace`).
+ *
+ * When the app is built with NEXT_PUBLIC_BASE_PATH, Next's router prepends
+ * the basePath itself, so a stored prefixed path would get it twice (#390) —
+ * strip it here. Legacy runtime-detected proxy mounts pass through unchanged:
+ * Next knows nothing about that prefix, so the router needs the full path.
+ *
+ * Accepts paths with query/hash suffixes (`/webmail/en/calendar?view=day`).
+ */
+export function toRouterPath(path: string): string {
+  if (!STATIC_BASE_PATH || !path.startsWith(STATIC_BASE_PATH)) return path;
+  const rest = path.slice(STATIC_BASE_PATH.length);
+  if (rest === '') return '/';
+  if (rest[0] === '/') return rest;
+  if (rest[0] === '?' || rest[0] === '#') return '/' + rest;
+  return path; // different first segment that merely shares the prefix text
+}
+
+/**
  * Extracts the locale from the current URL, skipping any mount prefix.
  * Falls back to 'en' when no known locale segment is found.
  */

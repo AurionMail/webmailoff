@@ -72,3 +72,33 @@ describe('withBasePath — asset-URL fallbacks under a subpath', () => {
     expect(getPathPrefix()).toBe('/webmail');
   });
 });
+
+describe('toRouterPath — router.push paths under a subpath', () => {
+  // With a build-time basePath, Next's router prepends the prefix itself, so
+  // browser-derived paths (redirect_after_login stores
+  // window.location.pathname) must be stripped or the redirect lands on
+  // /webmail/webmail/en. See #390.
+  it('strips the static base path from a stored browser path', async () => {
+    const { toRouterPath } = await loadNav('/webmail');
+    expect(toRouterPath('/webmail/en')).toBe('/en');
+    expect(toRouterPath('/webmail/en/calendar?view=day')).toBe('/en/calendar?view=day');
+    expect(toRouterPath('/webmail')).toBe('/');
+    expect(toRouterPath('/webmail?compose=1')).toBe('/?compose=1');
+  });
+
+  it('leaves already-stripped and unrelated paths alone', async () => {
+    const { toRouterPath } = await loadNav('/webmail');
+    expect(toRouterPath('/en')).toBe('/en');
+    expect(toRouterPath('/')).toBe('/');
+    // Shares the prefix text but is a different first segment.
+    expect(toRouterPath('/webmail2/en')).toBe('/webmail2/en');
+  });
+
+  it('passes paths through unchanged when no base path is built in', async () => {
+    // Legacy runtime-detected proxy mounts: Next knows nothing about the
+    // prefix, so router.push needs the full prefixed path.
+    const { toRouterPath } = await loadNav(undefined);
+    expect(toRouterPath('/webmail/en')).toBe('/webmail/en');
+    expect(toRouterPath('/en')).toBe('/en');
+  });
+});
