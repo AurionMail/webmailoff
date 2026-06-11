@@ -967,6 +967,8 @@ export class JMAPClient implements IJMAPClient {
         return this.getMailboxes();
       }
 
+      let fetchFailed = false;
+
       for (const accountId of accountIds) {
         const account = this.accounts[accountId];
         const isPrimary = accountId === this.accountId;
@@ -1013,8 +1015,18 @@ export class JMAPClient implements IJMAPClient {
             allMailboxes.push(...mailboxes);
           }
         } catch (error) {
+          fetchFailed = true;
           console.error(`Failed to fetch mailboxes for account ${accountId}:`, error);
         }
+      }
+
+      // If every account fetch failed (e.g. a transient maxConcurrentRequests
+      // limit during a burst of deletes) we have an empty list that is NOT a
+      // real "this account has no mailboxes" result. Throwing lets the caller's
+      // catch preserve the existing folder list instead of clobbering it with
+      // [] — which would leave the sidebar stuck on "Loading mailboxes...".
+      if (allMailboxes.length === 0 && fetchFailed) {
+        throw new Error('Failed to fetch mailboxes for all accounts');
       }
 
       return allMailboxes;

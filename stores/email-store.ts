@@ -646,6 +646,14 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     try {
       const mailboxes = await client.getAllMailboxes();
 
+      // Guard against a transient fetch returning an empty list (e.g. a server
+      // concurrent-request limit hit during a burst of deletes). Replacing a
+      // populated folder list with [] leaves the sidebar stuck on "Loading
+      // mailboxes..." until the next successful refetch. Keep what we have.
+      if (mailboxes.length === 0 && !isInitialLoad) {
+        return;
+      }
+
       // Auto-select inbox if no mailbox is selected or the current selection
       // doesn't exist in the fetched list (e.g. after an account switch)
       const currentSelectedMailbox = get().selectedMailbox;
