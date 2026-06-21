@@ -550,6 +550,60 @@ function applyMailboxCounterUpdate(
   return { mailboxes: state.mailboxes.map(adjust) };
 }
 
+// Batch variant of applyMailboxCounterUpdate: a set of emails may span accounts,
+// so group them by the list that holds them and run `mapMailbox` per list using
+// only that group's emails. Each account's counters are adjusted in its own list
+// (active account → `mailboxes`, others → `accountMailboxes[sourceClientAccountId]`),
+// avoiding cross-account id collisions. (#281)
+function applyBatchMailboxCounterUpdate(
+  state: { mailboxes: Mailbox[]; accountMailboxes: Record<string, Mailbox[]> },
+  emails: Array<{ sourceClientAccountId?: string }>,
+  mapMailbox: (mb: Mailbox, emailsForList: Array<{ sourceClientAccountId?: string }>) => Mailbox,
+): { mailboxes: Mailbox[]; accountMailboxes: Record<string, Mailbox[]> } {
+  const activeId = useAuthStore.getState().activeAccountId;
+  const ACTIVE = '__active__';
+  const groups = new Map<string, Array<{ sourceClientAccountId?: string }>>();
+  for (const e of emails) {
+    const k = e.sourceClientAccountId && e.sourceClientAccountId !== activeId ? e.sourceClientAccountId : ACTIVE;
+    const g = groups.get(k);
+    if (g) g.push(e); else groups.set(k, [e]);
+  }
+  let mailboxes = state.mailboxes;
+  const accountMailboxes = { ...state.accountMailboxes };
+  for (const [k, es] of groups) {
+    if (k === ACTIVE) {
+      mailboxes = mailboxes.map((mb) => mapMailbox(mb, es));
+    } else if (accountMailboxes[k]) {
+      accountMailboxes[k] = accountMailboxes[k].map((mb) => mapMailbox(mb, es));
+    }
+  }
+  return { mailboxes, accountMailboxes };
+}
+
+// Per-mailbox counter map (for applyBatchMailboxCounterUpdate) for removing a
+// group of emails from a folder: decrement total (and unread for unseen) for
+// each group email that lives in the mailbox.
+function applyDeleteCounters(
+  mailbox: Mailbox,
+  group: Array<{ sourceClientAccountId?: string }>,
+): Mailbox {
+  let dTotal = 0;
+  let dUnread = 0;
+  for (const email of group as Email[]) {
+    if (emailInMailbox(email, mailbox)) {
+      dTotal--;
+      if (!email.keywords?.$seen) dUnread--;
+    }
+  }
+  return dTotal === 0 && dUnread === 0 ? mailbox : {
+    ...mailbox,
+    totalEmails: Math.max(0, mailbox.totalEmails + dTotal),
+    unreadEmails: Math.max(0, mailbox.unreadEmails + dUnread),
+    totalThreads: Math.max(0, mailbox.totalThreads + dTotal),
+    unreadThreads: Math.max(0, mailbox.unreadThreads + dUnread),
+  };
+}
+
 // Find the trash mailbox for a given account scope. Prefers JMAP role, but
 // falls back to name matching ("trash" / "deleted") so users with custom or
 // pre-existing folders (e.g. "Deleted Items") aren't silently destroyed.
@@ -1217,40 +1271,38 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           // After marking read in the same request, the email arrives in trash as read.
           const arrivesUnread = isUnread && !alsoMarkRead;
 
-          // Remove from local state (email moved to trash, not in current view)
+          // Remove from local state (email moved to trash, not in current view).
+          // Counter changes go to the email's own account list (#281). Source and
+          // trash live in the same account.
           set((state) => {
-            let updatedMailboxes = state.mailboxes;
-
-            // Update counters for source mailbox (email leaving)
-            if (email.mailboxIds) {
-              updatedMailboxes = state.mailboxes.map(mailbox => {
-                if (emailInMailbox(email, mailbox)) {
-                  return {
-                    ...mailbox,
-                    totalEmails: Math.max(0, mailbox.totalEmails - 1),
-                    unreadEmails: isUnread ? Math.max(0, mailbox.unreadEmails - 1) : mailbox.unreadEmails,
-                    totalThreads: Math.max(0, mailbox.totalThreads - 1),
-                    unreadThreads: isUnread ? Math.max(0, mailbox.unreadThreads - 1) : mailbox.unreadThreads
-                  };
-                }
-                // Update trash mailbox counters (email arriving)
-                if (mailbox.id === trashMailbox.id) {
-                  return {
-                    ...mailbox,
-                    totalEmails: mailbox.totalEmails + 1,
-                    unreadEmails: arrivesUnread ? mailbox.unreadEmails + 1 : mailbox.unreadEmails,
-                    totalThreads: mailbox.totalThreads + 1,
-                    unreadThreads: arrivesUnread ? mailbox.unreadThreads + 1 : mailbox.unreadThreads
-                  };
-                }
-                return mailbox;
-              });
-            }
+            const mailboxPatch = email.mailboxIds
+              ? applyMailboxCounterUpdate(state, email, (mailbox) => {
+                  if (emailInMailbox(email, mailbox)) {
+                    return {
+                      ...mailbox,
+                      totalEmails: Math.max(0, mailbox.totalEmails - 1),
+                      unreadEmails: isUnread ? Math.max(0, mailbox.unreadEmails - 1) : mailbox.unreadEmails,
+                      totalThreads: Math.max(0, mailbox.totalThreads - 1),
+                      unreadThreads: isUnread ? Math.max(0, mailbox.unreadThreads - 1) : mailbox.unreadThreads,
+                    };
+                  }
+                  if (mailbox.id === trashMailbox.id) {
+                    return {
+                      ...mailbox,
+                      totalEmails: mailbox.totalEmails + 1,
+                      unreadEmails: arrivesUnread ? mailbox.unreadEmails + 1 : mailbox.unreadEmails,
+                      totalThreads: mailbox.totalThreads + 1,
+                      unreadThreads: arrivesUnread ? mailbox.unreadThreads + 1 : mailbox.unreadThreads,
+                    };
+                  }
+                  return mailbox;
+                })
+              : {};
 
             return {
               emails: state.emails.filter(e => e.id !== emailId),
               selectedEmail: getNextSelectedEmail(state, emailId),
-              mailboxes: updatedMailboxes
+              ...mailboxPatch,
             };
           });
           return;
@@ -1264,42 +1316,26 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // Permanent delete
       await effectiveClient.deleteEmail(emailId);
 
-      // Remove from local state and update mailbox counters if needed
+      // Remove from local state and update mailbox counters (in the email's own
+      // account list). Unread emails also decrement the unread counters. (#281)
       set((state) => {
-        let updatedMailboxes = state.mailboxes;
-
-        // If the email was unread, decrement the unread counters
-        if (isUnread && email.mailboxIds) {
-          updatedMailboxes = state.mailboxes.map(mailbox => {
-            if (emailInMailbox(email, mailbox)) {
-              return {
-                ...mailbox,
-                totalEmails: Math.max(0, mailbox.totalEmails - 1),
-                unreadEmails: Math.max(0, mailbox.unreadEmails - 1),
-                totalThreads: Math.max(0, mailbox.totalThreads - 1),
-                unreadThreads: Math.max(0, mailbox.unreadThreads - 1)
-              };
-            }
-            return mailbox;
-          });
-        } else if (email.mailboxIds) {
-          // If email was read, only decrement total counters
-          updatedMailboxes = state.mailboxes.map(mailbox => {
-            if (emailInMailbox(email, mailbox)) {
-              return {
-                ...mailbox,
-                totalEmails: Math.max(0, mailbox.totalEmails - 1),
-                totalThreads: Math.max(0, mailbox.totalThreads - 1)
-              };
-            }
-            return mailbox;
-          });
-        }
+        const mailboxPatch = email.mailboxIds
+          ? applyMailboxCounterUpdate(state, email, (mailbox) =>
+              emailInMailbox(email, mailbox)
+                ? {
+                    ...mailbox,
+                    totalEmails: Math.max(0, mailbox.totalEmails - 1),
+                    unreadEmails: isUnread ? Math.max(0, mailbox.unreadEmails - 1) : mailbox.unreadEmails,
+                    totalThreads: Math.max(0, mailbox.totalThreads - 1),
+                    unreadThreads: isUnread ? Math.max(0, mailbox.unreadThreads - 1) : mailbox.unreadThreads,
+                  }
+                : mailbox)
+          : {};
 
         return {
           emails: state.emails.filter(e => e.id !== emailId),
           selectedEmail: getNextSelectedEmail(state, emailId),
-          mailboxes: updatedMailboxes
+          ...mailboxPatch,
         };
       });
     } catch (error) {
@@ -1415,7 +1451,6 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       if (!email) return;
 
       const isUnread = !email.keywords?.$seen;
-      const currentMailboxIds = email.mailboxIds ? Object.keys(email.mailboxIds) : [];
 
       // In unified view route to the email's own account (client + that
       // account's mailbox list, where the destination id lives); otherwise the
@@ -1428,14 +1463,16 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       await actionClient.moveEmail(emailId, jmapDestId, accountId);
 
       set((state) => {
-        const updatedMailboxes = state.mailboxes.map(mailbox => {
-          if (currentMailboxIds.includes(mailbox.id) || (!mailbox.isShared && mailbox.originalId ? currentMailboxIds.includes(mailbox.originalId) : false)) {
+        // Counter changes go to the email's own account list; source and
+        // destination live in the same account. (#281)
+        const mailboxPatch = applyMailboxCounterUpdate(state, email, (mailbox) => {
+          if (emailInMailbox(email, mailbox)) {
             return {
               ...mailbox,
               totalEmails: Math.max(0, mailbox.totalEmails - 1),
               unreadEmails: isUnread ? Math.max(0, mailbox.unreadEmails - 1) : mailbox.unreadEmails,
               totalThreads: Math.max(0, mailbox.totalThreads - 1),
-              unreadThreads: isUnread ? Math.max(0, mailbox.unreadThreads - 1) : mailbox.unreadThreads
+              unreadThreads: isUnread ? Math.max(0, mailbox.unreadThreads - 1) : mailbox.unreadThreads,
             };
           }
           if (mailbox.id === destinationMailboxId) {
@@ -1444,7 +1481,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
               totalEmails: mailbox.totalEmails + 1,
               unreadEmails: isUnread ? mailbox.unreadEmails + 1 : mailbox.unreadEmails,
               totalThreads: mailbox.totalThreads + 1,
-              unreadThreads: isUnread ? mailbox.unreadThreads + 1 : mailbox.unreadThreads
+              unreadThreads: isUnread ? mailbox.unreadThreads + 1 : mailbox.unreadThreads,
             };
           }
           return mailbox;
@@ -1453,7 +1490,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         return {
           emails: state.emails.filter(e => e.id !== emailId),
           selectedEmail: getNextSelectedEmail(state, emailId),
-          mailboxes: updatedMailboxes
+          ...mailboxPatch,
         };
       });
     } catch (error) {
@@ -1506,39 +1543,43 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
       // Adjust counters and drop moved emails from the current view.
       let unreadDelta = 0;
-      const sourceMailboxIds = new Set<string>();
       for (const e of affected) {
         if (!e.keywords?.$seen) unreadDelta += 1;
-        if (e.mailboxIds) for (const mid of Object.keys(e.mailboxIds)) sourceMailboxIds.add(mid);
       }
       const movedCount = affected.length;
 
-      set((state) => ({
-        emails: state.emails.filter(e => !idSet.has(e.id)),
-        selectedEmail: state.selectedEmail && idSet.has(state.selectedEmail.id) ? null : state.selectedEmail,
-        selectedEmailIds: (() => {
-          const next = new Set(state.selectedEmailIds);
-          for (const id of idSet) next.delete(id);
-          return next;
-        })(),
-        mailboxes: state.mailboxes.map(mb => {
-          if (sourceMailboxIds.has(mb.id) || (!mb.isShared && mb.originalId ? sourceMailboxIds.has(mb.originalId) : false)) {
-            return {
-              ...mb,
-              totalEmails: Math.max(0, mb.totalEmails - movedCount),
-              unreadEmails: Math.max(0, mb.unreadEmails - unreadDelta),
-            };
+      set((state) => {
+        // Decrement source folders per the email's own account list (#281).
+        const patch = applyBatchMailboxCounterUpdate(state, affected, (mb, group) => {
+          let dTotal = 0;
+          let dUnread = 0;
+          for (const e of group as Email[]) {
+            if (emailInMailbox(e, mb)) {
+              dTotal--;
+              if (!e.keywords?.$seen) dUnread--;
+            }
           }
-          if (mb.id === destinationMailboxId) {
-            return {
-              ...mb,
-              totalEmails: mb.totalEmails + movedCount,
-              unreadEmails: mb.unreadEmails + unreadDelta,
-            };
-          }
-          return mb;
-        }),
-      }));
+          return dTotal === 0 && dUnread === 0 ? mb : {
+            ...mb,
+            totalEmails: Math.max(0, mb.totalEmails + dTotal),
+            unreadEmails: Math.max(0, mb.unreadEmails + dUnread),
+          };
+        });
+        // The destination folder (picked from the active/viewing list) gains them.
+        patch.mailboxes = patch.mailboxes.map(mb => mb.id === destinationMailboxId
+          ? { ...mb, totalEmails: mb.totalEmails + movedCount, unreadEmails: mb.unreadEmails + unreadDelta }
+          : mb);
+        return {
+          emails: state.emails.filter(e => !idSet.has(e.id)),
+          selectedEmail: state.selectedEmail && idSet.has(state.selectedEmail.id) ? null : state.selectedEmail,
+          selectedEmailIds: (() => {
+            const next = new Set(state.selectedEmailIds);
+            for (const id of idSet) next.delete(id);
+            return next;
+          })(),
+          ...patch,
+        };
+      });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to move emails' });
       throw error;
@@ -1928,7 +1969,6 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   // Batch operations
   batchMarkAsRead: async (client, read) => {
     const { selectedEmailIds, emails } = get();
-    const mailboxes = resolveActionMailboxes();
     if (selectedEmailIds.size === 0) return;
 
     set({ isLoading: true, error: null });
@@ -1965,29 +2005,25 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           : email
       );
 
-      // Update mailbox counters
+      // Update mailbox counters per the email's own account list (#281).
       const affectedEmails = emails.filter(e => selectedEmailIds.has(e.id));
-      const updatedMailboxes = mailboxes.map(mailbox => {
+      const mailboxPatch = applyBatchMailboxCounterUpdate(get(), affectedEmails, (mailbox, group) => {
         let deltaUnread = 0;
-        affectedEmails.forEach(email => {
-          if (emailInMailbox(email, mailbox)) {
-            const wasRead = email.keywords?.$seen;
-            if (wasRead !== read) {
-              deltaUnread += read ? -1 : 1;
-            }
+        for (const email of group as Email[]) {
+          if (emailInMailbox(email, mailbox) && (email.keywords?.$seen ?? false) !== read) {
+            deltaUnread += read ? -1 : 1;
           }
-        });
-
-        return {
+        }
+        return deltaUnread === 0 ? mailbox : {
           ...mailbox,
           unreadEmails: Math.max(0, mailbox.unreadEmails + deltaUnread),
-          unreadThreads: Math.max(0, mailbox.unreadThreads + deltaUnread)
+          unreadThreads: Math.max(0, mailbox.unreadThreads + deltaUnread),
         };
       });
 
       set({
         emails: updatedEmails,
-        mailboxes: updatedMailboxes,
+        ...mailboxPatch,
         selectedEmailIds: new Set(),
         isLoading: false
       });
@@ -2079,26 +2115,10 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         if (movedEmailIds.size < emailIdsArray.length) {
           const deletedEmails = emails.filter(e => movedEmailIds.has(e.id));
           const remainingEmails = emails.filter(e => !movedEmailIds.has(e.id));
-          const updatedMailboxes = mailboxes.map(mailbox => {
-            let deltaTotalEmails = 0;
-            let deltaUnreadEmails = 0;
-            deletedEmails.forEach(email => {
-              if (emailInMailbox(email, mailbox)) {
-                deltaTotalEmails--;
-                if (!email.keywords?.$seen) deltaUnreadEmails--;
-              }
-            });
-            return {
-              ...mailbox,
-              totalEmails: Math.max(0, mailbox.totalEmails + deltaTotalEmails),
-              unreadEmails: Math.max(0, mailbox.unreadEmails + deltaUnreadEmails),
-              totalThreads: Math.max(0, mailbox.totalThreads + deltaTotalEmails),
-              unreadThreads: Math.max(0, mailbox.unreadThreads + deltaUnreadEmails),
-            };
-          });
+          const mailboxPatch = applyBatchMailboxCounterUpdate(get(), deletedEmails, applyDeleteCounters);
           set({
             emails: remainingEmails,
-            mailboxes: updatedMailboxes,
+            ...mailboxPatch,
             selectedEmailIds: new Set(),
             selectedEmail: null,
             isLoading: false,
@@ -2111,33 +2131,13 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // Remove deleted emails from local state
       const remainingEmails = emails.filter(e => !selectedEmailIds.has(e.id));
 
-      // Update mailbox counters
+      // Update mailbox counters per the email's own account list (#281).
       const deletedEmails = emails.filter(e => selectedEmailIds.has(e.id));
-      const updatedMailboxes = mailboxes.map(mailbox => {
-        let deltaTotalEmails = 0;
-        let deltaUnreadEmails = 0;
-
-        deletedEmails.forEach(email => {
-          if (emailInMailbox(email, mailbox)) {
-            deltaTotalEmails--;
-            if (!email.keywords?.$seen) {
-              deltaUnreadEmails--;
-            }
-          }
-        });
-
-        return {
-          ...mailbox,
-          totalEmails: Math.max(0, mailbox.totalEmails + deltaTotalEmails),
-          unreadEmails: Math.max(0, mailbox.unreadEmails + deltaUnreadEmails),
-          totalThreads: Math.max(0, mailbox.totalThreads + deltaTotalEmails),
-          unreadThreads: Math.max(0, mailbox.unreadThreads + deltaUnreadEmails)
-        };
-      });
+      const mailboxPatch = applyBatchMailboxCounterUpdate(get(), deletedEmails, applyDeleteCounters);
 
       set({
         emails: remainingEmails,
-        mailboxes: updatedMailboxes,
+        ...mailboxPatch,
         selectedEmailIds: new Set(),
         selectedEmail: null,
         isLoading: false
@@ -2795,15 +2795,14 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         ));
       }
 
-      // Update mailbox unread counters
+      // Update mailbox unread counters in the thread's own account list (#281).
       const affectedEmails = state.emails.filter(e => unreadSet.has(e.id));
-      const updatedMailboxes = state.mailboxes.map(mailbox => {
+      const mailboxPatch = applyBatchMailboxCounterUpdate(state, affectedEmails, (mailbox, group) => {
         let delta = 0;
-        for (const email of affectedEmails) {
+        for (const email of group as Email[]) {
           if (emailInMailbox(email, mailbox)) delta -= 1;
         }
-        if (delta === 0) return mailbox;
-        return {
+        return delta === 0 ? mailbox : {
           ...mailbox,
           unreadEmails: Math.max(0, mailbox.unreadEmails + delta),
           unreadThreads: Math.max(0, mailbox.unreadThreads + delta),
@@ -2813,7 +2812,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       return {
         emails: updatedEmails,
         threadEmailsCache: newCache,
-        mailboxes: updatedMailboxes,
+        ...mailboxPatch,
         selectedEmail: state.selectedEmail && unreadSet.has(state.selectedEmail.id)
           ? { ...state.selectedEmail, keywords: { ...state.selectedEmail.keywords, $seen: true } }
           : state.selectedEmail,

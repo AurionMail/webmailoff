@@ -53,6 +53,7 @@ function makeClient() {
     markAsRead: vi.fn().mockResolvedValue(undefined),
     toggleStar: vi.fn().mockResolvedValue(undefined),
     moveEmail: vi.fn().mockResolvedValue(undefined),
+    batchMarkAsRead: vi.fn().mockResolvedValue(undefined),
   } as unknown as IJMAPClient;
 }
 
@@ -144,6 +145,27 @@ describe('unified-view single-email action routing (#281)', () => {
     expect(s.accountMailboxes['account-b'][0].unreadEmails).toBe(2); // account-b decremented
     expect(s.mailboxes[0].unreadEmails).toBe(5);                     // active account untouched
     expect(s.accountMailboxes['account-a'][0].unreadEmails).toBe(5); // active list untouched
+  });
+
+  it('batchMarkAsRead adjusts each email’s own account counter (cross-account)', async () => {
+    useEmailStore.setState({
+      mailboxes: [makeMailbox({ id: 'inbox', role: 'inbox', unreadEmails: 5 })],
+      accountMailboxes: {
+        'account-a': [makeMailbox({ id: 'inbox', role: 'inbox', unreadEmails: 5 })],
+        'account-b': [makeMailbox({ id: 'inbox', role: 'inbox', unreadEmails: 3 })],
+      },
+      emails: [
+        makeEmail({ id: 'a1', sourceClientAccountId: 'account-a', sourceAccountId: 'account-a', keywords: {}, mailboxIds: { inbox: true } }),
+        makeEmail({ id: 'b1', sourceClientAccountId: 'account-b', sourceAccountId: 'account-b', keywords: {}, mailboxIds: { inbox: true } }),
+      ],
+      selectedEmailIds: new Set(['a1', 'b1']),
+    });
+
+    await useEmailStore.getState().batchMarkAsRead(activeClient, true);
+
+    const s = useEmailStore.getState();
+    expect(s.mailboxes[0].unreadEmails).toBe(4);                     // active account: -1
+    expect(s.accountMailboxes['account-b'][0].unreadEmails).toBe(2); // account-b: -1
   });
 
   it('routes a shared/group email through the delegating login client + owner accountId', async () => {
