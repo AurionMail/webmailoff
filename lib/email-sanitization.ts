@@ -243,6 +243,43 @@ export function stripExternalCssUrls(style: string): string {
   );
 }
 
+/**
+ * Neutralise external references in a full stylesheet (a kept `<style>` block).
+ * The iframe sanitiser keeps `<style>`, so its CSS can auto-load remote
+ * resources (background `url()`, `@font-face`, `@import`) that the per-node
+ * attribute walk in `blockExternalResourcesOnNode` never sees. The strict
+ * iframe CSP already blocks those fetches at the network level; this strips the
+ * references from the CSS text itself as defence-in-depth.
+ *
+ * Escapes are decoded on the WHOLE block first because the "css escape" tracker
+ * escapes the `url` keyword itself (`\75\72\6C(` -> `url(`) - a literal `url(`
+ * match would miss it. Returns the original (escapes intact) when nothing
+ * external is present, so callers can detect a change by identity. (#457)
+ */
+export function stripExternalStyleSheetCss(css: string): string {
+  if (!css) return css;
+  const decoded = decodeCssEscapes(css);
+  if (!/url\(|@import/i.test(decoded)) return css;
+  let changed = false;
+  // External url(...) anywhere in the sheet (also covers `@import url(...)`).
+  let result = decoded.replace(CSS_URL_PATTERN, (full, _q, inner: string) => {
+    if (isExternalResourceUrl(inner)) {
+      changed = true;
+      return 'url()';
+    }
+    return full;
+  });
+  // Bare-string remote import: `@import "http://…"` / `@import '//…'`.
+  result = result.replace(
+    /@import\s+(['"])\s*(?:https?:)?\/\/[^'"]*\1[^;]*;?/gi,
+    () => {
+      changed = true;
+      return '';
+    },
+  );
+  return changed ? result : css;
+}
+
 /** True if a srcset attribute lists at least one external candidate URL. */
 function srcsetHasExternalUrl(srcset: string): boolean {
   return srcset
@@ -331,6 +368,19 @@ export function blockExternalResourcesOnNode(node: Element): boolean {
     node.setAttribute('data-blocked-style', styleAttr);
     node.setAttribute('style', stripExternalCssUrls(styleAttr));
     blocked = true;
+  }
+
+  // <style> block CSS: the iframe sanitiser keeps these, so url()/@font-face/
+  // @import inside them can auto-load remote resources the attribute walk above
+  // never sees. Strip external refs from the stylesheet text (the strict iframe
+  // CSP is the network backstop; this is defence-in-depth). (#457)
+  if (tag === 'STYLE') {
+    const css = node.textContent || '';
+    const cleaned = stripExternalStyleSheetCss(css);
+    if (cleaned !== css) {
+      node.textContent = cleaned;
+      blocked = true;
+    }
   }
 
   return blocked;

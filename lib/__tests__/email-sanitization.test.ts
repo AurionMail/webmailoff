@@ -14,6 +14,7 @@ import {
   decodeCssEscapes,
   styleHasExternalUrl,
   stripExternalCssUrls,
+  stripExternalStyleSheetCss,
   blockExternalResourcesOnNode,
   TRANSPARENT_BLOCKED_PIXEL,
 } from '../email-sanitization';
@@ -393,6 +394,42 @@ describe('email-sanitization', () => {
       const style = "background:url('data:image/png;base64,AAAA')";
       expect(styleHasExternalUrl(style)).toBe(false);
       expect(stripExternalCssUrls(style)).toBe(style);
+    });
+  });
+
+  describe('stripExternalStyleSheetCss (<style> block defence-in-depth, #457)', () => {
+    it('strips external url() inside a style rule', () => {
+      expect(stripExternalStyleSheetCss("#x{background:url('http://tracker.example/y')}"))
+        .toBe('#x{background:url()}');
+    });
+
+    it('strips the CSS-escaped url() keyword (\\75\\72\\6C()', () => {
+      expect(stripExternalStyleSheetCss("#x{background:\\75\\72\\6C('http://tracker.example/y')}"))
+        .toBe('#x{background:url()}');
+    });
+
+    it('removes a remote @import (bare-string form)', () => {
+      expect(stripExternalStyleSheetCss('@import "http://tracker.example/s.css";\n#x{color:red}'))
+        .toBe('\n#x{color:red}');
+      expect(stripExternalStyleSheetCss("@import '//tracker.example/s.css';")).toBe('');
+    });
+
+    it('neutralises a remote @import url() form', () => {
+      expect(stripExternalStyleSheetCss('@import url(http://tracker.example/s.css);'))
+        .toBe('@import url();');
+    });
+
+    it('leaves a stylesheet with no external refs unchanged (escapes intact)', () => {
+      const css = '#x{content:"\\2014";background:url(data:image/png;base64,AAAA)}';
+      expect(stripExternalStyleSheetCss(css)).toBe(css);
+    });
+
+    it('blockExternalResourcesOnNode strips a <style> block and reports blocked', () => {
+      const style = parseHtmlSafely(
+        '<body><style>#x{background:url(http://tracker.example/y)}</style></body>',
+      ).body.firstElementChild!;
+      expect(blockExternalResourcesOnNode(style)).toBe(true);
+      expect(style.textContent).toBe('#x{background:url()}');
     });
   });
 
