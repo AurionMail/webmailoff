@@ -702,7 +702,10 @@ export class JMAPClient implements IJMAPClient {
         if (sessionResponse.status === 402) {
           try {
             const body = await sessionResponse.json();
-            if (body?.title?.toLowerCase().includes('totp')) {
+            // Older Stalwart titled this "TOTP code required"; 0.16+ uses the
+            // generic "MFA code required" - accept either to trigger the prompt.
+            const title = body?.title?.toLowerCase() ?? '';
+            if (title.includes('totp') || title.includes('mfa')) {
               throw new Error('TOTP_REQUIRED');
             }
           } catch (e) {

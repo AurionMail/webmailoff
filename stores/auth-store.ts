@@ -378,19 +378,79 @@ export const useAuthStore = create<AuthState>()(
       isDemoMode: false,
 
       login: async (serverUrl, username, password, totp, rememberMe) => {
-        const effectivePassword = totp ? `${password}$${totp}` : password;
         set({ isLoading: true, error: null, isRateLimited: false, rateLimitUntil: null });
 
         try {
-          const client = new JMAPClient(serverUrl, username, effectivePassword);
-          await client.connect();
-
-          // Resolve account/slot info up front so writes can start immediately.
+          // Resolve account/slot info up front so the TOTP exchange can target
+          // the right per-account refresh-token cookie slot.
           const accountStore = useAccountStore.getState();
           const accountId = generateAccountId(username, serverUrl);
           const cookieSlot = accountStore.hasAccount(username, serverUrl)
             ? (accountStore.getAccountById(accountId)?.cookieSlot ?? accountStore.getNextCookieSlot())
             : accountStore.getNextCookieSlot();
+
+          let client: JMAPClient;
+          let upgradedToOAuth = false;
+          let oauthAccessToken: string | null = null;
+          let oauthExpiresIn = 0;
+
+          if (totp) {
+            // Stalwart 0.16+ dropped the `password$totp` basic-auth convention;
+            // the MFA code must be exchanged for tokens via the structured login
+            // endpoint (handled server-side). Token auth also survives TOTP
+            // rotation, unlike basic auth which embeds the ~30s code per request.
+            let bearerToken: string | null = null;
+            try {
+              // The callback URL the OAuth client already registers; the route
+              // needs an identical redirect URI for the login + token-exchange
+              // steps (and registered when require_client_registration is on).
+              const redirectUri = typeof window !== 'undefined'
+                ? `${window.location.origin}${getPathPrefix()}/${getLocaleFromPath()}/auth/callback`
+                : '';
+              const tokenRes = await apiFetch('/api/auth/totp-token-exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // server_id isn't passed - the route looks up the server entry by
+                // serverUrl, so per-server OAuth still applies for password+TOTP.
+                body: JSON.stringify({ serverUrl, username, password, totp, slot: cookieSlot, redirectUri }),
+              });
+              if (tokenRes.ok) {
+                const { access_token, expires_in, has_refresh_token } = await tokenRes.json();
+                bearerToken = access_token;
+                oauthExpiresIn = expires_in;
+                debug.log('auth', 'TOTP login exchanged for token-based auth (has_refresh_token=' + has_refresh_token + ')');
+              } else {
+                const errorBody = await tokenRes.json().catch(() => ({ error: 'unknown' }));
+                // A correct password with a missing/invalid MFA token surfaces as
+                // a TOTP prompt rather than a generic failure.
+                if (errorBody?.error === 'totp_required') {
+                  throw new Error('TOTP_REQUIRED');
+                }
+                debug.warn('auth', 'TOTP login exchange failed, trying legacy basic auth:', tokenRes.status, errorBody);
+              }
+            } catch (err) {
+              if (err instanceof Error && err.message === 'TOTP_REQUIRED') throw err;
+              debug.warn('auth', 'TOTP login exchange error, trying legacy basic auth:', err);
+            }
+
+            if (bearerToken) {
+              client = JMAPClient.withBearer(serverUrl, bearerToken, username, () => get().refreshAccessToken());
+              await client.connect();
+              oauthAccessToken = bearerToken;
+              upgradedToOAuth = true;
+            } else {
+              // Legacy fallback for pre-0.16 Stalwart, which accepts the TOTP
+              // appended to the password over basic auth.
+              client = new JMAPClient(serverUrl, username, `${password}$${totp}`);
+              await client.connect();
+              const { useTotpReauthStore } = await import('@/stores/totp-reauth-store');
+              client.enableTotpReauth(password, () => useTotpReauthStore.getState().requestTotp());
+              debug.log('auth', 'TOTP re-auth enabled (legacy basic-auth path)');
+            }
+          } else {
+            client = new JMAPClient(serverUrl, username, password);
+            await client.connect();
+          }
 
           // Snapshot/clear before kicking off any feature-store fetches so they
           // don't write into stores we're about to wipe.
@@ -400,53 +460,8 @@ export const useAuthStore = create<AuthState>()(
             clearAllStores();
           }
 
-          // Identities can fly in parallel with everything below. JMAPClient
-          // captures the auth header per-request, so the optional TOTP upgrade
-          // doesn't affect this already-issued request.
+          // Identities can fly in parallel with everything below.
           const identitiesPromise = client.getIdentities();
-
-          // When TOTP was used, try to upgrade to token-based auth so the
-          // session survives TOTP rotation (basic auth embeds the TOTP in
-          // every request, which expires after ~30 seconds). Must complete
-          // before stalwart-context reads the auth header.
-          let upgradedToOAuth = false;
-          let oauthAccessToken: string | null = null;
-          let oauthExpiresIn = 0;
-
-          if (totp) {
-            try {
-              const tokenRes = await apiFetch('/api/auth/totp-token-exchange', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ serverUrl, username, password: effectivePassword, slot: cookieSlot }),
-                // Note: server_id isn't passed here - the route looks up the
-                // server entry by serverUrl, so per-server OAuth still applies
-                // for password+TOTP logins through the dropdown.
-              });
-              if (tokenRes.ok) {
-                const { access_token, expires_in, has_refresh_token } = await tokenRes.json();
-                // Upgrade client to Bearer auth
-                client.upgradeToBearer(access_token, () => get().refreshAccessToken());
-                oauthAccessToken = access_token;
-                oauthExpiresIn = expires_in;
-                upgradedToOAuth = true;
-                debug.log('auth', 'TOTP login upgraded to token-based auth (has_refresh_token=' + has_refresh_token + ')');
-              } else {
-                const errorBody = await tokenRes.json().catch(() => ({ error: 'unknown' }));
-                debug.warn('auth', 'TOTP token exchange failed:', tokenRes.status, errorBody);
-              }
-            } catch (err) {
-              debug.warn('auth', 'TOTP token exchange error:', err);
-            }
-
-            // If token exchange failed, enable TOTP re-auth prompt so the
-            // client can ask for a fresh code on 401 instead of disconnecting.
-            if (!upgradedToOAuth) {
-              const { useTotpReauthStore } = await import('@/stores/totp-reauth-store');
-              client.enableTotpReauth(password, () => useTotpReauthStore.getState().requestTotp());
-              debug.log('auth', 'TOTP re-auth enabled - user will be prompted for fresh codes on session expiry');
-            }
-          }
 
           const effectiveAuthMode = upgradedToOAuth ? 'oauth' : 'basic';
 
@@ -458,7 +473,7 @@ export const useAuthStore = create<AuthState>()(
             ? apiFetch(`/api/auth/session?slot=${cookieSlot}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ serverUrl, username, password: effectivePassword, slot: cookieSlot }),
+                body: JSON.stringify({ serverUrl, username, password, slot: cookieSlot }),
               }).then((res) => {
                 if (!res.ok) debug.error('Failed to store session: server returned', res.status);
               }).catch((err) => debug.error('Failed to store session:', err))
