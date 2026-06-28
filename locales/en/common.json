@@ -936,6 +936,10 @@
         "label": "Colorful Sidebar Icons",
         "description": "Tint folder and tag icons by type (blue Inbox, red Junk, green Sent, etc.). Disable for a monochrome sidebar."
       },
+      "show_folder_total_count": {
+        "label": "Show Total Message Count",
+        "description": "Show the total message count next to folders and tags, alongside the unread count. Disable to show only unread counts."
+      },
       "pro_interface": {
         "label": "Pro Interface (Experimental)",
         "description": "Desktop-only power-user layout with multi-tab message browsing and cross-account workflows. The standard interface is unaffected; you can switch back at any time.",

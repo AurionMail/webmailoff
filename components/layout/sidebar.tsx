@@ -184,8 +184,9 @@ function SidebarRowCounts({
   isSelected: boolean;
   onUnreadClick?: () => void;
 }) {
+  const showFolderTotalCount = useSettingsStore(s => s.showFolderTotalCount);
   const unreadCount = unread ?? 0;
-  const totalCount = total ?? 0;
+  const totalCount = showFolderTotalCount ? (total ?? 0) : 0;
 
   if (unreadCount === 0 && totalCount === 0) return null;
 
@@ -219,7 +220,7 @@ function SidebarRowCounts({
   ) : null;
 
   return (
-    <span className="ml-2 flex-shrink-0 flex items-baseline gap-1" title={`${unreadCount} unread / ${totalCount} total`}>
+    <span className="ml-2 flex-shrink-0 flex items-baseline gap-1" title={totalCount > 0 ? `${unreadCount} unread / ${totalCount} total` : `${unreadCount} unread`}>
       {unreadNode}
       {unreadCount > 0 && totalCount > 0 && (
         <span className="text-xs text-muted-foreground/60">/</span>

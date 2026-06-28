@@ -252,6 +252,7 @@ interface SettingsState {
 
   // Sidebar
   colorfulSidebarIcons: boolean; // Tint folder icons by role (inbox blue, junk red, etc.)
+  showFolderTotalCount: boolean; // Show total message count next to folders/tags (alongside unread)
 
   // Folders
   folderIcons: Record<string, string>; // mailboxId -> icon name
@@ -447,6 +448,7 @@ const DEFAULT_SETTINGS = {
 
   // Sidebar
   colorfulSidebarIcons: true,
+  showFolderTotalCount: true,
 
   // Folders
   folderIcons: {} as Record<string, string>,
@@ -621,6 +623,7 @@ export const useSettingsStore = create<SettingsState>()(
           senderFavicons: state.senderFavicons,
           showAvatarsInJunk: state.showAvatarsInJunk,
           colorfulSidebarIcons: state.colorfulSidebarIcons,
+          showFolderTotalCount: state.showFolderTotalCount,
           folderIcons: state.folderIcons,
           emailKeywords: state.emailKeywords,
           attachmentReminderEnabled: state.attachmentReminderEnabled,
