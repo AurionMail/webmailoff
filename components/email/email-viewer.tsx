@@ -5,7 +5,7 @@ import DOMPurify from "dompurify";
 import { Email, ContactCard, Mailbox } from "@/lib/jmap/types";
 import { emailExportFilename, attachmentDownloadFilename, attachmentsBundleFilename, DEFAULT_EMAIL_TEMPLATE, DEFAULT_ATTACHMENT_TEMPLATE } from "@/lib/download-filename";
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
-import { EMAIL_IFRAME_SANITIZE_CONFIG, blockExternalResourcesOnNode, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, sanitizeEmailHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
+import { EMAIL_IFRAME_SANITIZE_CONFIG, applyNewTabToAnchor, blockExternalResourcesOnNode, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, sanitizeEmailHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
 import { withBasePath } from "@/lib/browser-navigation";
 import { Button } from "@/components/ui/button";
@@ -1662,10 +1662,8 @@ export function EmailViewer({
             }
           }
 
-          if (node.tagName === 'A') {
-            node.setAttribute('target', '_blank');
-            node.setAttribute('rel', 'noopener noreferrer');
-          }
+          // http(s) links open in a new tab; other schemes keep their default.
+          applyNewTabToAnchor(node);
 
           // No dark mode color transforms - emails render true-to-life in iframe
         });
@@ -2280,11 +2278,9 @@ export function EmailViewer({
           }
         });
 
-        // Make links open in new tab
-        doc.querySelectorAll('a').forEach(a => {
-          a.setAttribute('target', '_blank');
-          a.setAttribute('rel', 'noopener noreferrer');
-        });
+        // Second pass over the rendered iframe DOM (the hook above only sees
+        // DOMPurify's output); http(s) → new tab, other schemes left in place.
+        doc.querySelectorAll('a').forEach(applyNewTabToAnchor);
 
         // Plugin intercept: let plugins cancel or rewrite external links inside
         // the email body before navigation happens. Bound on the iframe doc so

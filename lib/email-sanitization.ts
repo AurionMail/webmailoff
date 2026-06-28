@@ -154,7 +154,24 @@ const I18N_SANITIZE_CONFIG = {
 };
 
 export function sanitizeI18nHtml(html: string): string {
-  return DOMPurify.sanitize(html, I18N_SANITIZE_CONFIG);
+  // A custom ALLOWED_URI_REGEXP makes DOMPurify strip target/rel from trusted
+  // translated links (e.g. settings.security.not_available's docs link); keep
+  // them, and force rel on _blank to prevent tab-nabbing when the catalog omits it.
+  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+    if (data.attrName === 'target' || data.attrName === 'rel') {
+      data.forceKeepAttr = true;
+    }
+  });
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A' && node.getAttribute('target') === '_blank') {
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+  try {
+    return DOMPurify.sanitize(html, I18N_SANITIZE_CONFIG);
+  } finally {
+    DOMPurify.removeAllHooks();
+  }
 }
 
 /**
@@ -178,6 +195,8 @@ const PLAIN_TEXT_RENDERED_CONFIG = {
 };
 
 export function sanitizePlainTextRenderedHtml(html: string): string {
+  // target/rel survive the URI check via ADD_URI_SAFE_ATTR (#594); the plaintext
+  // linkifier only emits http(s), so no per-scheme handling is needed here.
   return DOMPurify.sanitize(html, PLAIN_TEXT_RENDERED_CONFIG);
 }
 
@@ -207,6 +226,36 @@ export function isExternalResourceUrl(value: string | null | undefined): boolean
   return /^(?:https?:\/\/|\/\/)/i.test(normalized);
 }
 
+
+/**
+ * True for external web links (http/https or protocol-relative `//host`) that
+ * should open in a new tab — unlike `mailto:`/`tel:`/`#fragments`, which navigate
+ * in place or hand off to the OS handler. Strips C0 controls first so obfuscated
+ * schemes (`"h\ttps://x"`) don't slip through.
+ */
+export function isHttpLinkHref(href: string | null | undefined): boolean {
+  if (!href) return false;
+  // eslint-disable-next-line no-control-regex
+  const normalized = href.replace(/[\u0000-\u0020]+/g, '');
+  return /^(?:https?:\/\/|\/\/)/i.test(normalized);
+}
+
+/**
+ * Give one `<a>` the new-tab treatment uniformly across the iframe render paths
+ * (the DOMPurify hook and the post-render DOM walk in email-viewer): http(s)
+ * links get target=_blank + rel; other schemes have them stripped so they don't
+ * spawn a blank tab. (The plaintext path relies on ADD_URI_SAFE_ATTR instead.)
+ */
+export function applyNewTabToAnchor(node: Element): void {
+  if (node.tagName !== 'A') return;
+  if (isHttpLinkHref(node.getAttribute('href'))) {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  } else {
+    node.removeAttribute('target');
+    node.removeAttribute('rel');
+  }
+}
 
 /**
  * Decode CSS escape sequences so escaped tracking URLs can be recognised.
