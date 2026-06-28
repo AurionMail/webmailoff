@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.7.6 (2026-06-28)
+
+### Breaking Changes
+
+- **S/MIME**: The built-in S/MIME implementation has been removed from core and re-delivered through the new generic crypto plugin hooks (privileged same-origin plugin tier). S/MIME signing, encryption, decryption, certificate management, and the related settings UI now live in a plugin rather than the main app. Deployments that relied on built-in S/MIME must install the S/MIME crypto plugin to retain those features.
+
+### Features
+
+- **Plugins**: Privileged same-origin plugin tier with a crypto API surface
+- **Plugins**: Plugin hooks for email details, headers, and source
+- **Mail**: Option to hide the total message count on folders (#498)
+
+### Fixes
+
+- **Mail**: Hide the server scheduled folder when the virtual one is shown (#495)
+- **Mail**: Stop the unified mailbox from mutating client-returned email objects
+- **Composer**: HTML-escape sender and subject in the reply/forward quote header (#482)
+- **Calendar**: Send calendar invites by setting `organizerCalendarAddress`
+- **Identity**: Sync the default identity (`preferredPrimaryId`) to server settings (#507)
+- **Auth**: Support MFA login via the structured auth endpoint
+- **Admin**: Show all built-in themes in the admin theme controls (#496)
+- **i18n**: Add missing translation keys across 19 locales
+
 ## 1.7.5 (2026-06-24)
 
 ### Features
