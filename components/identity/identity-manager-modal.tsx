@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { IdentityForm } from './identity-form';
 import { useIdentityStore } from '@/stores/identity-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useSettingsStore } from '@/stores/settings-store';
 
 function useSyncIdentities() {
   const syncIdentities = useAuthStore((state) => state.syncIdentities);
@@ -206,6 +207,17 @@ export function IdentityManagerModal({ isOpen, onClose }: IdentityManagerModalPr
 
   const handleSetPrimary = useCallback((identity: Identity) => {
     setPreferredPrimary(identity.id);
+    // Persist to the synced settings (keyed by username, matching how
+    // loadIdentities reads it back) so the choice survives a new browser /
+    // cleared site data and reaches other devices (#507).
+    const username = useAuthStore.getState().username || '';
+    if (username) {
+      const current = useSettingsStore.getState().preferredIdentityIds;
+      useSettingsStore.getState().updateSetting('preferredIdentityIds', {
+        ...current,
+        [username]: identity.id,
+      });
+    }
     // Re-sort: move the preferred identity to the front
     const reordered = [identity, ...identities.filter((id) => id.id !== identity.id)];
     useIdentityStore.getState().setIdentities(reordered);
