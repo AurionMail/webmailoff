@@ -74,6 +74,8 @@ export async function GET(request: NextRequest) {
       loginImprintUrl: branded<string>('loginImprintUrl', ''),
       loginPrivacyPolicyUrl: branded<string>('loginPrivacyPolicyUrl', ''),
       loginWebsiteUrl: branded<string>('loginWebsiteUrl', ''),
+      loginShowTotp: configManager.get<boolean>('loginShowTotp', true),
+      loginShowVersion: configManager.get<boolean>('loginShowVersion', true),
       demoMode: configManager.get<boolean>('demoMode', false),
       allowCustomJmapEndpoint: configManager.get<boolean>('allowCustomJmapEndpoint', false),
       jmapServers: redactJmapServers(parseJmapServers(configManager.get<unknown>('jmapServers', []))),

@@ -166,6 +166,14 @@ export const CONFIG_ENV_MAP: Record<string, { envVar: string; fileEnvVar?: strin
   loginImprintUrl: { envVar: 'LOGIN_IMPRINT_URL', type: 'url', defaultValue: '' },
   loginPrivacyPolicyUrl: { envVar: 'LOGIN_PRIVACY_POLICY_URL', type: 'url', defaultValue: '' },
   loginWebsiteUrl: { envVar: 'LOGIN_WEBSITE_URL', type: 'url', defaultValue: '' },
+  // Hide the manual "I have a 2FA code" toggle on the login form. Deployments
+  // that delegate auth to an external directory (LDAP/OIDC) where 2FA lives in
+  // the IdP have no server-side TOTP, so the toggle only leads to a failed
+  // login. Server-required TOTP (totp_required) still shows regardless.
+  loginShowTotp: { envVar: 'LOGIN_SHOW_TOTP', type: 'boolean', defaultValue: true },
+  // Show the build version in the login footer. Off keeps the exact version
+  // from being disclosed to unauthenticated visitors.
+  loginShowVersion: { envVar: 'LOGIN_SHOW_VERSION', type: 'boolean', defaultValue: true },
   oauthEnabled: { envVar: 'OAUTH_ENABLED', type: 'boolean', defaultValue: false },
   oauthOnly: { envVar: 'OAUTH_ONLY', type: 'boolean', defaultValue: false },
   oauthClientId: { envVar: 'OAUTH_CLIENT_ID', type: 'string', defaultValue: '' },

@@ -26,6 +26,8 @@ interface ConfigData {
   loginImprintUrl: string;
   loginPrivacyPolicyUrl: string;
   loginWebsiteUrl: string;
+  loginShowTotp: boolean;
+  loginShowVersion: boolean;
   demoMode: boolean;
   autoSsoEnabled: boolean;
   allowCustomJmapEndpoint: boolean;
@@ -105,6 +107,8 @@ export function useConfig(): AppConfig {
     loginImprintUrl: configCache?.loginImprintUrl || '',
     loginPrivacyPolicyUrl: configCache?.loginPrivacyPolicyUrl || '',
     loginWebsiteUrl: configCache?.loginWebsiteUrl || '',
+    loginShowTotp: configCache?.loginShowTotp ?? true,
+    loginShowVersion: configCache?.loginShowVersion ?? true,
     demoMode: configCache?.demoMode || false,
     autoSsoEnabled: configCache?.autoSsoEnabled || false,
     allowCustomJmapEndpoint: configCache?.allowCustomJmapEndpoint || false,
@@ -140,6 +144,8 @@ export function useConfig(): AppConfig {
         loginImprintUrl: configCache.loginImprintUrl,
         loginPrivacyPolicyUrl: configCache.loginPrivacyPolicyUrl,
         loginWebsiteUrl: configCache.loginWebsiteUrl,
+        loginShowTotp: configCache.loginShowTotp,
+        loginShowVersion: configCache.loginShowVersion,
         demoMode: configCache.demoMode,
         autoSsoEnabled: configCache.autoSsoEnabled,
         allowCustomJmapEndpoint: configCache.allowCustomJmapEndpoint,
@@ -176,6 +182,8 @@ export function useConfig(): AppConfig {
           loginImprintUrl: data.loginImprintUrl,
           loginPrivacyPolicyUrl: data.loginPrivacyPolicyUrl,
           loginWebsiteUrl: data.loginWebsiteUrl,
+          loginShowTotp: data.loginShowTotp,
+          loginShowVersion: data.loginShowVersion,
           demoMode: data.demoMode,
           autoSsoEnabled: data.autoSsoEnabled,
           allowCustomJmapEndpoint: data.allowCustomJmapEndpoint,
