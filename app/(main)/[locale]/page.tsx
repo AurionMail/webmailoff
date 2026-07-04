@@ -1727,7 +1727,15 @@ export default function Home() {
       setTabletListVisible(true);
     }
     if (viewingClient) {
-      await fetchEmails(viewingClient, mailboxId);
+      // Keep an active search applied when switching folders (#553); the
+      // store actions resolve the viewing account's client internally.
+      if (!isFilterEmpty(searchFilters)) {
+        await advancedSearch(viewingClient);
+      } else if (searchQuery) {
+        await searchEmails(viewingClient, searchQuery);
+      } else {
+        await fetchEmails(viewingClient, mailboxId);
+      }
     }
   };
 
@@ -1817,8 +1825,13 @@ export default function Home() {
     }
 
     if (client) {
-      // If there's an active search, re-run it in the new mailbox
-      if (searchQuery) {
+      // If there's an active search, re-run it in the new mailbox. Advanced
+      // filters must go through advancedSearch (which also includes the text
+      // query) — falling back to fetchEmails would silently drop them while
+      // the UI still shows them as active (#553).
+      if (!isFilterEmpty(searchFilters)) {
+        await advancedSearch(client);
+      } else if (searchQuery) {
         await searchEmails(client, searchQuery);
       } else {
         await fetchEmails(client, mailboxId);
