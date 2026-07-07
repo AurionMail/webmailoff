@@ -5209,14 +5209,30 @@ export class JMAPClient implements IJMAPClient {
 
   // ─── JMAP FileNode methods (draft-ietf-jmap-filenode) ───
 
-  supportsFiles(): boolean {
-    return this.hasCapability("urn:ietf:params:jmap:filenode");
+  supportsFiles(accountId?: string): boolean {
+    // Gate on the ACCOUNT capability, not the server-wide session capability.
+    // A server can advertise urn:ietf:params:jmap:filenode while a specific
+    // account has its jmap-file-node-* permissions revoked, in which case the
+    // capability is absent from that account's accountCapabilities and every
+    // FileNode action fails with an authorization error (#563). Mirror
+    // getFilesCapableAccountIds(): non-personal (shared/group) accounts don't
+    // always advertise per-account, so treat those as capable.
+    const id = accountId || this.accountId;
+    const account = this.accounts[id];
+    if (!account) return false;
+    return !!account.accountCapabilities?.["urn:ietf:params:jmap:filenode"] || !account.isPersonal;
   }
 
   async probeFileNodeSupport(): Promise<boolean> {
     // Some servers support FileNode without advertising a specific capability.
     // Try a minimal FileNode/query to detect support at runtime.
     if (this.supportsFiles()) return true;
+    // If the server advertises FileNode server-wide but this account's
+    // accountCapabilities omits it, that's an explicit per-account denial (#563)
+    // - don't probe (the probe would only confirm the revoked account can't use
+    // it, or worse mislead). Only fall through for servers that don't advertise
+    // the capability at all.
+    if (this.hasCapability("urn:ietf:params:jmap:filenode")) return false;
     if (!this.apiUrl) return false;
     try {
       const accountId = this.getFilesAccountId();

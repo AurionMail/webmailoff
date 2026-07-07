@@ -40,7 +40,7 @@ export interface IJMAPClient {
   supportsContacts(): boolean;
   supportsCalendars(): boolean;
   supportsSieve(): boolean;
-  supportsFiles(): boolean;
+  supportsFiles(accountId?: string): boolean;
 
   // ── Push / state ──────────────────────────────────────────────
   setupPushNotifications(): boolean;
