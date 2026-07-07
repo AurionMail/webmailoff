@@ -48,6 +48,7 @@ import {
   waitForPendingUploads,
   type Recipient,
 } from "@/lib/email-composer-utils";
+import { isValidEmail } from "@/lib/validation";
 import { RichTextEditor } from "@/components/email/rich-text-editor";
 import type { Editor } from "@tiptap/react";
 import { htmlToPlainText as htmlToPlainTextShared } from "@/lib/html-to-text";
@@ -2915,7 +2916,15 @@ function RecipientChipInput({
       }
     }
 
-    if ((e.key === ' ' || e.key === 'Enter' || e.key === 'Tab') && inputText.trim()) {
+    // Enter / Tab commit whatever is typed. Space only commits when the input
+    // is already a complete email address; otherwise Space is a normal
+    // character so a name search like "John Doe" can continue past the space
+    // instead of committing "John" as a bogus recipient (#571).
+    const trimmedInput = inputText.trim();
+    const commitOnKey =
+      ((e.key === 'Enter' || e.key === 'Tab') && trimmedInput) ||
+      (e.key === ' ' && isValidEmail(trimmedInput));
+    if (commitOnKey) {
       if (e.key !== 'Tab') e.preventDefault();
       commitCurrentInput();
       if (e.key === 'Tab' && onTab) {
