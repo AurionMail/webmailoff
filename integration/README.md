@@ -112,10 +112,12 @@ because the UI behaviour is currently incomplete. Worth a look:
   "Move to" submenu offers the shared folder, but clicking it is a no-op.
   Shared ⇆ shared (same owner) moves work. Pinned with `test.fail` in
   `08-shared-moves`.
-- **Cross-account attachments (fixed).** Blobs are account-scoped, so viewing/
-  downloading an attachment on an All-Mail message from another account 404'd
-  against the active account. The download/preview path now routes to the
-  message's owning client + accountId (`10-attachments`).
+- **Cross-account attachments & inline images (fixed).** Blobs are account-
+  scoped, so viewing/downloading/previewing an attachment, rendering an inline
+  `cid:` image, dragging out, and the bundle/S-MIME/TNEF/embedded-message
+  fetches on an All-Mail message from another account 404'd against the active
+  account. Every viewer blob fetch now routes to the message's owning client +
+  accountId (`10-attachments` covers download + inline image).
 
 ## How the tests work
 

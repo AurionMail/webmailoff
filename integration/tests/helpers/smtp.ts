@@ -26,6 +26,11 @@ interface SendOptions {
   headers?: Record<string, string>;
   /** Optional single attachment (sent as multipart/mixed, base64). */
   attachment?: { filename: string; contentType: string; content: string };
+  /**
+   * Optional inline image referenced by the HTML body via `cid:<cid>`. Sent as
+   * multipart/related; `base64` is the pre-encoded image payload.
+   */
+  inlineImage?: { cid: string; contentType: string; base64: string; html: string };
 }
 
 class SmtpError extends Error {}
@@ -116,7 +121,26 @@ export async function sendMail(opts: SendOptions): Promise<void> {
     };
 
     let mime: string;
-    if (opts.attachment) {
+    if (opts.inlineImage) {
+      const boundary = 'itrelated_boundary_0001';
+      headers['MIME-Version'] = '1.0';
+      headers['Content-Type'] = `multipart/related; boundary="${boundary}"`;
+      const b64 = opts.inlineImage.base64.replace(/(.{76})/g, '$1\r\n');
+      mime = [
+        `--${boundary}`,
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        crlf(opts.inlineImage.html),
+        `--${boundary}`,
+        `Content-Type: ${opts.inlineImage.contentType}`,
+        `Content-ID: <${opts.inlineImage.cid}>`,
+        'Content-Disposition: inline',
+        'Content-Transfer-Encoding: base64',
+        '',
+        b64,
+        `--${boundary}--`,
+      ].join('\r\n');
+    } else if (opts.attachment) {
       const boundary = 'itmixed_boundary_0001';
       headers['MIME-Version'] = '1.0';
       headers['Content-Type'] = `multipart/mixed; boundary="${boundary}"`;

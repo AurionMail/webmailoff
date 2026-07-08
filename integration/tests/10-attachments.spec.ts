@@ -74,4 +74,38 @@ test.describe('Cross-account attachments', () => {
     for await (const c of stream) chunks.push(c as Buffer);
     expect(Buffer.concat(chunks).toString()).toContain(ATT.content);
   });
+
+  test('an inline image on another account\'s All-Mail message renders', async ({ page }) => {
+    const subject = `IT inline ${Date.now()}`;
+    // 1x1 PNG referenced from the HTML body via cid.
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    await sendMail({
+      from: bob.email, authPass: bob.password, to: bob.email, subject, body: '',
+      inlineImage: { cid: 'inlinepic', contentType: 'image/png', base64: png, html: '<p>see below</p><img src="cid:inlinepic" alt="pic" width="1" height="1" />' },
+    });
+
+    await seedSettings(page, {
+      enableUnifiedMailbox: true,
+      enableCrossAllView: true,
+      unifiedCrossAccount: true,
+      includeGroupInUnified: true,
+    });
+
+    await login(page, alice);
+    await addAccount(page, bob);
+    await switchAccount(page, alice.email);
+    await forceSync(page);
+
+    await openFolder(page, { name: '__cross_all__' });
+    await forceSync(page);
+    await expectEmailVisible(page, subject);
+    await emailItem(page, subject).first().click();
+
+    // The inline cid: image resolves to a blob URL fetched from bob's account.
+    // Pre-fix the fetch 404s and it falls back to the data:image/gif placeholder.
+    const img = page.frameLocator('iframe[title="Email content"]').locator('img').first();
+    await expect
+      .poll(async () => (await img.getAttribute('src').catch(() => '')) ?? '', { timeout: 15000 })
+      .toMatch(/^blob:/);
+  });
 });
