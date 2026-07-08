@@ -48,7 +48,7 @@ export type DateFormat = 'smart' | 'relative' | 'full';
  */
 export type DateLocale = 'auto' | 'iso' | 'en-GB' | 'en-US';
 export type TimeFormat = '12h' | '24h';
-export type FirstDayOfWeek = 0 | 1; // 0 = Sunday, 1 = Monday
+export type FirstDayOfWeek = 0 | 1 | 6; // 0 = Sunday, 1 = Monday, 6 = Saturday
 export type ExternalContentPolicy = 'ask' | 'block' | 'allow';
 export type MailAttachmentAction = 'preview' | 'download';
 export type AttachmentPosition = 'beside-sender' | 'below-header';
