@@ -189,6 +189,16 @@ function buildPluginApi(manifest: PluginManifest) {
         opts?: { delayedUntil?: string; envelopeRecipients?: string[] },
       ) => callApi('jmap.sendRaw', [rawBytes, identityId, opts]),
     },
+    /**
+     * Used to alterate files before they are uploaded to server.
+     * Edited files are saved on indexedDB and remove once the upload to server begins.
+     */
+    upfiles: {
+      save: (formerFileId:string, file:File) =>
+        callApi('upfiles.save', [formerFileId, file]) as Promise<string>,
+      get: (fileId:string) =>
+        callApi('upfiles.get', [fileId]) as Promise<File>,
+    },
     toast: {
       success: (m: string) => { void callApi('toast.success', [m]); },
       error: (m: string) => { void callApi('toast.error', [m]); },

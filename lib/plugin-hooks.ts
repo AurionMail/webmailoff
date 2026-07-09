@@ -183,7 +183,14 @@ export const emailHooks = {
   onComposerOpen: new HookBus(),
   onBeforeEmailSend: new HookBus(),
   onAfterEmailSend: new HookBus(),
+  // Transform hook - fires before the draft is auto-saved to the server.
+  // Receive fields passed to client.createDraft and may mutate fields in place.
+  // Return false to cancel the auto-save or a the fields.
+  onBeforeDraftAutoSave: new HookBus(),
   onDraftAutoSave: new HookBus(),
+  // Transform hook - fires before a draft is created from an email in draft mailbox.
+  // Receive a Email object and may mutate fields in place.
+  onBeforeEditDraft: new HookBus(),
   onBeforeEmailDelete: new HookBus(),
   onAfterEmailDelete: new HookBus(),
   onBeforeEmailMove: new HookBus(),
@@ -232,6 +239,12 @@ export const emailHooks = {
   // attachment. Handler receives AttachmentInfo (size/type/name only - the
   // raw file is not exposed). Return false to refuse the upload.
   onBeforeAttachmentUpload: new HookBus(),
+  // Intercept hook fired before a file is uploaded to JMAP server. 
+  // It is fired after onBeforeAttachmentUpload.
+  // Handler receive the {file: File, blobId: 'undefined'} object. 
+  // If it uploaded, it must return the object with true blobId. 
+  // Here, the raw file sended is exposed and can be modified or replaced. 
+  onBeforeBlobUpload: new HookBus(),
   // Observer fired after an attachment has been uploaded and its blobId is
   // available. Handler receives AttachmentInfo with `blobId` populated.
   onAfterAttachmentUpload: new HookBus(),

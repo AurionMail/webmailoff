@@ -17,7 +17,7 @@ import { isFilePreviewable } from "@/lib/file-preview";
 import { buildQuotedHtmlBlock, serializeEditorContent } from "@/components/email/quoted-html";
 import { buildSignatureBlock } from "@/components/email/signature-block";
 import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
-import type { OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
+import type { AlmostSavedDraft, OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
 import { useIdentityStore } from "@/stores/identity-store";
 import { useProMultiAccountIdentities, stripCrossAccountIdentityPrefix } from "@/hooks/use-pro-multi-account-identities";
@@ -53,6 +53,7 @@ import { isValidEmail } from "@/lib/validation";
 import { RichTextEditor } from "@/components/email/rich-text-editor";
 import type { Editor } from "@tiptap/react";
 import { htmlToPlainText as htmlToPlainTextShared } from "@/lib/html-to-text";
+import { fileStorage } from "@/lib/plugin-storage";
 
 /**
  * Derives the text/plain alternative from the composer's HTML body, preserving
@@ -1129,7 +1130,16 @@ export function EmailComposer({
       const controller = newAttachments[i].abortController;
       try {
         if (controller?.signal.aborted) continue;
-        const { blobId } = await client.uploadBlob(file);
+        
+        const fileId = generateUUID();
+        await fileStorage.saveFile(fileId, file);
+        
+        const newFileId = await emailHooks.onBeforeBlobUpload.transform(fileId);
+
+        const newFile = await fileStorage.getFile(newFileId) || file;
+        await fileStorage.deleteFile(newFileId);
+
+        const { blobId } = await client.uploadBlob(newFile);
 
         if (controller?.signal.aborted) continue;
         setAttachments(prev =>
@@ -1337,21 +1347,36 @@ export function EmailComposer({
 
     try {
       const previousDraftId = draftIdRef.current;
+      let savedDraft : AlmostSavedDraft = { 
+       to: toAddresses,
+        subject: subject || t('no_subject'),
+        body: plainTextMode ? body : htmlToPlainText(body),
+        cc: ccAddresses,
+        bcc: bccAddresses,
+        identityId: currentIdentityRawId,
+        fromEmail,
+        draftId: previousDraftId || undefined,
+        attachments: uploadedAttachments,
+        fromName,
+        htmlBody: plainTextMode ? undefined : body
+      }
+      savedDraft = await emailHooks.onBeforeDraftAutoSave.transform(savedDraft);
+
       // Use the JMAP client and raw identity id for the *owning* account
       // - falls back to active client for single-account / same-account
       // identities. See `composerClient` derivation above.
       const savedDraftId = await composerClient.createDraft(
-        toAddresses,
-        subject || t('no_subject'),
-        plainTextMode ? body : htmlToPlainText(body),
-        ccAddresses,
-        bccAddresses,
-        currentIdentityRawId,
-        fromEmail,
-        previousDraftId || undefined,
-        uploadedAttachments,
-        fromName,
-        plainTextMode ? undefined : body
+        savedDraft.to,
+        savedDraft.subject,
+        savedDraft.body,
+        savedDraft.cc,
+        savedDraft.bcc,
+        savedDraft.identityId,
+        savedDraft.fromEmail,
+        savedDraft.draftId,
+        savedDraft.attachments,
+        savedDraft.fromName,
+        savedDraft.htmlBody
       );
 
       // Update the ref synchronously so a queued save sees the new id and
