@@ -2107,7 +2107,7 @@
       "email_invalid": "Введите корректный адрес электронной почты",
       "email_immutable": "Адрес электронной почты нельзя изменить после создания",
       "reply_to_label": "Ответить на (необязательно)",
-      "reply_to_placeholder": "other@email.com",
+      "reply_to_placeholder": "other@example.com",
       "bcc_label": "Авто СК (необязательно)",
       "bcc_placeholder": "archive@пример.рф",
       "text_signature_label": "Текстовая подпись",
