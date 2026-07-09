@@ -60,6 +60,7 @@ const PERMISSION_LABELS: Record<string, { title: string; body: string }> = {
   'crypto:full':      { title: 'Full cryptographic access (high risk)', body: 'Runs with full cryptographic access in a privileged, same-origin context. It can read your message bodies and private keys, store key material, and sign/encrypt on your behalf. Only enable plugins you fully trust — this is comparable to a full-access browser extension.' },
   'email:raw-send':   { title: 'Send raw messages',                body: 'Submit fully-formed (e.g. signed or encrypted) messages on your behalf.' },
   'email:blob-read':  { title: 'Read raw message content',        body: 'Fetch the raw bytes of your messages and attachments (needed to decrypt and verify them).' },
+  'email:blob-write':  { title: 'Alterate raw message content',        body: 'get the raw file content before it is uploaded to alterate it just before is is sended to server. (needed to encrypt)' },
   'email:render-takeover': { title: 'Replace rendered email content', body: 'Replace the displayed content of an opened message (e.g. to show decrypted text and a signature-verification badge).' },
   'calendar:read':    { title: 'Read your calendar',             body: 'Access events, calendars, RSVPs, and reminders.' },
   'calendar:write':   { title: 'Modify your calendar',           body: 'Create, edit, or delete events.' },
