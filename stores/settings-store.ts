@@ -262,6 +262,7 @@ interface SettingsState {
 
   senderFavicons: boolean;
   showAvatarsInJunk: boolean; // Show profile images/favicons in the junk folder
+  faviconUnreadBadge: boolean; // Badge the browser-tab icon with the inbox unread count
 
   // Sidebar
   colorfulSidebarIcons: boolean; // Tint folder icons by role (inbox blue, junk red, etc.)
@@ -459,6 +460,7 @@ const DEFAULT_SETTINGS = {
 
   senderFavicons: true,
   showAvatarsInJunk: false,
+  faviconUnreadBadge: true,
 
   // Sidebar
   colorfulSidebarIcons: true,
@@ -639,6 +641,7 @@ export const useSettingsStore = create<SettingsState>()(
           enableCrossAllView: state.enableCrossAllView,
           senderFavicons: state.senderFavicons,
           showAvatarsInJunk: state.showAvatarsInJunk,
+          faviconUnreadBadge: state.faviconUnreadBadge,
           colorfulSidebarIcons: state.colorfulSidebarIcons,
           tintListRowsByTag: state.tintListRowsByTag,
           showFolderTotalCount: state.showFolderTotalCount,
