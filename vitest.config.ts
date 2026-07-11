@@ -8,7 +8,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    exclude: ['e2e/**', 'node_modules/**', '.next/**'],
+    // integration/** is the dockerized Playwright suite (run via
+    // `npm run test:integration`); examples/** is untracked sample code. Both
+    // use their own runners and must not be collected by vitest.
+    exclude: ['e2e/**', 'integration/**', 'examples/**', 'node_modules/**', '.next/**'],
   },
   resolve: {
     alias: {
