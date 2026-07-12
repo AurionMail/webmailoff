@@ -918,8 +918,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         for (const email of result.emails) {
           email.sourceFolder = resolveSourceFolderName(email, allMailMailboxes);
         }
+        const enrichedEmails = await emailHooks.onEmailsFetched.transform(result.emails);
         set({
-          emails: annotateScheduledEmails(result.emails, get().scheduledSubmissionByEmailId),
+          emails: annotateScheduledEmails(enrichedEmails, get().scheduledSubmissionByEmailId),
           hasMoreEmails: result.hasMore,
           totalEmails: result.total,
           isLoading: false,
@@ -946,8 +947,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // When filtering by tag, omit the mailbox constraint so emails across
       // all folders that carry the tag are returned.
       const result = await effectiveClient.getEmails(selectedKeyword ? undefined : jmapMailboxId, accountId, emailsPerPage, 0, keywordFilter, true);
+      const enrichedEmails = await emailHooks.onEmailsFetched.transform(result.emails);
       set({
-        emails: annotateScheduledEmails(result.emails, get().scheduledSubmissionByEmailId),
+        emails: annotateScheduledEmails(enrichedEmails, get().scheduledSubmissionByEmailId),
         hasMoreEmails: result.hasMore,
         totalEmails: result.total,
         // Clear thread caches since the email list was fully replaced
@@ -991,8 +993,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         const currentEmails = get().emails;
         const existingIds = new Set(currentEmails.map(e => e.id));
         const newEmails = result.emails.filter(e => !existingIds.has(e.id));
+        const enrichedNewEmails = await emailHooks.onEmailsFetched.transform(newEmails);
         set({
-          emails: [...currentEmails, ...newEmails],
+          emails: [...currentEmails, ...enrichedNewEmails],
           hasMoreEmails: result.hasMore,
           totalEmails: result.total,
           isLoadingMore: false,
@@ -1034,8 +1037,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         const currentEmails = get().emails;
         const existingIds = new Set(currentEmails.map(e => e.id));
         const newEmails = result.emails.filter(e => !existingIds.has(e.id));
+        const enrichedNewEmails = await emailHooks.onEmailsFetched.transform(newEmails);
         set({
-          emails: [...currentEmails, ...newEmails],
+          emails: [...currentEmails, ...enrichedNewEmails],
           hasMoreEmails: result.hasMore,
           totalEmails: result.total,
           isLoadingMore: false,
@@ -1126,15 +1130,15 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // arrived between paginated requests and shifted positions.
       const existingIds = new Set(currentEmails.map(e => e.id));
       const newEmails = annotateScheduledEmails(result.emails, get().scheduledSubmissionByEmailId).filter((e: Email) => !existingIds.has(e.id));
-
+      const enrichedNewEmails = await emailHooks.onEmailsFetched.transform(newEmails);
       set({
-        emails: [...currentEmails, ...newEmails],
+        emails: [...currentEmails, ...enrichedNewEmails],
         hasMoreEmails: result.hasMore,
         totalEmails: result.total,
         isLoadingMore: false
       });
       // Fetch full thread counts for newly loaded threads in the background
-      if (newEmails.length > 0) {
+      if (enrichedNewEmails.length > 0) {
         void get().fetchThreadEmailCounts(client);
       }
     } catch (error) {
@@ -1888,7 +1892,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       if (hookEdit.newEmailIds.length > 0) {
         const newEmails = await resolveActionClient(client).getSomeEmails(hookEdit.newEmailIds, accountId);
         result.emails.push(...newEmails);
-        result.total += newEmails.length; // Correction du bug de .push()
+        result.total += newEmails.length;
       }
 
       if (controller.signal.aborted) return;
@@ -3289,6 +3293,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     try {
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
       const result = await client.getScheduledEmails(emailsPerPage, 0);
+
+      result.emails = await emailHooks.onEmailsFetched.transform(result.emails);
+
       const scheduledEmailIds = new Set(result.emails.map(email => email.id));
       const scheduledSubmissionByEmailId = new Map(result.emails.map(email => [email.id, {
         submissionId: email.emailSubmissionId,
@@ -3329,6 +3336,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     try {
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
       const result = await client.getScheduledEmails(emailsPerPage, scheduledNextPosition);
+      result.emails = await emailHooks.onEmailsFetched.transform(result.emails);
       const merged = [...scheduledEmails, ...result.emails.filter(email => !scheduledEmails.some(existing => existing.id === email.id))];
       const pendingUndoSend = get().pendingUndoSend;
       set({
