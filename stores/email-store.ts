@@ -1806,6 +1806,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         query, 
         filters: searchFilters 
       });
+      result.emails = await emailHooks.onEmailsFetched.transform(result.emails);
       set({
         emails: annotateScheduledEmails(result.emails, get().scheduledSubmissionByEmailId),
         externalSearchResults: externals,
@@ -1903,6 +1904,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       });
 
       if (controller.signal.aborted) return;
+      result.emails = await emailHooks.onEmailsFetched.transform(result.emails);
       set({
         emails: annotateScheduledEmails(result.emails, get().scheduledSubmissionByEmailId),
         externalSearchResults: externals,
