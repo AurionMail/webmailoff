@@ -232,6 +232,8 @@ function buildPluginApi(manifest: PluginManifest) {
       /** Opens an http/https URL in a new tab via host `window.open`. */
       openExternalUrl: (url: string, target?: string) =>
         callApi('ui.openExternalUrl', [url, target]) as Promise<void>,
+      downloadFile: (opts: { content: string; filename: string; contentType?: string }) =>
+        callApi('ui.downloadFile', [opts]) as Promise<void>,
     },
     admin: {
       getConfig: (key: string) => callApi('admin.getConfig', [key]),
