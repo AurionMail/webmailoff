@@ -316,7 +316,10 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
             name: name,
             displayName: displayName
           },
-          pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256
+          pubKeyCredParams: [
+            { type: "public-key" as const, alg: -7 },   // ES256 (Recommandé / Moderne)
+            { type: "public-key" as const, alg: -257 }  // RS256 (Secours exigé par Chrome)
+          ],
           authenticatorSelection: {
             authenticatorAttachment: "platform",
             userVerification: "required"
