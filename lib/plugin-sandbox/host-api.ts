@@ -333,8 +333,38 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
       console.warn("PRF credential:", credential);
       const outputs = credential.getClientExtensionResults();
       console.warn("PRF outputs:", outputs);
-      const prfSecret = (outputs as any).prf?.results?.first;
-      if (!prfSecret) throw new Error("L'extension WebAuthn PRF n'est pas supportée.");
+
+      // On vérifie si l'authentificateur (virtuel ou physique) a accepté d'activer le PRF
+      const isPrfEnabled = (outputs as any).prf?.enabled;
+      if (!isPrfEnabled) {
+        throw new Error("L'authentificateur ne supporte pas ou a refusé l'extension PRF.");
+      }
+
+
+      console.log('Extraction du secret PRF via un get instantané...');
+      
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{
+            type: "public-key",
+            id: credential.rawId
+          }],
+          userVerification: "required",
+          extensions: {
+            prf: { eval: { first: PRF_SALT } }
+          } as any
+        }
+      }) as PublicKeyCredential;
+
+      console.log('Assertion obtenue pour le PRF:', assertion);
+      const assertionOutputs = assertion.getClientExtensionResults();
+      console.warn("Outputs de l'assertion :", assertionOutputs);
+
+      const prfSecret = (assertionOutputs as any).prf?.results?.first;
+      if (!prfSecret) {
+        throw new Error("Impossible de dériver le secret cryptographique PRF.");
+      }
 
       return {
         credentialId: Array.from(new Uint8Array(credential.rawId)),
