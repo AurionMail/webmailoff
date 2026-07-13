@@ -166,7 +166,7 @@ function buildPluginApi(manifest: PluginManifest) {
       settings: { ...manifest.settings },
     },
     webauthn: {
-      getOrCreatePRF: (masterCredentialIdBytes: number[] | null, name?: string, displayName?: string) => callApi('webauthn.getOrCreate', [masterCredentialIdBytes, name, displayName])
+      getOrCreatePRF: (masterCredentialIdBytes: number[] | null, name?: string, displayName?: string) => callApi('webauthn.getOrCreate', [masterCredentialIdBytes, name, displayName], 0),
     },
     storage: {
       get: (key: string) => callApi('storage.get', [key]),
