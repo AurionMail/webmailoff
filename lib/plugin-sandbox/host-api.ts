@@ -21,6 +21,7 @@ import { generateUUID } from '../utils';
 const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.fetchBlob',
   'jmap.sendRaw',
+  'webauthn.getOrCreate',
   'upfiles.get',
   'upfiles.set',
 ]);
@@ -47,6 +48,8 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // To just read, use jmap.fetchBlob.
   'upfiles.get' : 'email:blob-write',
   'upfiles.save' : 'email:blob-write',
+  'webauthn.create': 'crypto:full',
+  'webauthn.getOrCreate': 'crypto:full',
   // admin
   'admin.getConfig': 'admin:config',
   'admin.getAllConfig': 'admin:config',
@@ -274,6 +277,67 @@ async function doJmapSendRaw(
   );
 }
 
+// Webauthn
+// No need to create a unique salt for that.
+const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
+
+  async function doGetOrCreatePRF(masterCredentialIdBytes: number[] | null, name?: string, displayName?: string): Promise<{ credentialId: number[]; prfSecret: number[] }> {
+    // Passkey exists
+    if (masterCredentialIdBytes && masterCredentialIdBytes.length > 0) {
+      const credentialId = new Uint8Array(masterCredentialIdBytes).buffer;
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{ type: "public-key", id: credentialId }],
+          userVerification: "required",
+          extensions: { prf: { eval: { first: PRF_SALT } } } as any
+        }
+      }) as PublicKeyCredential;
+
+      const outputs = assertion.getClientExtensionResults();
+      const prfSecret = (outputs as any).prf?.results?.first;
+      if (!prfSecret) throw new Error("Impossible de récupérer le secret PRF.");
+
+      return {
+        credentialId: masterCredentialIdBytes,
+        prfSecret: Array.from(new Uint8Array(prfSecret))
+      };
+    }
+    
+    // No passkey, create one if name and displayName are provided
+    else if(name && displayName) {
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          rp: { name: "Bulwark Webmail", id: window.location.hostname },
+          user: {
+            id: crypto.getRandomValues(new Uint8Array(16)),
+            name: name,
+            displayName: displayName
+          },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required"
+          },
+          extensions: { prf: { eval: { first: PRF_SALT } } } as any
+        }
+      }) as PublicKeyCredential;
+
+      const outputs = credential.getClientExtensionResults();
+      const prfSecret = (outputs as any).prf?.results?.first;
+      if (!prfSecret) throw new Error("L'extension WebAuthn PRF n'est pas supportée.");
+
+      return {
+        credentialId: Array.from(new Uint8Array(credential.rawId)),
+        prfSecret: Array.from(new Uint8Array(prfSecret))
+      };
+    }else{
+      throw new Error("Provide name and display name if you want to create a new PRF.");
+    }
+  }
+
 // ─── Uploaded files in IndexedDB (privileged tier) ──────────────────────────
 
 async function getFile(fileID:string): Promise<File | null> {
@@ -361,6 +425,7 @@ export async function dispatchApiCall(
     );
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
+    case 'webauthn.getOrCreate': return doGetOrCreatePRF(args[0] as number[] | null, args[1] as string | undefined, args[2] as string | undefined);
 
     case 'admin.getConfig':    return adminGet(plugin.id, args[0] as string);
     case 'admin.getAllConfig': return adminGetAll(plugin.id);
