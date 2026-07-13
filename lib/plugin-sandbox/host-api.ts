@@ -321,10 +321,10 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
             authenticatorAttachment: "platform",
             userVerification: "required"
           },
-          extensions: { prf: { eval: { first: PRF_SALT } } } as any
+          extensions: { prf: {} } as any
         }
       }) as PublicKeyCredential;
-
+      console.warn("PRF credential:", credential);
       const outputs = credential.getClientExtensionResults();
       console.warn("PRF outputs:", outputs);
       const prfSecret = (outputs as any).prf?.results?.first;
