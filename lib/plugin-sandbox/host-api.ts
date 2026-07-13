@@ -326,6 +326,7 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
       }) as PublicKeyCredential;
 
       const outputs = credential.getClientExtensionResults();
+      console.warn("PRF outputs:", outputs);
       const prfSecret = (outputs as any).prf?.results?.first;
       if (!prfSecret) throw new Error("L'extension WebAuthn PRF n'est pas supportée.");
 
