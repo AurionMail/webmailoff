@@ -141,7 +141,7 @@ export class SandboxInstance {
       : 'allow-scripts';
     // Can manage WebAuthn credentials in the privileged tier, but not untrusted.
     if (this.privileged || process.env.NODE_ENV === 'development') {
-      this.iframe.allow = 'publickey-credentials-get; publickey-credentials-create';
+      this.iframe.allow = 'publickey-credentials-get *; publickey-credentials-create *';
     }
     this.iframe.setAttribute('sandbox', sandboxFlags);
     this.iframe.setAttribute('referrerpolicy', 'no-referrer');
