@@ -284,6 +284,7 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
   async function doGetOrCreatePRF(masterCredentialIdBytes: number[] | null, name?: string, displayName?: string): Promise<{ credentialId: number[]; prfSecret: number[] }> {
     // Passkey exists
     if (masterCredentialIdBytes && masterCredentialIdBytes.length > 0) {
+      console.log('getting PRF secret for existing passkey');
       const credentialId = new Uint8Array(masterCredentialIdBytes).buffer;
 
       const assertion = await navigator.credentials.get({
@@ -297,6 +298,7 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
 
       const outputs = assertion.getClientExtensionResults();
       const prfSecret = (outputs as any).prf?.results?.first;
+      console.log('PRF secret:', prfSecret);
       if (!prfSecret) throw new Error("Impossible de récupérer le secret PRF.");
 
       return {
@@ -307,6 +309,7 @@ const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
     
     // No passkey, create one if name and displayName are provided
     else if(name && displayName) {
+      console.log('creating PRF secret for new passkey');
       const credential = await navigator.credentials.create({
         publicKey: {
           challenge: crypto.getRandomValues(new Uint8Array(32)),
