@@ -128,9 +128,10 @@ export class SandboxInstance {
 
     this.iframe = document.createElement('iframe');
     // Privileged tier: same-origin in BOTH dev and prod so the iframe gets real
-    // `crypto.subtle` + IndexedDB and can run its own bundled crypto libs. The
-    // postMessage RPC membrane still applies; the trust gate is enforced
-    // host-side (signature + admin approval) BEFORE this instance is created.
+    // `crypto.subtle` + IndexedDB and can run its own bundled crypto libs or
+    // call webauthn API. The postMessage RPC membrane still applies; the trust 
+    // gate is enforced host-side (signature + admin approval) BEFORE this instance
+    // is created.
     // Untrusted tier: null-origin in prod; dev adds allow-same-origin only
     // because Next's HMR/dev runtime refuses requests from the opaque ("null")
     // origin a strict sandbox produces (the iframe would never hydrate and
@@ -138,6 +139,10 @@ export class SandboxInstance {
     const sandboxFlags = this.privileged || process.env.NODE_ENV === 'development'
       ? 'allow-scripts allow-same-origin'
       : 'allow-scripts';
+    // Can manage WebAuthn credentials in the privileged tier, but not untrusted.
+    if (this.privileged || process.env.NODE_ENV === 'development') {
+      this.iframe.allow = 'publickey-credentials-get; publickey-credentials-create';
+    }
     this.iframe.setAttribute('sandbox', sandboxFlags);
     this.iframe.setAttribute('referrerpolicy', 'no-referrer');
     this.iframe.title = `plugin-${plugin.id}-${initPayload.mode}`;
