@@ -80,6 +80,26 @@ export function filterTemplates(templates: EmailTemplate[], query: string): Emai
   );
 }
 
+// Compose bodies carry the embedded signature bracketed by
+// data-signature-block markers (see email-composer's
+// buildEmbeddedSignatureHtml). Applying a template must replace only the
+// message content, so splice the template above the signature range instead
+// of overwriting the whole body.
+export function spliceTemplateAboveSignature(prevHtml: string, templateHtml: string): string {
+  const doc = new DOMParser().parseFromString(prevHtml, 'text/html');
+  const startEl = doc.querySelector('[data-signature-block="separator"], [data-signature-block="start"]');
+  if (!startEl) return templateHtml;
+  const endEl = doc.querySelector('[data-signature-block="end"]');
+  const host = doc.createElement('div');
+  let cursor: Node | null = startEl;
+  while (cursor) {
+    host.appendChild(cursor.cloneNode(true));
+    if (cursor === endEl) break;
+    cursor = cursor.nextSibling;
+  }
+  return templateHtml + host.innerHTML;
+}
+
 function sanitizeText(value: unknown): string {
   return DOMPurify.sanitize(String(value || ''), STRIP_HTML_CONFIG);
 }

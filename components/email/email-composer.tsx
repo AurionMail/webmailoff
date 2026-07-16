@@ -30,7 +30,7 @@ import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "
 import { useTemplateStore } from "@/stores/template-store";
 import { SubAddressHelper } from "@/components/identity/sub-address-helper";
 import { generateSubAddress } from "@/lib/sub-addressing";
-import { substitutePlaceholders } from "@/lib/template-utils";
+import { substitutePlaceholders, spliceTemplateAboveSignature } from "@/lib/template-utils";
 import { TemplatePicker } from "@/components/templates/template-picker";
 import { TemplateForm } from "@/components/templates/template-form";
 import type { EmailTemplate } from "@/lib/template-types";
@@ -1094,7 +1094,16 @@ export function EmailComposer({
 
     if (mode === 'compose') {
       setSubject(filledSubject);
-      setBody(bodyContent);
+      // Compose bodies carry the embedded signature (see
+      // shouldEmbedSignatureInNewMail) and the send path assumes it stays
+      // there, so replace only the message content, not the signature block.
+      if (plainTextMode) {
+        setBody(shouldEmbedSignatureInNewMail
+          ? appendPlainTextSignature(bodyContent, signatureIdentity, { separator: signatureSeparatorEnabled })
+          : bodyContent);
+      } else {
+        setBody((prev) => spliceTemplateAboveSignature(prev, bodyContent));
+      }
       if (template.defaultRecipients?.to?.length) {
         setTo(template.defaultRecipients.to.map(parseRecipient));
       }
@@ -1115,7 +1124,7 @@ export function EmailComposer({
     }
 
     setShowTemplatePicker(false);
-  }, [mode, plainTextMode]);
+  }, [mode, plainTextMode, shouldEmbedSignatureInNewMail, signatureIdentity, signatureSeparatorEnabled]);
 
   useEffect(() => {
     const handleTemplateKey = (e: KeyboardEvent) => {
