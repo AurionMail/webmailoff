@@ -135,6 +135,7 @@ export type Recipient = {
   extra?: {
     color?: string; // optional color for display purposes. May be populated by plugins via the onRecipientChipsChange hook.
     icon?: IconName; // optional icon for display purposes. May be populated by plugins via the onRecipientChipsChange hook.
+    enriched?: boolean; // whether the recipient has been enriched by a plugin via the onRecipientChipsChange hook.
   };
 };
 
