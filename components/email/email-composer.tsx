@@ -828,6 +828,26 @@ export function EmailComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerClient, plainTextMode, mode]);
 
+    const processEnrichment = async (
+      recipients: Recipient[],
+      setRecipients: (items: Recipient[]) => void
+    ) => {
+      const hasUnenriched = recipients.some((r) => !r.extra?.enriched);
+      if (!hasUnenriched) return;
+
+        const newChips = await enrichChipsWithColorsAndIcons(recipients);
+        const fullyEnriched = newChips.map((chip) => ({
+          ...chip,
+          extra: { ...chip.extra, enriched: true },
+        }));
+        setRecipients(fullyEnriched);
+    };
+
+
+    useEffect(() => { processEnrichment(to, setTo); }, [to]);
+    useEffect(() => { processEnrichment(cc, setCc); }, [cc]);
+    useEffect(() => { processEnrichment(bcc, setBcc); }, [bcc]);
+
   const composerSignatureHtml = signatureIdentity?.htmlSignature
     ? `<div>${sanitizeSignatureHtmlForDisplay(signatureIdentity.htmlSignature)}</div>`
     : signatureIdentity?.textSignature
@@ -2258,19 +2278,9 @@ export function EmailComposer({
             <span className="text-sm text-muted-foreground w-12 md:w-16 shrink-0">{t('to')}:</span>
             <RecipientChipInput
               chips={to}
-              onChipsChange={(next) => {///
-                setTo(next);// To add the fieald immediately.
+              onChipsChange={(next) => {
+                setTo(next);
                 if (validationErrors.to) setValidationErrors(prev => ({ ...prev, to: false }));
-
-                enrichChipsWithColorsAndIcons(next).then((enriched) => {
-                  setTo((currentChips) => {
-                    // if user deleted a chip while enrichment was in flight, 
-                    // don't overwrite the new state with the old enriched state. 
-                    if (currentChips.length !== next.length) return currentChips;
-                    return enriched;
-                  });
-                });
-
               }}
               inputText={toInput}
               onInputChange={setToInput}
@@ -2352,15 +2362,7 @@ export function EmailComposer({
               <span className="text-sm text-muted-foreground w-12 md:w-16 shrink-0">{t('cc_label')}</span>
               <RecipientChipInput
                 chips={cc}
-                onChipsChange={(next) => {
-                  setCc(next);
-                  enrichChipsWithColorsAndIcons(next).then((enriched) => {
-                    setCc((current) => {
-                      if (current.length !== next.length) return current;
-                      return enriched;
-                    });
-                  });
-                }}
+                onChipsChange={setCc}
                 inputText={ccInput}
                 onInputChange={setCcInput}
                 inputRef={ccInputRef}
@@ -2389,15 +2391,7 @@ export function EmailComposer({
               <span className="text-sm text-muted-foreground w-12 md:w-16 shrink-0">{t('bcc_label')}</span>
               <RecipientChipInput
                 chips={bcc}
-                onChipsChange={(next) => {
-                  setBcc(next);
-                  enrichChipsWithColorsAndIcons(next).then((enriched) => {
-                    setBcc((current) => {
-                      if (current.length !== next.length) return current;
-                      return enriched;
-                    });
-                  });
-                }}
+                onChipsChange={setBcc}
                 inputText={bccInput}
                 onInputChange={setBccInput}
                 inputRef={bccInputRef}
