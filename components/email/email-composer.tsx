@@ -49,6 +49,8 @@ import {
   waitForPendingUploads,
   extractUserAuthoredText,
   type Recipient,
+  enrichChipsWithColorsAndIcons,
+  ICON_MAP,
 } from "@/lib/email-composer-utils";
 import { isValidEmail } from "@/lib/validation";
 import { RichTextEditor } from "@/components/email/rich-text-editor";
@@ -2256,9 +2258,11 @@ export function EmailComposer({
             <span className="text-sm text-muted-foreground w-12 md:w-16 shrink-0">{t('to')}:</span>
             <RecipientChipInput
               chips={to}
-              onChipsChange={(next) => {
-                setTo(next);
+              onChipsChange={async (next) => {///
+                setTo(next);// To add the fieald immediately.
                 if (validationErrors.to) setValidationErrors(prev => ({ ...prev, to: false }));
+                const enriched = await enrichChipsWithColorsAndIcons(next);
+                if(next != enriched) setTo(enriched);
               }}
               inputText={toInput}
               onInputChange={setToInput}
@@ -2340,7 +2344,11 @@ export function EmailComposer({
               <span className="text-sm text-muted-foreground w-12 md:w-16 shrink-0">{t('cc_label')}</span>
               <RecipientChipInput
                 chips={cc}
-                onChipsChange={setCc}
+                onChipsChange={async (next) => {///
+                setCc(next);// To add the fieald immediately.
+                const enriched = await enrichChipsWithColorsAndIcons(next);
+                if(next != enriched) setCc(enriched);
+              }}
                 inputText={ccInput}
                 onInputChange={setCcInput}
                 inputRef={ccInputRef}
@@ -2369,7 +2377,11 @@ export function EmailComposer({
               <span className="text-sm text-muted-foreground w-12 md:w-16 shrink-0">{t('bcc_label')}</span>
               <RecipientChipInput
                 chips={bcc}
-                onChipsChange={setBcc}
+                onChipsChange={async (next) => {///
+                setBcc(next);// To add the fieald immediately.
+                const enriched = await enrichChipsWithColorsAndIcons(next);
+                if(next != enriched) setBcc(enriched);
+              }}
                 inputText={bccInput}
                 onInputChange={setBccInput}
                 inputRef={bccInputRef}
@@ -2904,7 +2916,7 @@ function RecipientChipInput({
   onMoveChip,
 }: {
   chips: Recipient[];
-  onChipsChange: (chips: Recipient[]) => void;
+  onChipsChange: (chips: Recipient[]) => Promise<void>;
   inputText: string;
   onInputChange: (text: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -3186,6 +3198,11 @@ function RecipientChipInput({
         {chips.map((chip, i) => {
           const isEditing = editingChip?.index === i;
           const chipDisplay = formatChipDisplay(chip);
+          let IconComponent = null;
+          if(chip.extra?.icon){
+             IconComponent = ICON_MAP[chip.extra?.icon];
+          }
+          const customColor = chip.extra?.color;
           return (
             <React.Fragment key={`${chip.email}-${i}`}>
             {dropIndex === i && (
@@ -3214,11 +3231,17 @@ function RecipientChipInput({
                 "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-sm border border-border transition-colors",
                 isEditing
                   ? "bg-background ring-1 ring-ring"
-                  : "bg-secondary text-secondary-foreground hover:bg-accent cursor-grab active:cursor-grabbing",
+                  : ( customColor
+                      ? "bg-"+ customColor + "/15 text-secondary-foreground hover:bg-accent cursor-grab active:cursor-grabbing"
+                      :  "bg-secondary text-secondary-foreground hover:bg-accent cursor-grab active:cursor-grabbing"),
                 !isEditing && draggingIndex === i && "opacity-50"
               )}
               onContextMenu={isEditing ? undefined : (e) => handleContextMenu(e, i, chip)}
             >
+              {IconComponent ? (
+                <IconComponent className="w-4 h-4" />
+              ) : null}
+
               {isEditing ? (
                 <input
                   ref={editInputRef}
