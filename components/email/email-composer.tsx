@@ -3192,6 +3192,11 @@ function RecipientChipInput({
   const handleContainerDrop = (e: React.DragEvent) => {
     performDrop(e, dropIndex ?? chips.length);
   };
+  const colorStyles: Record<'success' | 'destructive' | 'warning', string> = {
+    success: "bg-success/15 text-secondary-foreground hover:bg-success/30 !border-success",
+    destructive: "bg-destructive/15 text-secondary-foreground hover:bg-destructive/30 !border-destructive",
+    warning: "bg-warning/15 text-secondary-foreground hover:bg-warning/30 !border-warning",
+  };
 
   return (
     <div className="flex-1 relative min-w-0">
@@ -3214,6 +3219,7 @@ function RecipientChipInput({
              IconComponent = ICON_MAP[chip.extra?.icon];
           }
           const customColor = chip.extra?.color;
+
           return (
             <React.Fragment key={`${chip.email}-${i}`}>
             {dropIndex === i && (
@@ -3242,15 +3248,15 @@ function RecipientChipInput({
                 "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-sm border border-border transition-colors",
                 isEditing
                   ? "bg-background ring-1 ring-ring"
-                  : ( customColor
-                      ? "bg-"+ customColor + "/15 text-secondary-foreground hover:bg-" + customColor + "/30 cursor-grab active:cursor-grabbing border-" + customColor
+                  : ( customColor && colorStyles[customColor]
+                      ? `${colorStyles[customColor]} cursor-grab active:cursor-grabbing`
                       :  "bg-secondary text-secondary-foreground hover:bg-accent cursor-grab active:cursor-grabbing"),
                 !isEditing && draggingIndex === i && "opacity-50"
               )}
               onContextMenu={isEditing ? undefined : (e) => handleContextMenu(e, i, chip)}
             >
               {IconComponent ? (
-                <IconComponent className={`w-4 h-4 color-${customColor}`} />
+                <IconComponent className={`w-4 h-4 text-${customColor}`} />
               ) : null}
 
               {isEditing ? (

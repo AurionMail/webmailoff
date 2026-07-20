@@ -133,7 +133,7 @@ export type Recipient = {
   email: string;
   group?: { members: Array<{ name?: string; email: string }> };
   extra?: {
-    color?: string; // optional color for display purposes. May be populated by plugins via the onRecipientChipsChange hook.
+    color?: "success" | "destructive" | "warning"; // optional color for display purposes. May be populated by plugins via the onRecipientChipsChange hook.
     icon?: IconName; // optional icon for display purposes. May be populated by plugins via the onRecipientChipsChange hook.
     enriched?: boolean; // optional flag to indicate if the recipient has been enriched by plugins via the onRecipientChipsChange hook.
   };
