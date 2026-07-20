@@ -3243,14 +3243,14 @@ function RecipientChipInput({
                 isEditing
                   ? "bg-background ring-1 ring-ring"
                   : ( customColor
-                      ? "bg-"+ customColor + "/15 text-secondary-foreground hover:bg-accent cursor-grab active:cursor-grabbing"
+                      ? "bg-"+ customColor + "/15 text-secondary-foreground hover:bg-" + customColor + "/30 cursor-grab active:cursor-grabbing border-" + customColor
                       :  "bg-secondary text-secondary-foreground hover:bg-accent cursor-grab active:cursor-grabbing"),
                 !isEditing && draggingIndex === i && "opacity-50"
               )}
               onContextMenu={isEditing ? undefined : (e) => handleContextMenu(e, i, chip)}
             >
               {IconComponent ? (
-                <IconComponent className="w-4 h-4" />
+                <IconComponent className={`w-4 h-4 color-${customColor}`} />
               ) : null}
 
               {isEditing ? (
