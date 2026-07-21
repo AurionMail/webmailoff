@@ -6305,7 +6305,7 @@ export class JMAPClient implements IJMAPClient {
   }
 
   /**
-   * Import a raw S/MIME message, move it to the Sent mailbox, and submit it.
+   * Import a raw S/MIME PGP/MIME message, move it to the Sent mailbox, and submit it.
    * Encapsulates the full import → update → submit flow.
    */
   async sendRawEmail(
@@ -6391,6 +6391,86 @@ export class JMAPClient implements IJMAPClient {
     return delayedUntil
       ? { scheduled: true, emailId, emailSubmissionId, sendAt: serverSendAt, isSmime: true }
       : { scheduled: false, emailId, emailSubmissionId, isSmime: true };
+  }
+
+  /**
+   * Submit a raw email blob to the network via JMAP EmailSubmission without auto-archiving to Sent.
+   */
+  async submitRawEmail(
+    blob: Blob,
+    identityId: string,
+    delayedUntil?: string,
+    envelopeRecipients?: string[],
+  ): Promise<SendEmailResult> {
+    const mailboxes = await this.getMailboxes();
+    const draftsMailbox = mailboxes.find(mb => mb.role === 'drafts');
+    if (!draftsMailbox) {
+          throw new Error('Drafts mailbox not found');
+        }
+
+    const holdForSeconds = delayedUntil ? this.validateDelayedUntil(delayedUntil) : undefined;
+    
+    const file = new File([blob], 'message.eml', { type: 'message/rfc822' });
+    const { blobId } = await this.uploadBlob(file);
+
+    const identities = await this.getIdentities();
+    const identity = identities.find(item => item.id === identityId);
+    const envelope = createDelayedSubmissionEnvelope(identity?.email || this.username, holdForSeconds, envelopeRecipients);
+
+    //Temporarily import the raw email into Drafts to satisfy JMAP's requirement that an EmailSubmission references an existing Email. 
+    // The Email will be destroyed after submission.
+    const methodCalls: [string, Record<string, unknown>, string][] = [
+      ['Email/import', {
+        accountId: this.accountId,
+        emails: {
+          'temp-submit': {
+            blobId,
+            mailboxIds: { [draftsMailbox.id]: true },
+            keywords: { '$draft': true },
+          },
+        },
+      }, '0'],
+      ['EmailSubmission/set', {
+        accountId: this.getSubmissionAccountId(),
+        create: {
+          'raw-submit': {
+            emailId: '#temp-submit',
+            identityId,
+            ...(envelope ? { envelope } : {}),
+          },
+        },
+        //destroy the temporary email after submission to avoid leaving a draft behind.
+        onSuccessDestroyEmail: ['#raw-submit'],
+      }, '1'],
+    ];
+
+    const response = await this.request(methodCalls);
+    let emailSubmissionId: string | undefined;
+    let serverSendAt: string | undefined;
+
+    for (const [methodName, result] of response.methodResponses ?? []) {
+      if (methodName.endsWith('/error')) {
+        throw new Error((result as { description?: string }).description || `Failed: ${(result as { type?: string }).type}`);
+      }
+      const r = result as { notCreated?: Record<string, { description?: string; type?: string }> };
+      if (r.notCreated) {
+        const firstErr = Object.values(r.notCreated)[0];
+        throw new Error(firstErr?.description || firstErr?.type || 'Failed to submit raw email');
+      }
+      if (methodName === 'EmailSubmission/set') {
+        const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['raw-submit'];
+        emailSubmissionId = created?.id;
+        serverSendAt = created?.sendAt;
+      }
+    }
+
+    if (delayedUntil && emailSubmissionId && !serverSendAt) {
+      serverSendAt = await this.getEmailSubmissionSendAt(emailSubmissionId);
+    }
+
+    return delayedUntil
+      ? { scheduled: true, emailSubmissionId, sendAt: serverSendAt, isSmime: true }
+      : { scheduled: false, emailSubmissionId, isSmime: true };
   }
 
   async getScheduledEmails(limit = 50, position = 0): Promise<{ emails: ScheduledEmail[]; hasMore: boolean; total: number; nextPosition: number }> {

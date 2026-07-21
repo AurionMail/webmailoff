@@ -191,6 +191,18 @@ function buildPluginApi(manifest: PluginManifest) {
         identityId: string,
         opts?: { delayedUntil?: string; envelopeRecipients?: string[] },
       ) => callApi('jmap.sendRaw', [rawBytes, identityId, opts]),
+      /** Submit without putting in sent box a fully-formed raw RFC822 message (already signed/encrypted). */
+      submitRaw: (
+        rawBytes: ArrayBuffer | ArrayBufferView,
+        identityId: string,
+        opts?: { delayedUntil?: string; envelopeRecipients?: string[] },
+      ) => callApi('jmap.submitRaw', [rawBytes, identityId, opts]),
+      /** Import a fully-formed raw RFC822 message into the user's mailbox. */
+      importRaw: (
+        rawBytes: ArrayBuffer | ArrayBufferView,
+        mailboxRoles: string[],
+        opts?:  { keywords?: Record<string, boolean>; accountId?: string },
+      ) => callApi('jmap.importRaw', [rawBytes, mailboxRoles, opts]),
     },
     /**
      * Used to alterate files before they are uploaded to server.
