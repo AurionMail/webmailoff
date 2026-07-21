@@ -21,6 +21,8 @@ import { generateUUID } from '../utils';
 const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.fetchBlob',
   'jmap.sendRaw',
+  'jmap.submitRaw',
+  'jmap.importRaw',
   'upfiles.get',
   'webauthn.getOrCreate',
   'upfiles.set',
@@ -43,6 +45,8 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // jmap (privileged-tier only; see PRIVILEGED_ONLY_METHODS)
   'jmap.fetchBlob': 'email:blob-read',
   'jmap.sendRaw': 'email:raw-send',
+  'jmap.submitRaw': 'email:raw-send',
+  'jmap.importRaw': 'email:raw-send',
   // uploaded files (privileged-tier only) : 
   // Used only to get a file before it is uploaded to alterate it. 
   // To just read, use jmap.fetchBlob.
@@ -247,6 +251,11 @@ async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: st
   return new Uint8Array(buf);
 }
 
+interface JmapSubmitRawOptions {
+  delayedUntil?: string;
+  envelopeRecipients?: string[];
+}
+
 /**
  * Submit a fully-formed raw RFC822 message (e.g. one a plugin has signed and/or
  * encrypted) via the host's raw-send path, which also files it into Sent. The
@@ -255,7 +264,7 @@ async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: st
 async function doJmapSendRaw(
   rawBytes: ArrayBuffer | ArrayBufferView,
   identityId: string,
-  opts?: { delayedUntil?: string; envelopeRecipients?: string[] },
+  opts?: JmapSubmitRawOptions,
 ): Promise<unknown> {
   if (typeof identityId !== 'string' || !identityId) throw new Error('jmap.sendRaw: identityId required');
   const { client } = useAuthStore.getState();
@@ -274,6 +283,88 @@ async function doJmapSendRaw(
     identityId,
     opts?.delayedUntil,
     opts?.envelopeRecipients,
+  );
+}
+
+
+/**
+ * submit a fully-formed raw RFC822 message without putting it in sent box. 
+ */
+async function doJmapSubmitRaw(
+  rawBytes: ArrayBuffer | ArrayBufferView,
+  identityId: string,
+  opts?: JmapSubmitRawOptions,
+): Promise<unknown> {
+  if (typeof identityId !== 'string' || !identityId) {
+    throw new Error('jmap.submitRaw: identityId required');
+  }
+
+  const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('jmap.submitRaw: no active session');
+  }
+
+  const view = rawBytes instanceof ArrayBuffer
+    ? new Uint8Array(rawBytes)
+    : new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
+  
+  const copy = new Uint8Array(view.byteLength);
+  copy.set(view);
+  const blob = new Blob([copy.buffer], { type: 'message/rfc822' });
+
+  return client.submitRawEmail(
+    blob,
+    identityId,
+    opts?.delayedUntil,
+    opts?.envelopeRecipients,
+  );
+}
+
+interface JmapImportRawOptions {
+  keywords?: Record<string, boolean>;
+  accountId?: string;
+}
+
+/**
+ * Import a fully-formed raw RFC822 message into the user's mailbox.
+ */
+async function doJmapImportRaw(
+  rawBytes: ArrayBuffer | ArrayBufferView,
+  mailboxRoles: string[],
+  opts?: JmapImportRawOptions,
+): Promise<string> {
+
+  const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('jmap.importRaw: no active session');
+  }
+  let mailboxIds: Record<string, boolean> = {};
+
+    const mailboxes = await client.getMailboxes();
+    for (const role of mailboxRoles) {
+      const mailbox = mailboxes.find(mb => mb.role === role);
+      if (!mailbox) {
+        throw new Error(`Mailbox with role "${role}" not found`);
+      }
+      mailboxIds[mailbox.id] = true;
+    }
+
+    if (Object.keys(mailboxIds).length === 0) {
+      throw new Error('No valid mailboxes found for the specified roles');
+    }
+  const view = rawBytes instanceof ArrayBuffer
+    ? new Uint8Array(rawBytes)
+    : new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
+  
+  const copy = new Uint8Array(view.byteLength);
+  copy.set(view);
+  const blob = new Blob([copy.buffer], { type: 'message/rfc822' });
+
+  return client.importRawEmail(
+    blob,
+    mailboxIds,
+    opts?.keywords,
+    opts?.accountId,
   );
 }
 
@@ -490,6 +581,16 @@ export async function dispatchApiCall(
       args[0] as ArrayBuffer | ArrayBufferView,
       args[1] as string,
       args[2] as { delayedUntil?: string; envelopeRecipients?: string[] } | undefined,
+    );
+    case 'jmap.submitRaw': return doJmapSubmitRaw(
+      args[0] as ArrayBuffer | ArrayBufferView,
+      args[1] as string,
+      args[2] as { delayedUntil?: string; envelopeRecipients?: string[] } | undefined,
+    );
+    case 'jmap.importRaw': return doJmapImportRaw(
+      args[0] as ArrayBuffer | ArrayBufferView,
+      args[1] as string[],
+      args[2] as { keywords?: Record<string, boolean>; accountId?: string } | undefined,
     );
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
