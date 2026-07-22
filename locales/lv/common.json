@@ -277,6 +277,8 @@
     "no_subject": "(nav temata)",
     "no_body_content": "(nav satura)",
     "no_preview_available": "Priekšskatījums nav pieejams",
+    "show_quoted_text": "Rādīt citēto tekstu",
+    "hide_quoted_text": "Paslēpt citēto tekstu",
     "loading_email": "Ielādē vēstuli...",
     "loading": "Ielādē...",
     "reply": "Atbildēt",

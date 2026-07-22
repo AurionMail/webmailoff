@@ -277,6 +277,8 @@
     "no_subject": "(Bez předmětu)",
     "no_body_content": "(Žádný obsah těla)",
     "no_preview_available": "Náhled není k dispozici",
+    "show_quoted_text": "Zobrazit citovaný text",
+    "hide_quoted_text": "Skrýt citovaný text",
     "loading_email": "Načítání zprávy...",
     "loading": "Načítání...",
     "reply": "Odpovědět",

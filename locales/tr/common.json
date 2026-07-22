@@ -277,6 +277,8 @@
     "no_subject": "(Konu Yok)",
     "no_body_content": "(İçerik yok)",
     "no_preview_available": "Önizleme kullanılamıyor",
+    "show_quoted_text": "Alıntılanan metni göster",
+    "hide_quoted_text": "Alıntılanan metni gizle",
     "loading_email": "E-posta yükleniyor...",
     "loading": "Yükleniyor...",
     "reply": "Yanıtla",

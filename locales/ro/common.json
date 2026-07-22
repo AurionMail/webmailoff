@@ -277,6 +277,8 @@
     "no_subject": "(Fără subiect)",
     "no_body_content": "(Nu există conținut disponibil)",
     "no_preview_available": "Nu este disponibilă previzualizarea",
+    "show_quoted_text": "Afișează textul citat",
+    "hide_quoted_text": "Ascunde textul citat",
     "loading_email": "Se încarcă e-mailul...",
     "loading": "Se încarcă...",
     "reply": "Răspunde",

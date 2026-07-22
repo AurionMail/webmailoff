@@ -277,6 +277,8 @@
     "no_subject": "（无主题）",
     "no_body_content": "（无正文内容）",
     "no_preview_available": "无可用预览",
+    "show_quoted_text": "显示引用文本",
+    "hide_quoted_text": "隐藏引用文本",
     "loading_email": "正在加载邮件...",
     "loading": "正在加载…",
     "reply": "回复",

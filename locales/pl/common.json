@@ -277,6 +277,8 @@
     "no_subject": "(Bez tematu)",
     "no_body_content": "(Brak treści)",
     "no_preview_available": "Podgląd niedostępny",
+    "show_quoted_text": "Pokaż cytowany tekst",
+    "hide_quoted_text": "Ukryj cytowany tekst",
     "loading_email": "Ładowanie wiadomości...",
     "loading": "Ładowanie...",
     "reply": "Odpowiedz",

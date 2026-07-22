@@ -5,6 +5,7 @@ import DOMPurify from "dompurify";
 import { Email, ThreadGroup } from "@/lib/jmap/types";
 import { EMAIL_SANITIZE_CONFIG, collapseBlockedImageContainers, plainTextToSafeHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
+import { collapsePlainTextQuotes, setupQuoteCollapse } from "@/lib/quote-collapse";
 import { transformInlineStyles, transformColorForDarkMode, transformBgColorForDarkMode } from "@/lib/color-transform";
 import { useThemeStore } from "@/stores/theme-store";
 import { Avatar } from "@/components/ui/avatar";
@@ -424,7 +425,14 @@ function EmailCard({
       // Plain text fallback
       if (email.textBody?.[0]?.partId && email.bodyValues[email.textBody[0].partId]) {
         const text = email.bodyValues[email.textBody[0].partId].value;
-        return { html: plainTextToSafeHtml(text, 'text-primary hover:underline'), isHtml: false };
+        return {
+          // Trailing ">"-quoted block collapses behind a <details> toggle (#480).
+          html: collapsePlainTextQuotes(plainTextToSafeHtml(text, 'text-primary hover:underline'), {
+            show: t('email_viewer.show_quoted_text'),
+            hide: t('email_viewer.hide_quoted_text'),
+          }),
+          isHtml: false,
+        };
       }
     }
 
@@ -438,7 +446,7 @@ function EmailCard({
     }
 
     return { html: "", isHtml: false };
-  }, [email, allowExternal, resolvedTheme, emailAlwaysLightMode, cidBlobUrls]);
+  }, [email, allowExternal, resolvedTheme, emailAlwaysLightMode, cidBlobUrls, t]);
 
   // Render the sanitized HTML body inside a sandboxed iframe so a malicious
   // (or accidentally-bypassed) email cannot inject styles/scripts/forms into
@@ -469,6 +477,12 @@ function EmailCard({
     try {
       const doc = iframe.contentDocument;
       if (!doc?.body) return;
+      // Collapse the quoted original of a reply behind a "•••" toggle (#480),
+      // before the first resize so the height reflects the collapsed body.
+      setupQuoteCollapse(doc, {
+        show: t('email_viewer.show_quoted_text'),
+        hide: t('email_viewer.hide_quoted_text'),
+      });
       const resize = () => {
         iframe.style.height = doc.documentElement.scrollHeight + 'px';
       };
@@ -482,7 +496,7 @@ function EmailCard({
     } catch {
       // contentDocument may be inaccessible under stricter sandboxes; ignore.
     }
-  }, []);
+  }, [t]);
 
   return (
     <div className={cn(

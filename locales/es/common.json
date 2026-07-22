@@ -277,6 +277,8 @@
     "no_subject": "(Sin Asunto)",
     "no_body_content": "(Sin contenido disponible)",
     "no_preview_available": "Vista previa no disponible",
+    "show_quoted_text": "Mostrar texto citado",
+    "hide_quoted_text": "Ocultar texto citado",
     "loading_email": "Cargando correo...",
     "loading": "Cargando...",
     "reply": "Responder",

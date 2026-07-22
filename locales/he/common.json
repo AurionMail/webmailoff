@@ -478,6 +478,8 @@
     },
     "no_body_content": "(אין תוכן גוף זמין)",
     "no_preview_available": "אין תצוגה מקדימה זמינה",
+    "show_quoted_text": "הצג טקסט מצוטט",
+    "hide_quoted_text": "הסתר טקסט מצוטט",
     "unread": "סמן כלא נקרא",
     "read": "קרא",
     "spam_short": "דואר זבל",

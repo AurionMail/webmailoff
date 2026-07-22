@@ -277,6 +277,8 @@
     "no_subject": "(بدون موضوع)",
     "no_body_content": "(محتوایی موجود نیست)",
     "no_preview_available": "پیش‌نمایشی در دسترس نیست",
+    "show_quoted_text": "نمایش متن نقل‌قول‌شده",
+    "hide_quoted_text": "پنهان کردن متن نقل‌قول‌شده",
     "loading_email": "در حال بارگذاری ایمیل...",
     "loading": "در حال بارگذاری...",
     "reply": "پاسخ",

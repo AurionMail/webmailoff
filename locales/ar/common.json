@@ -277,6 +277,8 @@
     "no_subject": "(بلا موضوع)",
     "no_body_content": "(لا يوجد محتوى نصي متاح)",
     "no_preview_available": "لا تتوفر معاينة",
+    "show_quoted_text": "إظهار النص المقتبس",
+    "hide_quoted_text": "إخفاء النص المقتبس",
     "loading_email": "جارٍ تحميل الرسالة...",
     "loading": "جارٍ التحميل...",
     "reply": "رد",

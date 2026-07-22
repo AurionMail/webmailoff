@@ -277,6 +277,8 @@
     "no_subject": "(Bez predmetu)",
     "no_body_content": "(Obsah správy nie je dostupný)",
     "no_preview_available": "Náhľad nie je dostupný",
+    "show_quoted_text": "Zobraziť citovaný text",
+    "hide_quoted_text": "Skryť citovaný text",
     "loading_email": "Načítavanie e-mailu...",
     "loading": "Načítavanie...",
     "reply": "Odpovedať",

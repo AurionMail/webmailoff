@@ -277,6 +277,8 @@
     "no_subject": "(Sans objet)",
     "no_body_content": "(Aucun contenu disponible)",
     "no_preview_available": "Aucun aperçu disponible",
+    "show_quoted_text": "Afficher le texte cité",
+    "hide_quoted_text": "Masquer le texte cité",
     "loading_email": "Chargement de l'email...",
     "loading": "Chargement...",
     "reply": "Répondre",

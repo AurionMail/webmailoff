@@ -277,6 +277,8 @@
     "no_subject": "(제목 없음)",
     "no_body_content": "(본문 내용 없음)",
     "no_preview_available": "미리 보기를 사용할 수 없습니다",
+    "show_quoted_text": "인용된 텍스트 표시",
+    "hide_quoted_text": "인용된 텍스트 숨기기",
     "loading_email": "메일을 불러오는 중...",
     "loading": "불러오는 중...",
     "reply": "답장",

@@ -277,6 +277,8 @@
     "no_subject": "(Intet emne)",
     "no_body_content": "(Intet indhold tilgængeligt)",
     "no_preview_available": "Forhåndsvisning ikke tilgængelig",
+    "show_quoted_text": "Vis citeret tekst",
+    "hide_quoted_text": "Skjul citeret tekst",
     "loading_email": "Indlæser e-mail...",
     "loading": "Indlæser...",
     "reply": "Svar",

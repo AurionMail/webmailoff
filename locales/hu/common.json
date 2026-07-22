@@ -277,6 +277,8 @@
     "no_subject": "(Nincs tárgy)",
     "no_body_content": "(Nincs elérhető tartalom)",
     "no_preview_available": "Nincs előnézet",
+    "show_quoted_text": "Idézett szöveg megjelenítése",
+    "hide_quoted_text": "Idézett szöveg elrejtése",
     "loading_email": "E-mail betöltése...",
     "loading": "Betöltés...",
     "reply": "Válasz",

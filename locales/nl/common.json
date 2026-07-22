@@ -277,6 +277,8 @@
     "no_subject": "(Geen onderwerp)",
     "no_body_content": "(Geen inhoud beschikbaar)",
     "no_preview_available": "Geen voorbeeld beschikbaar",
+    "show_quoted_text": "Geciteerde tekst tonen",
+    "hide_quoted_text": "Geciteerde tekst verbergen",
     "loading_email": "E-mail laden...",
     "loading": "Laden...",
     "reply": "Beantwoorden",

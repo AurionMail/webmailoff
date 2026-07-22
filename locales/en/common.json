@@ -277,6 +277,8 @@
     "no_subject": "(No Subject)",
     "no_body_content": "(No body content available)",
     "no_preview_available": "No preview available",
+    "show_quoted_text": "Show quoted text",
+    "hide_quoted_text": "Hide quoted text",
     "loading_email": "Loading email...",
     "loading": "Loading...",
     "reply": "Reply",
