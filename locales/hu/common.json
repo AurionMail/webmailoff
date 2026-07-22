@@ -1121,6 +1121,13 @@
         "permanent": "Végleges törlés",
         "warning": "Az e-mailek véglegesen törlődnek és nem állíthatók vissza. Ez a művelet visszafordíthatatlan."
       },
+      "message_spacing": {
+        "label": "Üzenet térköze",
+        "description": "Térköz az üzenet törzse körül olvasáskor",
+        "auto": "Automatikus (ajánlott)",
+        "always": "Mindig legyen térköz",
+        "edge": "Széltől szélig"
+      },
       "archive_mode": {
         "label": "Archiválás helye",
         "description": "Hogyan rendezze az e-maileket archiváláskor",
@@ -1571,6 +1578,8 @@
       "role_none": "Nincs",
       "create_folder": "Mappa létrehozása",
       "create_subfolder": "Almappa létrehozása",
+      "reorder": "Húzza az átrendezéshez",
+      "reorder_error": "Nem sikerült átrendezni a mappákat",
       "subfolder_of": "Itt: {name}",
       "subfolder_name": "Almappa neve",
       "new_folder_name": "Mappa neve",
@@ -1638,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

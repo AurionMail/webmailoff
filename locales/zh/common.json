@@ -1118,6 +1118,13 @@
         "permanent": "永久删除",
         "warning": "邮件将被永久删除且无法恢复。此操作是不可逆转的。"
       },
+      "message_spacing": {
+        "label": "邮件边距",
+        "description": "阅读时正文周围的边距",
+        "auto": "自动（推荐）",
+        "always": "始终添加边距",
+        "edge": "无边距"
+      },
       "archive_mode": {
         "label": "归档方式",
         "description": "归档时如何组织邮件",
@@ -1568,6 +1575,8 @@
       "role_none": "无",
       "create_folder": "创建文件夹",
       "create_subfolder": "新建子文件夹",
+      "reorder": "拖动以重新排序",
+      "reorder_error": "文件夹重新排序失败",
       "subfolder_of": "{name} 内",
       "subfolder_name": "子文件夹名称",
       "new_folder_name": "文件夹名称",
@@ -1635,7 +1644,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

@@ -138,7 +138,9 @@
     "scheduled": "Naplánované",
     "unified_all_unread": "Všetky neprečítané",
     "unified_all_starred": "Všetky s hviezdičkou",
-    "unified_all_mail": "Všetka pošta"
+    "unified_all_mail": "Všetka pošta",
+    "remove_account": "Odstrániť účet",
+    "remove_account_confirm": "Odstrániť {account} z tohto zariadenia? Neskôr ho môžete znova pridať."
   },
   "protocol_handlers": {
     "title": "Predvolené aplikácie",
@@ -1119,6 +1121,13 @@
         "permanent": "Trvalo odstrániť",
         "warning": "E-maily budú trvalo odstránené a nedajú sa obnoviť."
       },
+      "message_spacing": {
+        "label": "Odsadenie správy",
+        "description": "Odsadenie okolo tela správy pri čítaní",
+        "auto": "Automaticky (odporúčané)",
+        "always": "Vždy pridať odsadenie",
+        "edge": "Od okraja po okraj"
+      },
       "archive_mode": {
         "label": "Archivovať do",
         "description": "Ako organizovať e-maily pri archivácii",
@@ -1573,6 +1582,8 @@
       "role_none": "Žiadna",
       "create_folder": "Vytvoriť priečinok",
       "create_subfolder": "Vytvoriť podpriečinok",
+      "reorder": "Potiahnutím zmeníte poradie",
+      "reorder_error": "Nepodarilo sa zmeniť poradie priečinkov",
       "subfolder_of": "V priečinku {name}",
       "subfolder_name": "Názov podpriečinka",
       "new_folder_name": "Názov priečinka",
@@ -1637,6 +1648,11 @@
         "label": "Klávesové skratky",
         "description": "Zobraziť dostupné klávesové skratky",
         "button": "Zobraziť skratky"
+      },
+      "refresh_cache": {
+        "label": "Obnoviť uložené údaje",
+        "description": "Znova načíta kontakty, kalendáre a priečinky zo servera. Zachová vaše účty a prihlásenia — opraví zastarané alebo nesprávne zobrazenie bez odhlásenia.",
+        "button": "Obnoviť"
       },
       "reset_settings": {
         "label": "Resetovať nastavenia",

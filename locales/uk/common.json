@@ -1118,6 +1118,13 @@
         "permanent": "Видалити назавжди",
         "warning": "Електронні листи буде видалено назавжди, і їх неможливо буде відновити. Ця дія незворотна."
       },
+      "message_spacing": {
+        "label": "Відступи повідомлення",
+        "description": "Відступи навколо тексту повідомлення під час читання",
+        "auto": "Автоматично (рекомендовано)",
+        "always": "Завжди додавати відступи",
+        "edge": "Від краю до краю"
+      },
       "archive_mode": {
         "label": "Архівувати в",
         "description": "Як упорядкувати листи під час архівування",
@@ -1568,6 +1575,8 @@
       "role_none": "Жодного",
       "create_folder": "Створити папку",
       "create_subfolder": "Створити вкладену папку",
+      "reorder": "Перетягніть, щоб змінити порядок",
+      "reorder_error": "Не вдалося змінити порядок папок",
       "subfolder_of": "Всередині {name}",
       "subfolder_name": "Назва вкладеної папки",
       "new_folder_name": "Назва папки",
@@ -1635,7 +1644,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {
