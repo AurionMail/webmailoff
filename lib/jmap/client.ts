@@ -4398,6 +4398,8 @@ export class JMAPClient implements IJMAPClient {
         create: {
           "new-contact": {
             ...contactData,
+            //  Stalwart stores the card without one if omitted (#644)
+            uid: contactData.uid || `urn:uuid:${crypto.randomUUID()}`,
             addressBookIds,
           }
         }
