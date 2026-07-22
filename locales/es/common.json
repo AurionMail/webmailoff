@@ -138,7 +138,9 @@
     "scheduled": "Programados",
     "unified_all_unread": "Todo no leído",
     "unified_all_starred": "Todo destacado",
-    "unified_all_mail": "Todo el correo"
+    "unified_all_mail": "Todo el correo",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "Aplicaciones predeterminadas",
@@ -655,7 +657,6 @@
     "continue_draft": "Continuar borrador",
     "close_draft_title": "¿Guardar o descartar borrador?",
     "close_draft_message": "Tiene cambios sin guardar. ¿Desea guardar esto como borrador o descartarlo?",
-    "save_draft": "Guardar borrador",
     "drop_files": "Suelta archivos para adjuntar",
     "show_less": "Mostrar menos",
     "forgot_attachment": {
@@ -1628,6 +1629,11 @@
         "label": "Atajos de Teclado",
         "description": "Ver atajos de teclado disponibles",
         "button": "Ver Atajos"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "Restablecer Configuración",

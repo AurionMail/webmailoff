@@ -138,7 +138,9 @@
     "scheduled": "Запланировано",
     "unified_all_unread": "Все непрочитанные",
     "unified_all_starred": "Все помеченные",
-    "unified_all_mail": "Вся почта"
+    "unified_all_mail": "Вся почта",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "Приложения по умолчанию",
@@ -648,7 +650,6 @@
     "continue_draft": "Продолжить черновик",
     "close_draft_title": "Сохранить или удалить черновик?",
     "close_draft_message": "Есть несохранённые изменения. Сохранить как черновик или удалить?",
-    "save_draft": "Сохранить черновик",
     "smime_sign_on": "Подпись S/MIME включена",
     "smime_sign_off": "Включить подпись S/MIME",
     "smime_encrypt_on": "Шифрование S/MIME включено",
@@ -1628,6 +1629,11 @@
         "label": "Сочетания клавиш",
         "description": "Просмотреть доступные сочетания клавиш",
         "button": "Показать сочетания"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "Сбросить настройки",

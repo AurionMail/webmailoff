@@ -20,7 +20,7 @@ type ScheduledSubmissionMetadata = {
 
 const VIRTUAL_SCHEDULED_MAILBOX_ID = '__scheduled__';
 
-type PendingUndoSend = { submissionId: string; emailId?: string; sendAt: string; isSmime: boolean };
+type PendingUndoSend = { submissionId: string; emailId?: string; identityId?: string; sendAt: string; isSmime: boolean };
 
 interface EmailStore {
   emails: Email[];
@@ -230,6 +230,7 @@ interface EmailStore {
   renameMailbox: (client: IJMAPClient, mailboxId: string, name: string) => Promise<void>;
   deleteMailbox: (client: IJMAPClient, mailboxId: string) => Promise<void>;
   setMailboxRole: (client: IJMAPClient, mailboxId: string, role: string | null) => Promise<void>;
+  reorderMailboxes: (client: IJMAPClient, orderedIds: string[]) => Promise<void>;
   emptyMailbox: (client: IJMAPClient, mailboxId: string) => Promise<void>;
   markMailboxAsRead: (client: IJMAPClient, mailboxId: string) => Promise<number>;
 
@@ -341,6 +342,22 @@ function resolveActionMailboxes(): Mailbox[] {
     return state.accountMailboxes[state.viewingAccountId] ?? state.mailboxes;
   }
   return state.mailboxes;
+}
+
+/**
+ * The owner JMAP accountId of the shared/group folder currently being viewed
+ * directly (the "Shared" sidebar section, non-unified), or `undefined` for a
+ * normal own-account view. Emails in this view are undecorated (no
+ * `sourceAccountId`) and are reached through the ACTIVE client, but their
+ * mutations must carry this accountId — otherwise JMAP `Email/set` is sent to
+ * the user's own account, where it silently no-ops (Stalwart returns the ids as
+ * `updated: null` with an unchanged state, not `notUpdated`) and the change is
+ * lost on the next reload. Mirrors `fetchEmails` and the single-email path.
+ */
+function resolveViewAccountId(): string | undefined {
+  const state = useEmailStore.getState();
+  const mb = resolveActionMailboxes().find(m => m.id === state.selectedMailbox);
+  return mb?.isShared ? mb.accountId : undefined;
 }
 
 /**
@@ -737,6 +754,18 @@ function findTrashMailbox(
     if (!matchesScope(mb)) return false;
     const lower = mb.name.toLowerCase();
     return lower.includes('trash') || lower.includes('deleted');
+  });
+}
+
+// Plugin re-render for already fetched emails.
+// Plugins can trigger: window.dispatchEvent(new Event('plugin:rerender-fetched-emails'))
+if (typeof window !== 'undefined') {
+  window.addEventListener('plugin:rerender-fetched-emails', async () => {
+    const state = useEmailStore.getState();
+    const transformed = await emailHooks.onEmailsFetched.transform(state.emails);
+    useEmailStore.setState({
+      emails: annotateScheduledEmails(transformed, state.scheduledSubmissionByEmailId),
+    });
   });
 }
 
@@ -1270,7 +1299,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       set({
         isLoading: false,
         pendingUndoSend: result.scheduled && result.emailSubmissionId && result.sendAt
-          ? { submissionId: result.emailSubmissionId, emailId: result.emailId, sendAt: result.sendAt, isSmime: false }
+          ? { submissionId: result.emailSubmissionId, emailId: result.emailId, identityId, sendAt: result.sendAt, isSmime: false }
           : get().pendingUndoSend,
       });
       return result;
@@ -1294,7 +1323,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       set({
         isLoading: false,
         pendingUndoSend: result.scheduled && result.emailSubmissionId && result.sendAt
-          ? { submissionId: result.emailSubmissionId, emailId: result.emailId, sendAt: result.sendAt, isSmime: true }
+          ? { submissionId: result.emailSubmissionId, emailId: result.emailId, identityId, sendAt: result.sendAt, isSmime: true }
           : get().pendingUndoSend,
       });
       return result;
@@ -2100,7 +2129,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         });
         await Promise.allSettled(promises);
       } else {
-        await resolveActionClient(client).batchMarkAsRead(emailIdsArray, read);
+        // Non-unified: route to the viewed shared/group account (if any), reached
+        // through the active client; undefined for a normal own-account view.
+        await resolveActionClient(client).batchMarkAsRead(emailIdsArray, read, resolveViewAccountId());
       }
 
       // Update local state
@@ -2180,14 +2211,21 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         bySource.get(key)!.ids.push(emailId);
       }
 
+      // Undecorated emails viewed in a shared/group folder directly (non-unified)
+      // are reached through the active client but must carry the owner accountId,
+      // or the move/destroy silently no-ops on the user's own account (see
+      // resolveViewAccountId). undefined for a normal own-account view.
+      const viewAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
       const getClient = (sourceAccountId: string, clientAccountId?: string) =>
         sourceAccountId === '__default__'
           ? resolveActionClient(client)
           : (clientAccountId ? useAuthStore.getState().getClientForAccount(clientAccountId) : undefined);
       const mailboxesFor = (sourceAccountId: string) =>
-        sourceAccountId === '__default__' ? mailboxes : (accountMailboxes[sourceAccountId] ?? mailboxes);
+        sourceAccountId === '__default__'
+          ? (viewAccountId ? (accountMailboxes[viewAccountId] ?? mailboxes) : mailboxes)
+          : (accountMailboxes[sourceAccountId] ?? mailboxes);
       const jmapIdFor = (sourceAccountId: string) =>
-        sourceAccountId === '__default__' ? undefined : sourceAccountId;
+        sourceAccountId === '__default__' ? viewAccountId : sourceAccountId;
 
       if (forceDestroy) {
         const promises = Array.from(bySource.entries()).map(async ([sourceAccountId, { clientAccountId, ids }]) => {
@@ -2295,7 +2333,13 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         });
         await Promise.allSettled(promises);
       } else {
-        await resolveActionClient(client).batchMoveEmails(emailIdsArray, toMailboxId);
+        // Non-unified: route to the viewed shared/group account (if any), reached
+        // through the active client. Resolve the destination to its bare owner id
+        // (`originalId`) since shared folders use namespaced store ids.
+        const viewAccountId = resolveViewAccountId();
+        const destMailbox = resolveActionMailboxes().find(mb => mb.id === toMailboxId);
+        const jmapDestId = destMailbox?.originalId || toMailboxId;
+        await resolveActionClient(client).batchMoveEmails(emailIdsArray, jmapDestId, viewAccountId);
       }
 
       // Update local state - remove from current view since they moved
@@ -2324,7 +2368,14 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     const mailboxes = resolveActionMailboxes();
     if (selectedEmailIds.size === 0) return;
 
-    const archiveMailbox = mailboxes.find(m => m.role === 'archive' || m.name.toLowerCase() === 'archive');
+    // Scope the archive folder to the viewed shared/group account (if any) so the
+    // move lands on the owner account, not the user's own archive (which appears
+    // first in the merged list); see resolveViewAccountId. Own view is unchanged.
+    const viewAccountId = resolveViewAccountId();
+    const isArchive = (m: Mailbox) => m.role === 'archive' || m.name.toLowerCase() === 'archive';
+    const archiveMailbox = mailboxes.find(m =>
+      isArchive(m) && (viewAccountId ? m.accountId === viewAccountId : !m.isShared)
+    );
     if (!archiveMailbox) return;
 
     const mode = useSettingsStore.getState().archiveMode;
@@ -3185,6 +3236,45 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to update folder role' });
+      throw error;
+    }
+  },
+
+  reorderMailboxes: async (client, orderedIds) => {
+    // Assign a 1-based sortOrder to the given sibling group in its new order.
+    // sortOrder is the primary sort key (see buildMailboxTree), so this pins
+    // the folders' arrangement in the sidebar and settings.
+    const updates = orderedIds.map((id, idx) => ({ id, sortOrder: idx + 1 }));
+    const applyLocal = (list: Mailbox[]) =>
+      list.map(mb => {
+        const u = updates.find(x => x.id === mb.id);
+        return u ? { ...mb, sortOrder: u.sortOrder } : mb;
+      });
+    // Optimistic local update so the reorder is reflected immediately.
+    const viewingId = get().viewingAccountId;
+    if (viewingId) {
+      set((state) => ({
+        accountMailboxes: {
+          ...state.accountMailboxes,
+          [viewingId]: applyLocal(state.accountMailboxes[viewingId] ?? []),
+        },
+      }));
+    } else {
+      set({ mailboxes: applyLocal(get().mailboxes) });
+    }
+    try {
+      const effectiveClient = resolveActionClient(client);
+      for (const u of updates) {
+        await effectiveClient.updateMailbox(u.id, { sortOrder: u.sortOrder });
+      }
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to reorder folders' });
+      // Re-sync from server so local state doesn't drift from persisted order.
+      if (viewingId) {
+        await refreshMailboxesForViewingAccount(client);
+      } else {
+        await get().fetchMailboxes(client);
+      }
       throw error;
     }
   },

@@ -138,7 +138,9 @@
     "scheduled": "Ütemezett",
     "unified_all_unread": "Összes olvasatlan",
     "unified_all_starred": "Összes csillagozott",
-    "unified_all_mail": "Összes levél"
+    "unified_all_mail": "Összes levél",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "Alapértelmezett alkalmazások",
@@ -651,7 +653,6 @@
     "continue_draft": "Piszkozat folytatása",
     "close_draft_title": "Piszkozat mentése vagy elvetése?",
     "close_draft_message": "Nem mentett változtatások vannak. Szeretnéd piszkozatként menteni vagy elvetni?",
-    "save_draft": "Piszkozat mentése",
     "smime_sign_on": "S/MIME aláírás engedélyezve",
     "smime_sign_off": "S/MIME aláírás engedélyezése",
     "smime_encrypt_on": "S/MIME titkosítás engedélyezve",
@@ -1631,6 +1632,11 @@
         "label": "Billentyűparancsok",
         "description": "Elérhető billentyűparancsok megtekintése",
         "button": "Parancsok megtekintése"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "Beállítások visszaállítása",

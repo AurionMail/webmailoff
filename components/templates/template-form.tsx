@@ -242,7 +242,7 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
           >
             <option value="">{tSettings('default_identity')}</option>
             {identities.map((id) => (
-              <option key={id.id} value={id.id}>
+              <option key={id.id} value={id.id} dir="ltr">
                 {id.name ? `${id.name} <${id.email}>` : id.email}
               </option>
             ))}
@@ -285,7 +285,7 @@ function PlaceholderDropdown({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-md shadow-lg min-w-[180px]">
+      <div className="absolute end-0 top-full mt-1 z-50 bg-background border border-border rounded-md shadow-lg min-w-[180px]">
         <div className="p-1">
           {BUILT_IN_PLACEHOLDERS.map((p) => (
             <button

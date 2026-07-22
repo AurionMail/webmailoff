@@ -14,6 +14,7 @@ import {
   extractUserAuthoredText,
   formatRecipientEntry,
   expandRecipients,
+  getQuoteBodies,
 } from '../email-composer-utils';
 
 const FORWARDED_SEPARATOR = "---------- Forwarded message ----------";
@@ -475,5 +476,49 @@ describe('contact group recipients (RFC 5322 group syntax)', () => {
 
   it('leaves plain recipients untouched by expansion', () => {
     expect(expandRecipients([{ name: 'X', email: 'x@y.z' }])).toEqual([{ name: 'X', email: 'x@y.z' }]);
+  });
+});
+
+describe("getQuoteBodies", () => {
+  const part = (partId: string, type: string) => ({ partId, blobId: "b", size: 1, type });
+
+  it("converts an HTML-only message's shared part into readable text (#649)", () => {
+    const { body, htmlBody } = getQuoteBodies({
+      textBody: [part("1", "text/html")],
+      htmlBody: [part("1", "text/html")],
+      bodyValues: { "1": { value: "<p>Hallo Jonas.</p><p>Zeile zwei<br>und drei</p>" } },
+    });
+    expect(body).toBe("Hallo Jonas.\n\nZeile zwei\nund drei");
+    expect(htmlBody).toContain("<p>Hallo Jonas.</p>");
+  });
+
+  it("drops htmlBody when it is really the text/plain part (#649)", () => {
+    const text = "Hallo Herr Test,\n\ndas ist eine Test-Email.\n\nBeste Grüße";
+    const { body, htmlBody } = getQuoteBodies({
+      textBody: [part("1", "text/plain")],
+      htmlBody: [part("1", "text/plain")],
+      bodyValues: { "1": { value: text } },
+    });
+    expect(body).toBe(text);
+    expect(htmlBody).toBeUndefined();
+  });
+
+  it("passes both parts through when the message has real alternatives", () => {
+    const { body, htmlBody } = getQuoteBodies({
+      textBody: [part("t", "text/plain")],
+      htmlBody: [part("h", "text/html")],
+      bodyValues: {
+        t: { value: "plain version" },
+        h: { value: "<p>html version</p>" },
+      },
+    });
+    expect(body).toBe("plain version");
+    expect(htmlBody).toBe("<p>html version</p>");
+  });
+
+  it("falls back to the preview when body values are missing", () => {
+    const { body, htmlBody } = getQuoteBodies({ preview: "preview text" });
+    expect(body).toBe("preview text");
+    expect(htmlBody).toBeUndefined();
   });
 });

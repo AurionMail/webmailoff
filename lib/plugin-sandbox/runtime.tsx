@@ -241,6 +241,7 @@ function buildPluginApi(manifest: PluginManifest) {
       /** Re-runs the onRenderEmailBody hook for the open message (e.g. after a
        *  crypto plugin unlocks a key) so its body re-renders without a reload. */
       rerenderEmail: () => callApi('ui.rerenderEmail', []) as Promise<void>,
+      rerenderFetchedEmails: () => callApi('ui.rerenderFetchedEmails', []) as Promise<void>,
       /** Opens an http/https URL in a new tab via host `window.open`. */
       openExternalUrl: (url: string, target?: string) =>
         callApi('ui.openExternalUrl', [url, target]) as Promise<void>,

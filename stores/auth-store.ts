@@ -44,6 +44,7 @@ interface AuthState {
   refreshAccessToken: () => Promise<string | null>;
   logout: () => void;
   logoutAll: () => void;
+  removeAccount: (accountId: string) => void;
   switchAccount: (accountId: string) => Promise<void>;
   checkAuth: () => Promise<void>;
   clearError: () => void;
@@ -413,6 +414,36 @@ function scheduleRefresh(expiresIn: number, refreshFn: () => Promise<string | nu
       });
     }, refreshAt);
   }
+}
+
+/**
+ * Derive the accountId a *connected* client actually belongs to, using the
+ * same canonicalisation as login (primary-identity email for OAuth, else the
+ * JMAP session username). Lets a caller detect a slot->token mapping that
+ * resolves to the wrong account before it surfaces as the wrong mailbox.
+ * Returns null when it can't determine the identity (treated as "don't block").
+ */
+export async function connectedAccountCandidates(client: JMAPClient, serverUrl: string): Promise<string[]> {
+  // accountId is generated differently per auth mode: OAuth/SSO registers from
+  // the primary-identity EMAIL, basic auth from the typed login username. A
+  // single derivation can't match both, so collect every server-confirmed
+  // identifier the connected session exposes — the JMAP Session.username
+  // (authenticated login) and the primary sending-identity email — and let the
+  // caller accept the session if the target accountId matches ANY of them.
+  // Deliberately excludes client.getUsername(), which echoes the constructor
+  // username (always the target) and would defeat the desync check. An empty
+  // result means nothing could be confirmed → the caller should NOT force a
+  // re-auth.
+  const ids = new Set<string>();
+  try {
+    const sessionUser = client.getSessionUsername();
+    if (sessionUser) ids.add(generateAccountId(sessionUser, serverUrl));
+  } catch { /* session unavailable */ }
+  try {
+    const { primaryIdentity } = loadIdentities(await client.getIdentities(), client.getUsername());
+    if (primaryIdentity?.email) ids.add(generateAccountId(primaryIdentity.email, serverUrl));
+  } catch { /* identities unavailable */ }
+  return [...ids];
 }
 
 function clearRefreshTimer(accountId?: string): void {
@@ -1213,6 +1244,31 @@ export const useAuthStore = create<AuthState>()(
         redirectToLogin();
       },
 
+      // Remove a specific (typically non-active) account: tear down its client,
+      // drop it from the registry, and clear its per-slot cookies. If asked to
+      // remove the active account, defer to logout() which handles switching
+      // away or redirecting.
+      removeAccount: (accountId: string) => {
+        if (accountId === get().activeAccountId) { get().logout(); return; }
+        const accountStore = useAccountStore.getState();
+        const account = accountStore.getAccountById(accountId);
+        if (!account) return;
+        const slot = account.cookieSlot ?? 0;
+        const wasOAuth = account.authMode === 'oauth';
+
+        clearRefreshTimer(accountId);
+        const client = clients.get(accountId);
+        if (client) { try { client.disconnect(); } catch { /* noop */ } }
+        clients.delete(accountId);
+        evictAccount(accountId);
+        accountStore.removeAccount(accountId);
+
+        apiFetch(`/api/auth/session?slot=${slot}`, { method: 'DELETE', keepalive: true }).catch(() => {});
+        if (wasOAuth) {
+          apiFetch(`/api/auth/token?slot=${slot}`, { method: 'DELETE', keepalive: true }).catch(() => {});
+        }
+      },
+
       logoutAll: () => {
         // Disconnect all clients
         for (const c of clients.values()) {
@@ -1359,6 +1415,26 @@ export const useAuthStore = create<AuthState>()(
 
           set({ isLoading: false });
           // Redirect to login so the user can re-authenticate
+          replaceWindowLocation(getLocaleLoginPath());
+          return;
+        }
+
+        // GUARD: verify the connected session actually belongs to the target
+        // account before we bind it. A corrupted slot->token mapping (e.g.
+        // persisted client state left over from an older build, or any future
+        // slot desync) can hand back a *different* account's token; the
+        // connection then succeeds and we would silently show the wrong
+        // mailbox. On mismatch, drop the poisoned cookies for this slot and
+        // force a clean re-auth instead of surfacing someone else's mail.
+        const connectedCandidates = await connectedAccountCandidates(targetClient, targetAccount.serverUrl);
+        if (connectedCandidates.length > 0 && !connectedCandidates.includes(accountId)) {
+          debug.error(`switchAccount: slot ${targetAccount.cookieSlot} for ${accountId} resolved to [${connectedCandidates.join(", ")}] — forcing re-auth`);
+          clients.delete(accountId);
+          try { targetClient.disconnect(); } catch { /* noop */ }
+          apiFetch(`/api/auth/token?slot=${targetAccount.cookieSlot}`, { method: 'DELETE' }).catch(() => {});
+          apiFetch(`/api/auth/session?slot=${targetAccount.cookieSlot}`, { method: 'DELETE' }).catch(() => {});
+          accountStore.updateAccount(accountId, { isConnected: false, hasError: true, errorMessage: 'session_mismatch' });
+          set({ isLoading: false, error: 'connection_failed', activeAccountId: state.activeAccountId });
           replaceWindowLocation(getLocaleLoginPath());
           return;
         }

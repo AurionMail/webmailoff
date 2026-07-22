@@ -49,8 +49,8 @@ export function parseAuthenticationResults(header: string): AuthenticationResult
 
   // Parse SPF. A single Authentication-Results header can carry more than one
   // SPF result when the server evaluates multiple identities (HELO and MAIL
-  // FROM). Collect them all and surface the most severe as the headline so a
-  // hard MAIL FROM `fail` isn't softened to a HELO `temperror`.
+  // FROM). Collect them all so a hard fail on any identity isn't softened to
+  // an ambiguous state recorded for another one.
   const spfRegex = /spf=(\w+)(?:\s+\([^)]*\))?(?:\s+smtp\.(mailfrom|helo)=([^\s;]+))?/g;
   const spfResults: SpfEntry[] = [];
   let spfM: RegExpExecArray | null;
@@ -63,17 +63,18 @@ export function parseAuthenticationResults(header: string): AuthenticationResult
   }
   if (spfResults.length > 0) {
     const severity = (r: string) => SPF_SEVERITY[r as SpfResult] ?? -1;
-    // Most severe wins; on a tie prefer the MAIL FROM identity (more meaningful
-    // than HELO) and otherwise keep the first occurrence.
-    const primary = spfResults.reduce((best, cur) => {
-      if (severity(cur.result) > severity(best.result)) return cur;
-      if (
-        severity(cur.result) === severity(best.result) &&
-        best.identity !== 'mailfrom' &&
-        cur.identity === 'mailfrom'
-      ) return cur;
-      return best;
-    });
+    // MAIL FROM is the primary SPF identity. Another identity (HELO) may only
+    // escalate the headline to a genuine failure state — a HELO `none` or
+    // `neutral` must not downgrade a MAIL FROM `pass`, since most senders
+    // publish no SPF record for their EHLO hostname.
+    const isFailure = (r: string) => severity(r) >= SPF_SEVERITY.temperror;
+    let primary =
+      spfResults.find((e) => e.identity === 'mailfrom') ?? spfResults[0];
+    for (const cur of spfResults) {
+      if (isFailure(cur.result) && severity(cur.result) > severity(primary.result)) {
+        primary = cur;
+      }
+    }
     results.spf = {
       result: primary.result,
       domain: primary.domain,

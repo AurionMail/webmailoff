@@ -2,6 +2,7 @@ import { isValidEmail } from "@/lib/validation";
 import { htmlToPlainText } from "@/lib/html-to-text";
 import { emailHooks } from "@/lib/plugin-hooks";
 import { Ellipsis, Lock, TriangleAlert } from "lucide-react";
+import type { Email } from "@/lib/jmap/types";
 
 const HTML_ESCAPE_MAP = {
   "&": "&amp;",
@@ -15,6 +16,41 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) =>
     HTML_ESCAPE_MAP[char as keyof typeof HTML_ESCAPE_MAP]
   );
+}
+
+/**
+ * Picks the plain-text and HTML bodies of an original message for seeding a
+ * reply/forward quote.
+ *
+ * Per RFC 8621 § 4.1.4 a message with only one body variant exposes that
+ * single part in BOTH `textBody` and `htmlBody`. So for an HTML-only message
+ * `textBody[0]` is the raw text/html source, and for a plain-text-only
+ * message `htmlBody[0]` is the text/plain part. Quoting either verbatim
+ * breaks the reply (#649): raw HTML tags end up in a plain-text quote, and
+ * plain text rendered as HTML collapses all newlines. Route by each part's
+ * actual MIME type instead: HTML listed under textBody is converted to
+ * readable text, and plain text listed under htmlBody is dropped so the
+ * composer's text path (escape + <br>) renders it.
+ */
+export function getQuoteBodies(
+  email: Pick<Email, "textBody" | "htmlBody" | "bodyValues" | "preview">
+): { body: string; htmlBody?: string } {
+  const textPart = email.textBody?.[0];
+  const htmlPart = email.htmlBody?.[0];
+  const textValue = textPart ? email.bodyValues?.[textPart.partId]?.value : undefined;
+  const htmlValue = htmlPart ? email.bodyValues?.[htmlPart.partId]?.value : undefined;
+
+  const textPartIsHtml = textPart?.type?.toLowerCase() === "text/html";
+  // A missing type is treated as HTML, matching the viewer's rendering path.
+  const htmlPartIsHtml = !htmlPart?.type || htmlPart.type.toLowerCase() === "text/html";
+
+  const body = textValue
+    ? (textPartIsHtml ? htmlToPlainText(textValue, { paragraphSpacing: true }) : textValue)
+    : (email.preview || "");
+  return {
+    body,
+    htmlBody: htmlPartIsHtml ? htmlValue || undefined : undefined,
+  };
 }
 
 export function plainTextToComposerBody(text: string): string {

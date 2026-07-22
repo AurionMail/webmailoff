@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn, buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
+import { isEditableEventTarget } from "@/lib/keyboard";
 import { Mailbox } from "@/lib/jmap/types";
 import { useContextMenu } from "@/hooks/use-context-menu";
 import { MailboxContextMenu, type MailboxContextTarget } from "./mailbox-context-menu";
@@ -887,16 +888,8 @@ export function Sidebar({
       // window listener, so without this guard typing in a new email (the
       // contentEditable composer, the subject field, search, etc.) toggled the
       // selected mailbox's subfolders open/closed on ArrowLeft/ArrowRight.
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
+      // composedPath-based so it also sees the QuotedHtml shadow island (#654).
+      if (isEditableEventTarget(e)) return;
       if (!selectedMailbox || isCollapsed) return;
 
       const findNode = (nodes: MailboxNode[]): MailboxNode | null => {

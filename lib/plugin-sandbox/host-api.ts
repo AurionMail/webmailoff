@@ -63,6 +63,7 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'ui.alert': null,
   'ui.prompt': null,
   'ui.rerenderEmail': null,
+  'ui.rerenderFetchedEmails': null,
   'ui.openExternalUrl': null,
   'ui.downloadFile': 'ui:download-file'
 };
@@ -651,6 +652,13 @@ export async function dispatchApiCall(
       // was just unlocked) so the body re-decrypts without a full reload — which
       // would wipe the in-memory session keys.
       window.dispatchEvent(new CustomEvent('plugin:rerender-email'));
+      return undefined;
+    }
+    case 'ui.rerenderFetchedEmails': {
+      // Re-run the onEmailsFetched hook for the currently shown message list. 
+      // Used by crypto plugins after they change decryption state s
+      // so the preview or others properties re-decrypts without a full reload.
+      window.dispatchEvent(new CustomEvent('plugin:rerender-fetched-emails'));
       return undefined;
     }
     case 'ui.openExternalUrl': {

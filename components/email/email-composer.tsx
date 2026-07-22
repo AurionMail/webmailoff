@@ -14,6 +14,7 @@ import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "@/components
 import { sanitizeSignatureHtml, sanitizeSignatureHtmlForDisplay, sanitizeEmailHtml, escapeHtml } from "@/lib/email-sanitization";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
 import { isFilePreviewable } from "@/lib/file-preview";
+import { isEditableEventTarget } from "@/lib/keyboard";
 import { buildQuotedHtmlBlock, serializeEditorContent } from "@/components/email/quoted-html";
 import { buildSignatureBlock } from "@/components/email/signature-block";
 import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
@@ -1154,10 +1155,9 @@ export function EmailComposer({
 
   useEffect(() => {
     const handleTemplateKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const tag = target?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-      if (target?.getAttribute('contenteditable') === 'true') return;
+      // composedPath-based check so editing inside the QuotedHtml shadow
+      // island doesn't trigger the picker (#654).
+      if (isEditableEventTarget(e)) return;
       if (!templatesEnabled) return;
       if (e.key === 't' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -2192,7 +2192,7 @@ export function EmailComposer({
                               ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter)
                               : identity.email;
                             return (
-                              <option key={identity.id} value={identity.id}>
+                              <option key={identity.id} value={identity.id} dir="ltr">
                                 {identity.name ? `${identity.name} <${displayEmail}>` : displayEmail}
                               </option>
                             );
@@ -2204,7 +2204,7 @@ export function EmailComposer({
                           ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter)
                           : identity.email;
                         return (
-                          <option key={identity.id} value={identity.id}>
+                          <option key={identity.id} value={identity.id} dir="ltr">
                             {identity.name ? `${identity.name} <${displayEmail}>` : displayEmail}
                           </option>
                         );
@@ -2217,11 +2217,11 @@ export function EmailComposer({
                       {generateSubAddress(primaryIdentity?.email || '', subAddressTag, subAddressDelimiter)}
                     </span>
                   ) : (
-                    <>
+                    <bdi>
                       {primaryIdentity?.name
                         ? `${primaryIdentity.name} <${primaryIdentity.email}>`
                         : primaryIdentity?.email || ''}
-                    </>
+                    </bdi>
                   )}
                 </span>
               )}
@@ -2664,7 +2664,7 @@ export function EmailComposer({
                 {showSendMenu && (
                   <div
                     role="menu"
-                    className="absolute right-0 bottom-full z-50 mb-2 min-w-44 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+                    className="absolute end-0 bottom-full z-50 mb-2 min-w-44 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
                   >
                     <button
                       type="button"
@@ -2806,7 +2806,7 @@ export function EmailComposer({
               </Button>
               <Button onClick={handleSaveDraftAndClose}>
                 <Save className="w-4 h-4 me-2" />
-                {t('save_draft')}
+                {tCommon('save')}
               </Button>
             </div>
           </div>

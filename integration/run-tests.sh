@@ -12,6 +12,11 @@
 # Usage:
 #   integration/run-tests.sh                 # whole suite
 #   integration/run-tests.sh 01-login        # a single spec (grep on file name)
+#
+# Env:
+#   IT_VIDEO=on   record a video.webm for every test (not just failures);
+#                 also: off | retain-on-failure (default) | on-first-retry.
+#                 e.g. IT_VIDEO=on integration/run-tests.sh 01-login
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,5 +37,6 @@ docker run --rm --network host \
   -v "${REPO_ROOT}":/work -w /work \
   -e IT_NO_DOCKER=1 \
   -e HOME=/tmp \
+  -e IT_VIDEO="${IT_VIDEO:-}" \
   "${PW_IMAGE}" \
   npx playwright test -c playwright.integration.config.ts ${FILTER:+"$FILTER"}

@@ -154,7 +154,24 @@ const I18N_SANITIZE_CONFIG = {
 };
 
 export function sanitizeI18nHtml(html: string): string {
-  return DOMPurify.sanitize(html, I18N_SANITIZE_CONFIG);
+  // A custom ALLOWED_URI_REGEXP makes DOMPurify strip target/rel from trusted
+  // translated links (e.g. settings.security.not_available's docs link); keep
+  // them, and force rel on _blank to prevent tab-nabbing when the catalog omits it.
+  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+    if (data.attrName === 'target' || data.attrName === 'rel') {
+      data.forceKeepAttr = true;
+    }
+  });
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A' && node.getAttribute('target') === '_blank') {
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+  try {
+    return DOMPurify.sanitize(html, I18N_SANITIZE_CONFIG);
+  } finally {
+    DOMPurify.removeAllHooks();
+  }
 }
 
 /**
@@ -178,6 +195,8 @@ const PLAIN_TEXT_RENDERED_CONFIG = {
 };
 
 export function sanitizePlainTextRenderedHtml(html: string): string {
+  // target/rel survive the URI check via ADD_URI_SAFE_ATTR (#594); the plaintext
+  // linkifier only emits http(s), so no per-scheme handling is needed here.
   return DOMPurify.sanitize(html, PLAIN_TEXT_RENDERED_CONFIG);
 }
 
@@ -207,6 +226,36 @@ export function isExternalResourceUrl(value: string | null | undefined): boolean
   return /^(?:https?:\/\/|\/\/)/i.test(normalized);
 }
 
+
+/**
+ * True for external web links (http/https or protocol-relative `//host`) that
+ * should open in a new tab — unlike `mailto:`/`tel:`/`#fragments`, which navigate
+ * in place or hand off to the OS handler. Strips C0 controls first so obfuscated
+ * schemes (`"h\ttps://x"`) don't slip through.
+ */
+export function isHttpLinkHref(href: string | null | undefined): boolean {
+  if (!href) return false;
+  // eslint-disable-next-line no-control-regex
+  const normalized = href.replace(/[\u0000-\u0020]+/g, '');
+  return /^(?:https?:\/\/|\/\/)/i.test(normalized);
+}
+
+/**
+ * Give one `<a>` the new-tab treatment uniformly across the iframe render paths
+ * (the DOMPurify hook and the post-render DOM walk in email-viewer): http(s)
+ * links get target=_blank + rel; other schemes have them stripped so they don't
+ * spawn a blank tab. (The plaintext path relies on ADD_URI_SAFE_ATTR instead.)
+ */
+export function applyNewTabToAnchor(node: Element): void {
+  if (node.tagName !== 'A') return;
+  if (isHttpLinkHref(node.getAttribute('href'))) {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  } else {
+    node.removeAttribute('target');
+    node.removeAttribute('rel');
+  }
+}
 
 /**
  * Decode CSS escape sequences so escaped tracking URLs can be recognised.
@@ -241,6 +290,43 @@ export function stripExternalCssUrls(style: string): string {
   return style.replace(CSS_URL_PATTERN, (full, _q, inner) =>
     isExternalResourceUrl(decodeCssEscapes(inner)) ? 'url()' : full
   );
+}
+
+/**
+ * Neutralise external references in a full stylesheet (a kept `<style>` block).
+ * The iframe sanitiser keeps `<style>`, so its CSS can auto-load remote
+ * resources (background `url()`, `@font-face`, `@import`) that the per-node
+ * attribute walk in `blockExternalResourcesOnNode` never sees. The strict
+ * iframe CSP already blocks those fetches at the network level; this strips the
+ * references from the CSS text itself as defence-in-depth.
+ *
+ * Escapes are decoded on the WHOLE block first because the "css escape" tracker
+ * escapes the `url` keyword itself (`\75\72\6C(` -> `url(`) - a literal `url(`
+ * match would miss it. Returns the original (escapes intact) when nothing
+ * external is present, so callers can detect a change by identity. (#457)
+ */
+export function stripExternalStyleSheetCss(css: string): string {
+  if (!css) return css;
+  const decoded = decodeCssEscapes(css);
+  if (!/url\(|@import/i.test(decoded)) return css;
+  let changed = false;
+  // External url(...) anywhere in the sheet (also covers `@import url(...)`).
+  let result = decoded.replace(CSS_URL_PATTERN, (full, _q, inner: string) => {
+    if (isExternalResourceUrl(inner)) {
+      changed = true;
+      return 'url()';
+    }
+    return full;
+  });
+  // Bare-string remote import: `@import "http://…"` / `@import '//…'`.
+  result = result.replace(
+    /@import\s+(['"])\s*(?:https?:)?\/\/[^'"]*\1[^;]*;?/gi,
+    () => {
+      changed = true;
+      return '';
+    },
+  );
+  return changed ? result : css;
 }
 
 /** True if a srcset attribute lists at least one external candidate URL. */
@@ -331,6 +417,19 @@ export function blockExternalResourcesOnNode(node: Element): boolean {
     node.setAttribute('data-blocked-style', styleAttr);
     node.setAttribute('style', stripExternalCssUrls(styleAttr));
     blocked = true;
+  }
+
+  // <style> block CSS: the iframe sanitiser keeps these, so url()/@font-face/
+  // @import inside them can auto-load remote resources the attribute walk above
+  // never sees. Strip external refs from the stylesheet text (the strict iframe
+  // CSP is the network backstop; this is defence-in-depth). (#457)
+  if (tag === 'STYLE') {
+    const css = node.textContent || '';
+    const cleaned = stripExternalStyleSheetCss(css);
+    if (cleaned !== css) {
+      node.textContent = cleaned;
+      blocked = true;
+    }
   }
 
   return blocked;

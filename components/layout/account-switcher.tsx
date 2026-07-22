@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Check, Plus, LogOut, Star, ChevronDown, AlertCircle, GripVertical } from "lucide-react";
+import { Check, Plus, LogOut, Star, ChevronDown, AlertCircle, GripVertical, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAccountStore, type AccountEntry } from "@/stores/account-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { getMaxAccounts, sortDefaultFirst, reorderNonDefaultIds } from "@/lib/account-utils";
+import { isDocumentRTL } from "@/i18n/direction";
 import { cn } from "@/lib/utils";
 import { useRouter } from "@/i18n/navigation";
 import { Avatar } from "@/components/ui/avatar";
@@ -48,23 +49,41 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
   const activeAccount = accounts.find((a) => a.id === activeAccountId);
   const switchAccount = useAuthStore((s) => s.switchAccount);
   const logout = useAuthStore((s) => s.logout);
+  const removeAccount = useAuthStore((s) => s.removeAccount);
   const logoutAll = useAuthStore((s) => s.logoutAll);
 
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
+    const rtl = isDocumentRTL();
     if (variant === "rail") {
-      setPopoverStyle({
-        position: "fixed",
-        left: rect.right + 8,
-        bottom: Math.max(8, window.innerHeight - rect.bottom),
-      });
+      setPopoverStyle(
+        rtl
+          ? {
+              position: "fixed",
+              right: window.innerWidth - rect.left + 8,
+              bottom: Math.max(8, window.innerHeight - rect.bottom),
+            }
+          : {
+              position: "fixed",
+              left: rect.right + 8,
+              bottom: Math.max(8, window.innerHeight - rect.bottom),
+            }
+      );
     } else {
-      setPopoverStyle({
-        position: "fixed",
-        left: rect.left,
-        top: rect.bottom + 4,
-      });
+      setPopoverStyle(
+        rtl
+          ? {
+              position: "fixed",
+              right: window.innerWidth - rect.right,
+              top: rect.bottom + 4,
+            }
+          : {
+              position: "fixed",
+              left: rect.left,
+              top: rect.bottom + 4,
+            }
+      );
     }
   }, [variant]);
 
@@ -98,6 +117,13 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
   const handleAddAccount = () => {
     setOpen(false);
     router.push(`/login?mode=add-account` as never);
+  };
+
+  const handleRemove = (e: React.MouseEvent, account: AccountEntry) => {
+    e.stopPropagation();
+    const label = account.email || account.username;
+    if (!window.confirm(t("remove_account_confirm", { account: label }))) return;
+    removeAccount(account.id);
   };
 
   const handleLogout = () => {
@@ -221,7 +247,7 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
                   className={cn(
                     "w-full flex items-start gap-3 px-3 py-2.5 text-start transition-colors",
                     isActive ? "bg-accent/50" : "hover:bg-muted",
-                    isDraggable && "pe-7"
+                    (!isActive && !account.isDefault) ? (isDraggable ? "pe-14" : "pe-8") : (isDraggable && "pe-7")
                   )}
                   role="menuitem"
                   disabled={isActive}
@@ -264,10 +290,21 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
                 {isDraggable && (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 opacity-0 transition-opacity group-hover/acct:opacity-100"
+                    className="pointer-events-none absolute end-7 top-1/2 -translate-y-1/2 text-muted-foreground/50 opacity-0 transition-opacity group-hover/acct:opacity-100"
                   >
                     <GripVertical className="w-4 h-4" />
                   </span>
+                )}
+                {!isActive && !account.isDefault && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemove(e, account)}
+                    aria-label={t("remove_account")}
+                    title={t("remove_account")}
+                    className="absolute end-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground/60 opacity-0 transition-opacity group-hover/acct:opacity-100 hover:bg-destructive/10 hover:text-destructive focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-destructive"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
                 </div>
               );

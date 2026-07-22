@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
       loginLogoMaxWidth: configManager.get<string>('loginLogoMaxWidth', ''),
       loginShowHeading: configManager.get<boolean>('loginShowHeading', true),
       loginShowSubtitle: configManager.get<boolean>('loginShowSubtitle', true),
+      loginShowTotp: configManager.get<boolean>('loginShowTotp', true),
+      loginShowVersion: configManager.get<boolean>('loginShowVersion', true),
       demoMode: configManager.get<boolean>('demoMode', false),
       allowCustomJmapEndpoint: configManager.get<boolean>('allowCustomJmapEndpoint', false),
       jmapServers: redactJmapServers(parseJmapServers(configManager.get<unknown>('jmapServers', []))),

@@ -138,7 +138,9 @@
     "scheduled": "Ieplānots",
     "unified_all_unread": "Visi nelasītie",
     "unified_all_starred": "Visi ar zvaigzni",
-    "unified_all_mail": "Visas vēstules"
+    "unified_all_mail": "Visas vēstules",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "Noklusējuma lietotnes",
@@ -648,7 +650,6 @@
     "continue_draft": "Turpināt melnrakstu",
     "close_draft_title": "Saglabāt vai atmest melnrakstu?",
     "close_draft_message": "Ir nesaglabātas izmaiņas. Vai vēlaties saglabāt kā melnrakstu vai atmest?",
-    "save_draft": "Saglabāt melnrakstu",
     "smime_sign_on": "S/MIME paraksts iespējots",
     "smime_sign_off": "Iespējot S/MIME parakstu",
     "smime_encrypt_on": "S/MIME šifrēšana iespējota",
@@ -1609,6 +1610,11 @@
         "label": "Īsinājumtaustiņi",
         "description": "Skatīt pieejamos tastatūras īsinājumtaustiņus",
         "button": "Rādīt īsinājumtaustiņus"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "Atiestatīt iestatījumus",

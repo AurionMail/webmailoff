@@ -600,7 +600,6 @@
     "continue_draft": "המשך טיוטה",
     "close_draft_title": "לשמור או למחוק טיוטה?",
     "close_draft_message": "יש לך שינויים שלא נשמרו. האם תרצה לשמור את זה כטיוטה או למחוק אותו?",
-    "save_draft": "שמור טיוטה",
     "smime_sign_on": "חתימת S/MIME מופעלת",
     "smime_sign_off": "אפשר חתימת S/MIME",
     "smime_encrypt_on": "הצפנת S/MIME מופעלת",
@@ -1071,6 +1070,13 @@
         "warning": "הודעות אימייל יימחקו לצמיתות ולא ניתן לשחזר אותן. פעולה זו היא בלתי הפיכה.",
         "trash_and_read": "העבר לאשפה וסמן כקרא"
       },
+      "message_spacing": {
+        "label": "מרווח סביב ההודעה",
+        "description": "ריווח מסביב לגוף ההודעה בתצוגת הקריאה",
+        "auto": "אוטומטי (מומלץ)",
+        "always": "תמיד להוסיף מרווח",
+        "edge": "מקצה לקצה"
+      },
       "archive_mode": {
         "label": "ארכיון ב",
         "description": "כיצד לארגן מיילים בעת אחסון בארכיון",
@@ -1520,7 +1526,7 @@
       "standard_roles": "תפקידי תיקייה סטנדרטיים",
       "standard_roles_description": "הקצה אילו תיקיות משמשות לתפקידי תיבת דואר סטנדרטיים כמו Inbox, Sent, Trash וכו׳.",
       "role_inbox": "תיבת דואר נכנס",
-      "role_drafts": "דַמקָה",
+      "role_drafts": "טיוטות",
       "role_sent": "נשלח",
       "role_trash": "אַשׁפָּה",
       "role_junk": "ספאם / זבל",
@@ -1528,6 +1534,8 @@
       "role_none": "אין",
       "create_folder": "צור תיקיה",
       "create_subfolder": "צור תיקיית משנה",
+      "reorder": "גרור לשינוי הסדר",
+      "reorder_error": "שינוי סדר התיקיות נכשל",
       "subfolder_of": "בתוך{name}",
       "subfolder_name": "שם תיקיית משנה",
       "new_folder_name": "שם התיקיה",

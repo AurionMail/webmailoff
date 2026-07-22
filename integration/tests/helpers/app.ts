@@ -322,6 +322,24 @@ export async function openFolder(page: Page, sel: FolderSelector): Promise<void>
   await folderRow(page, sel).first().click();
 }
 
+/**
+ * Select the composer's From sender whose option text contains `emailNeedle`
+ * (e.g. a shared/group address). Requires the multi-identity <select> to be
+ * rendered. Scrolls it into view first so the change is captured on video.
+ */
+export async function selectComposerFrom(page: Page, emailNeedle: string): Promise<void> {
+  const from = page.locator('[data-testid="composer-from"]').first();
+  await from.scrollIntoViewIfNeeded();
+  const value = await from.locator('option', { hasText: emailNeedle }).first().getAttribute('value');
+  if (!value) throw new Error(`No composer From option matching "${emailNeedle}"`);
+  await from.selectOption(value);
+}
+
+/** The display text of the currently selected From sender. */
+export async function selectedComposerFrom(page: Page): Promise<string> {
+  const from = page.locator('[data-testid="composer-from"]').first();
+  return (await from.locator('option:checked').first().textContent())?.trim() ?? '';
+}
 /** Locator for an email row by (exact) subject. */
 export function emailItem(page: Page, subject: string): Locator {
   return page.locator(`[data-testid="email-list-item"][data-subject="${subject}"]`);

@@ -138,7 +138,9 @@
     "scheduled": "زمان‌بندی شده",
     "unified_all_mail": "همه ایمیل‌ها",
     "unified_all_starred": "همه ستاره‌دارها",
-    "unified_all_unread": "همه خوانده‌نشده‌ها"
+    "unified_all_unread": "همه خوانده‌نشده‌ها",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "برنامه‌های پیش‌فرض",
@@ -651,7 +653,6 @@
     "continue_draft": "ادامه پیش‌نویس",
     "close_draft_title": "ذخیره یا دور انداختن پیش‌نویس؟",
     "close_draft_message": "تغییرات ذخیره نشده دارید. ذخیره یا دور انداختن؟",
-    "save_draft": "ذخیره پیش‌نویس",
     "smime_sign_on": "امضای S/MIME فعال",
     "smime_sign_off": "فعال کردن امضای S/MIME",
     "smime_encrypt_on": "رمزنگاری S/MIME فعال",
@@ -1635,6 +1636,11 @@
         "label": "میانبرهای صفحه کلید",
         "description": "مشاهده میانبرهای صفحه کلید موجود",
         "button": "مشاهده میانبرها"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "بازنشانی تنظیمات",

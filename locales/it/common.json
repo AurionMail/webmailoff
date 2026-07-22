@@ -138,7 +138,9 @@
     "scheduled": "Programmate",
     "unified_all_unread": "Tutti i non letti",
     "unified_all_starred": "Tutti gli speciali",
-    "unified_all_mail": "Tutta la posta"
+    "unified_all_mail": "Tutta la posta",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "App predefinite",
@@ -655,7 +657,6 @@
     "continue_draft": "Continua bozza",
     "close_draft_title": "Salvare o eliminare la bozza?",
     "close_draft_message": "Hai modifiche non salvate. Vuoi salvare come bozza o eliminare?",
-    "save_draft": "Salva bozza",
     "drop_files": "Trascina i file per allegarli",
     "show_less": "Mostra meno",
     "forgot_attachment": {
@@ -1628,6 +1629,11 @@
         "label": "Scorciatoie da tastiera",
         "description": "Visualizza le scorciatoie da tastiera disponibili",
         "button": "Visualizza scorciatoie"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "Ripristina impostazioni",

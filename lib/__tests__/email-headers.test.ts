@@ -83,6 +83,35 @@ describe('parseAuthenticationResults', () => {
     const result = parseAuthenticationResults(header);
     expect(result.spf?.domain).toBe('example.com');
   });
+
+  it('does not let a HELO `none` downgrade a MAIL FROM `pass` (#650)', () => {
+    const header =
+      'mail.haxalot.com; spf=none (mail.haxalot.com: no SPF records found for postmaster@out-23.smtp.github.com) smtp.helo=out-23.smtp.github.com; spf=pass (mail.haxalot.com: domain of noreply@github.com designates 192.30.252.206 as permitted sender) smtp.mailfrom=noreply@github.com';
+    const result = parseAuthenticationResults(header);
+    expect(result.spf?.result).toBe('pass');
+    expect(result.spf?.domain).toBe('noreply@github.com');
+    expect(result.spf?.all).toHaveLength(2);
+  });
+
+  it('does not let a HELO `neutral` downgrade a MAIL FROM `pass`', () => {
+    const header = 'spf=neutral smtp.helo=mail.example.com; spf=pass smtp.mailfrom=example.com';
+    const result = parseAuthenticationResults(header);
+    expect(result.spf?.result).toBe('pass');
+  });
+
+  it('still escalates a HELO hard fail over a MAIL FROM pass', () => {
+    const header = 'spf=fail smtp.helo=mail.spoof.com; spf=pass smtp.mailfrom=example.com';
+    const result = parseAuthenticationResults(header);
+    expect(result.spf?.result).toBe('fail');
+    expect(result.spf?.domain).toBe('mail.spoof.com');
+  });
+
+  it('keeps MAIL FROM `none` as the headline even when HELO passes', () => {
+    const header = 'spf=pass smtp.helo=mail.example.com; spf=none smtp.mailfrom=example.com';
+    const result = parseAuthenticationResults(header);
+    expect(result.spf?.result).toBe('none');
+    expect(result.spf?.domain).toBe('example.com');
+  });
 });
 
 describe('isAuthenticationSpoofed', () => {

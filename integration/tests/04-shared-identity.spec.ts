@@ -1,7 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { ACCOUNTS, GROUP } from './helpers/config';
 import { JmapClient } from './helpers/jmap';
-import { login, forceSync, openComposer, composerFromOptions } from './helpers/app';
+import {
+  login,
+  forceSync,
+  openComposer,
+  composerFromOptions,
+  selectComposerFrom,
+  selectedComposerFrom,
+} from './helpers/app';
 
 /**
  * Issue #569 — the composer's "From" dropdown should include identities from
@@ -41,7 +48,7 @@ test.describe('Composer From: shared/group identities (issue #569)', () => {
     expect(groupIdentityEmails).toContain(team.email);
   });
 
-  test('the composer From selector offers the group address', async ({ page }) => {
+  test('the composer From selector offers and can select the group address', async ({ page }) => {
     await login(page, member);
     // Shared accounts/identities are discovered from the JMAP session; give the
     // client a beat to settle them after the first render.
@@ -49,11 +56,21 @@ test.describe('Composer From: shared/group identities (issue #569)', () => {
 
     await openComposer(page);
 
-    // The group address alice can send as should be one of the From choices.
-    // If #569 is unaddressed the control collapses to her own address only and
-    // this poll times out — which is the point: it pins the expected behaviour.
+    // The group address the member can send as should be one of the From
+    // choices. If #569 were unaddressed the control would collapse to her own
+    // address only and this poll would time out — which is the point: it pins
+    // the expected behaviour.
     await expect
       .poll(async () => (await composerFromOptions(page)).join(' | '), { timeout: 15000 })
       .toContain(team.email);
+
+    // Pick the group address as the sender and confirm it becomes the selected
+    // From identity (not just a listed option).
+    await selectComposerFrom(page, team.email);
+    await expect.poll(() => selectedComposerFrom(page), { timeout: 5000 }).toContain(team.email);
+
+    // Hold on the composer so the final video frames clearly show the group
+    // address selected in the From field.
+    await page.waitForTimeout(2000);
   });
 });

@@ -246,7 +246,7 @@ export const API_METHODS = [
   'upfiles.get', 'upfiles.save',
   'admin.getConfig', 'admin.getAllConfig', 'admin.setConfig', 'admin.deleteConfig',
   'toast.success', 'toast.error', 'toast.info', 'toast.warning',
-  'ui.confirm', 'ui.alert', 'ui.prompt', 'ui.rerenderEmail', 'ui.openExternalUrl', 'ui.downloadFile'
+  'ui.confirm', 'ui.alert', 'ui.prompt', 'ui.rerenderEmail', 'ui.rerenderFetchedEmails', 'ui.openExternalUrl', 'ui.downloadFile'
 ] as const;
 
 export type ApiMethod = (typeof API_METHODS)[number];

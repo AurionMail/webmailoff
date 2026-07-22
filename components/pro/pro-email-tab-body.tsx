@@ -12,6 +12,7 @@ import { toast } from "@/stores/toast-store";
 import { useProTabStore, type ProEmailTabData, type ProReplyContext } from "@/stores/pro-tab-store";
 import type { Email } from "@/lib/jmap/types";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
+import { getQuoteBodies } from "@/lib/email-composer-utils";
 
 interface ProEmailTabBodyProps {
   tabId: string;
@@ -19,8 +20,6 @@ interface ProEmailTabBodyProps {
 }
 
 function buildReplyContext(email: Email): ProReplyContext {
-  const textPartId = email.textBody?.[0]?.partId ?? '';
-  const htmlPartId = email.htmlBody?.[0]?.partId ?? '';
   return {
     from: email.from,
     replyToAddresses: email.replyTo,
@@ -28,8 +27,7 @@ function buildReplyContext(email: Email): ProReplyContext {
     cc: email.cc,
     bcc: email.bcc,
     subject: email.subject,
-    body: email.bodyValues?.[textPartId]?.value || email.preview || '',
-    htmlBody: email.bodyValues?.[htmlPartId]?.value || undefined,
+    ...getQuoteBodies(email),
     receivedAt: email.receivedAt,
     accountId: email.accountId,
     attachments: email.attachments,
@@ -235,8 +233,13 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     const bodyText = email.bodyValues
       ? Object.values(email.bodyValues).map((v) => v.value).join('\n')
       : '';
-    const htmlBody = email.htmlBody?.[0]?.partId && email.bodyValues?.[email.htmlBody[0].partId]
-      ? email.bodyValues[email.htmlBody[0].partId].value
+    // A plain-text-only draft lists its text/plain part under htmlBody
+    // (RFC 8621 § 4.1.4 fallback) - only treat it as HTML when it really is.
+    const draftHtmlPart = email.htmlBody?.[0];
+    const htmlBody = draftHtmlPart?.partId
+      && (!draftHtmlPart.type || draftHtmlPart.type.toLowerCase() === 'text/html')
+      && email.bodyValues?.[draftHtmlPart.partId]
+      ? email.bodyValues[draftHtmlPart.partId].value
       : undefined;
 
     // Preserve the identity that matches the draft's From address.

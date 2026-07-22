@@ -70,7 +70,7 @@ import { AppTopBannerSlot } from "@/components/plugins/app-top-banner-slot";
 import { useThemeStore } from "@/stores/theme-store";
 import { consumePendingMailto, subscribeToPendingMailto } from "@/lib/protocol-handlers/session";
 import type { ParsedMailto } from "@/lib/protocol-handlers/mailto";
-import { plainTextToComposerBody } from "@/lib/email-composer-utils";
+import { plainTextToComposerBody, getQuoteBodies } from "@/lib/email-composer-utils";
 import { appLifecycleHooks, uiHooks, routerHooks, toastHooks, emailHooks } from "@/lib/plugin-hooks";
 import { emailToReadView } from "@/lib/plugin-projection";
 import { buildQuoteHeader } from "@/lib/quote-header";
@@ -787,8 +787,7 @@ export default function Home() {
       cc: selectedEmail.cc,
       bcc: selectedEmail.bcc,
       subject: selectedEmail.subject,
-      body: selectedEmail.bodyValues?.[selectedEmail.textBody?.[0]?.partId || '']?.value || selectedEmail.preview || '',
-      htmlBody: selectedEmail.bodyValues?.[selectedEmail.htmlBody?.[0]?.partId || '']?.value || undefined,
+      ...getQuoteBodies(selectedEmail),
       receivedAt: selectedEmail.receivedAt,
       attachments: selectedEmail.attachments,
       messageId: selectedEmail.messageId,
@@ -1387,8 +1386,13 @@ export default function Home() {
     const bodyText = draft.bodyValues
       ? Object.values(draft.bodyValues).map(v => v.value).join('\n')
       : '';
-    const htmlBody = draft.htmlBody?.[0]?.partId && draft.bodyValues?.[draft.htmlBody[0].partId]
-      ? draft.bodyValues[draft.htmlBody[0].partId].value
+    // A plain-text-only draft lists its text/plain part under htmlBody
+    // (RFC 8621 § 4.1.4 fallback) - only treat it as HTML when it really is.
+    const draftHtmlPart = draft.htmlBody?.[0];
+    const htmlBody = draftHtmlPart?.partId
+      && (!draftHtmlPart.type || draftHtmlPart.type.toLowerCase() === 'text/html')
+      && draft.bodyValues?.[draftHtmlPart.partId]
+      ? draft.bodyValues[draftHtmlPart.partId].value
       : undefined;
 
     // Try to find the identity that matches the draft's from address to preserve it
@@ -1428,6 +1432,27 @@ export default function Home() {
 
     toast.success(t('email_viewer.scheduled_send_created'), {
       duration: undoDurationMs,
+      secondaryAction: (pending.emailId && pending.identityId)
+        ? {
+            label: t('email_viewer.send_now'),
+            onClick: () => {
+              void (async () => {
+                try {
+                  await client.rescheduleEmailSubmission(
+                    pending.submissionId,
+                    pending.emailId!,
+                    pending.identityId!,
+                    new Date(Date.now() + 1000).toISOString(),
+                  );
+                  clearPendingUndoSend();
+                  if (isScheduledView) await fetchScheduledEmails(client);
+                } catch (error) {
+                  console.error('Failed to send now:', error);
+                }
+              })();
+            },
+          }
+        : undefined,
       action: {
         label: t('email_viewer.undo_send'),
         onClick: () => {
@@ -3279,8 +3304,7 @@ export default function Home() {
                     cc: selectedEmail.cc,
                     bcc: selectedEmail.bcc,
                     subject: selectedEmail.subject,
-                    body: selectedEmail.bodyValues?.[selectedEmail.textBody?.[0]?.partId || '']?.value || selectedEmail.preview || '',
-                    htmlBody: selectedEmail.bodyValues?.[selectedEmail.htmlBody?.[0]?.partId || '']?.value || undefined,
+                    ...getQuoteBodies(selectedEmail),
                     receivedAt: selectedEmail.receivedAt,
                     attachments: selectedEmail.attachments,
                     messageId: selectedEmail.messageId,

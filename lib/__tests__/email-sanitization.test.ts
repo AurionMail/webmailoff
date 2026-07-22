@@ -11,9 +11,13 @@ import {
   EMAIL_SANITIZE_CONFIG,
   EMAIL_IFRAME_SANITIZE_CONFIG,
   isExternalResourceUrl,
+  isHttpLinkHref,
+  applyNewTabToAnchor,
+  sanitizeI18nHtml,
   decodeCssEscapes,
   styleHasExternalUrl,
   stripExternalCssUrls,
+  stripExternalStyleSheetCss,
   blockExternalResourcesOnNode,
   TRANSPARENT_BLOCKED_PIXEL,
 } from '../email-sanitization';
@@ -359,6 +363,85 @@ describe('email-sanitization', () => {
     });
   });
 
+  describe('isHttpLinkHref (open-in-new-tab eligibility)', () => {
+    it('treats http(s) and protocol-relative links as new-tab links', () => {
+      expect(isHttpLinkHref('https://example.com/page')).toBe(true);
+      expect(isHttpLinkHref('http://example.com/page')).toBe(true);
+      expect(isHttpLinkHref('//example.com/page')).toBe(true);
+      expect(isHttpLinkHref('HTTPS://EXAMPLE.COM')).toBe(true);
+    });
+
+    it('sees through obfuscated schemes (leading/embedded whitespace)', () => {
+      expect(isHttpLinkHref('\n\nhttps://example.com')).toBe(true);
+      expect(isHttpLinkHref('  \t https://example.com')).toBe(true);
+      expect(isHttpLinkHref('h\nttps://example.com')).toBe(true);
+    });
+
+    it('excludes mailto and other non-web schemes (must NOT open a new tab)', () => {
+      expect(isHttpLinkHref('mailto:someone@example.com')).toBe(false);
+      expect(isHttpLinkHref('mailto:someone@example.com?subject=Hi')).toBe(false);
+      expect(isHttpLinkHref('tel:+15551234567')).toBe(false);
+      expect(isHttpLinkHref('sms:+15551234567')).toBe(false);
+      expect(isHttpLinkHref('cid:image001@example.com')).toBe(false);
+      expect(isHttpLinkHref('#section')).toBe(false);
+      expect(isHttpLinkHref('/relative/path')).toBe(false);
+      expect(isHttpLinkHref('')).toBe(false);
+      expect(isHttpLinkHref(null)).toBe(false);
+      expect(isHttpLinkHref(undefined)).toBe(false);
+    });
+  });
+
+  describe('applyNewTabToAnchor', () => {
+    const anchor = (html: string): HTMLAnchorElement =>
+      parseHtmlSafely(html).querySelector('a')!;
+
+    it('adds target/rel to http(s) links', () => {
+      const a = anchor('<a href="https://example.com">x</a>');
+      applyNewTabToAnchor(a);
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+    });
+
+    it('strips target/rel from mailto links', () => {
+      const a = anchor('<a href="mailto:a@b.com" target="_blank" rel="noopener noreferrer">x</a>');
+      applyNewTabToAnchor(a);
+      expect(a.getAttribute('target')).toBeNull();
+      expect(a.getAttribute('rel')).toBeNull();
+    });
+
+    it('strips target from tel: and in-page #anchors', () => {
+      const tel = anchor('<a href="tel:+1555" target="_blank">x</a>');
+      applyNewTabToAnchor(tel);
+      expect(tel.getAttribute('target')).toBeNull();
+      const frag = anchor('<a href="#section" target="_blank">x</a>');
+      applyNewTabToAnchor(frag);
+      expect(frag.getAttribute('target')).toBeNull();
+    });
+
+    it('ignores non-anchor elements', () => {
+      const span = parseHtmlSafely('<span target="_blank">x</span>').querySelector('span')!;
+      applyNewTabToAnchor(span);
+      expect(span.getAttribute('target')).toBe('_blank');
+    });
+  });
+
+  describe('sanitizeI18nHtml', () => {
+    it('preserves an authored target="_blank" and hardens rel (regression: DOMPurify strips target)', () => {
+      const out = sanitizeI18nHtml(
+        'See the <a href="/docs/guides/account-security" class="underline" target="_blank">documentation</a>.',
+      );
+      expect(out).toContain('target="_blank"');
+      expect(out).toContain('rel="noopener noreferrer"');
+      expect(out).toContain('href="/docs/guides/account-security"');
+    });
+
+    it('leaves links without a target untouched (no spurious new tab)', () => {
+      const out = sanitizeI18nHtml('Go <a href="/settings">here</a>.');
+      expect(out).toContain('href="/settings"');
+      expect(out).not.toContain('target=');
+    });
+  });
+
   describe('decodeCssEscapes', () => {
     it('decodes hex escapes (cssEscape bypass)', () => {
       expect(decodeCssEscapes('\\68ttp://x')).toBe('http://x');
@@ -393,6 +476,42 @@ describe('email-sanitization', () => {
       const style = "background:url('data:image/png;base64,AAAA')";
       expect(styleHasExternalUrl(style)).toBe(false);
       expect(stripExternalCssUrls(style)).toBe(style);
+    });
+  });
+
+  describe('stripExternalStyleSheetCss (<style> block defence-in-depth, #457)', () => {
+    it('strips external url() inside a style rule', () => {
+      expect(stripExternalStyleSheetCss("#x{background:url('http://tracker.example/y')}"))
+        .toBe('#x{background:url()}');
+    });
+
+    it('strips the CSS-escaped url() keyword (\\75\\72\\6C()', () => {
+      expect(stripExternalStyleSheetCss("#x{background:\\75\\72\\6C('http://tracker.example/y')}"))
+        .toBe('#x{background:url()}');
+    });
+
+    it('removes a remote @import (bare-string form)', () => {
+      expect(stripExternalStyleSheetCss('@import "http://tracker.example/s.css";\n#x{color:red}'))
+        .toBe('\n#x{color:red}');
+      expect(stripExternalStyleSheetCss("@import '//tracker.example/s.css';")).toBe('');
+    });
+
+    it('neutralises a remote @import url() form', () => {
+      expect(stripExternalStyleSheetCss('@import url(http://tracker.example/s.css);'))
+        .toBe('@import url();');
+    });
+
+    it('leaves a stylesheet with no external refs unchanged (escapes intact)', () => {
+      const css = '#x{content:"\\2014";background:url(data:image/png;base64,AAAA)}';
+      expect(stripExternalStyleSheetCss(css)).toBe(css);
+    });
+
+    it('blockExternalResourcesOnNode strips a <style> block and reports blocked', () => {
+      const style = parseHtmlSafely(
+        '<body><style>#x{background:url(http://tracker.example/y)}</style></body>',
+      ).body.firstElementChild!;
+      expect(blockExternalResourcesOnNode(style)).toBe(true);
+      expect(style.textContent).toBe('#x{background:url()}');
     });
   });
 

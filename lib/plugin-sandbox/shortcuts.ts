@@ -8,6 +8,7 @@
 // The listener ignores events when an editable element has focus, matching
 // the convention in `use-keyboard-shortcuts.ts`.
 
+import { isEditableEventTarget } from '@/lib/keyboard';
 import type { SandboxInstance } from './host-bridge';
 
 interface Binding {
@@ -62,16 +63,8 @@ function eventMatches(ev: KeyboardEvent, combo: NormalisedCombo): boolean {
   return ev.key.toLowerCase() === combo.key;
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName.toLowerCase();
-  if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-  if (target.isContentEditable) return true;
-  return false;
-}
-
 function onKeyDown(ev: KeyboardEvent): void {
-  if (isEditableTarget(ev.target)) return;
+  if (isEditableEventTarget(ev)) return;
   if (bindings.size === 0) return;
   for (const binding of bindings.values()) {
     const combo = normaliseCombo(binding.keys);

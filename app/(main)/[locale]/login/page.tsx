@@ -133,7 +133,7 @@ export default function LoginPage() {
   const isMobileHandoff = Boolean(mobileRedirectUri);
   const { login, loginDemo, isLoading, error, clearError, isAuthenticated } = useAuthStore();
   const { theme, setTheme, initializeTheme } = useThemeStore(useShallow((s) => ({ theme: s.theme, setTheme: s.setTheme, initializeTheme: s.initializeTheme })));
-  const { appName, jmapServerUrl: configuredServerUrl, oauthEnabled, oauthOnly, oauthClientId: globalOauthClientId, oauthIssuerUrl: globalOauthIssuerUrl, oauthScopes, rememberMeEnabled, devMode, demoMode, loginLogoLightUrl, loginLogoDarkUrl, loginCompanyName, loginImprintUrl, loginPrivacyPolicyUrl, loginWebsiteUrl, loginLogoMaxHeight, loginLogoMaxWidth, loginShowHeading, loginShowSubtitle, isLoading: configLoading, error: configError, autoSsoEnabled, embeddedMode: _embeddedMode, allowCustomJmapEndpoint, jmapServers, jmapServerAutoPickByDomain } = useConfig();
+  const { appName, jmapServerUrl: configuredServerUrl, oauthEnabled, oauthOnly, oauthClientId: globalOauthClientId, oauthIssuerUrl: globalOauthIssuerUrl, oauthScopes, rememberMeEnabled, devMode, demoMode, loginLogoLightUrl, loginLogoDarkUrl, loginCompanyName, loginImprintUrl, loginPrivacyPolicyUrl, loginWebsiteUrl, loginLogoMaxHeight, loginLogoMaxWidth, loginShowHeading, loginShowSubtitle, loginShowTotp, loginShowVersion, isLoading: configLoading, error: configError, autoSsoEnabled, embeddedMode: _embeddedMode, allowCustomJmapEndpoint, jmapServers, jmapServerAutoPickByDomain } = useConfig();
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
 
   // Login logo sizing: when a max height/width is configured, drop the fixed
@@ -822,7 +822,7 @@ export default function LoginPage() {
                 )}
               </div>
             )}
-            <VersionBadge />
+            {loginShowVersion && <VersionBadge />}
           </div>
         </div>
       </div>
@@ -1154,8 +1154,12 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  {/* 2FA toggle / field */}
+                  {/* 2FA toggle / field. The manual toggle can be hidden via
+                      LOGIN_SHOW_TOTP (loginShowTotp) for deployments whose mail
+                      server has no per-account TOTP (auth delegated to an
+                      external directory); server-required TOTP still shows. */}
                   {!showTotpField ? (
+                    loginShowTotp ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -1167,6 +1171,7 @@ export default function LoginPage() {
                       <Shield className="w-3.5 h-3.5" />
                       {t("totp_toggle")}
                     </button>
+                    ) : null
                   ) : (
                     <div className="space-y-1.5">
                       <label htmlFor="totp" className="block text-sm font-medium text-foreground">
@@ -1361,7 +1366,7 @@ export default function LoginPage() {
               )}
             </div>
           )}
-          <VersionBadge />
+          {loginShowVersion && <VersionBadge />}
         </div>
       </div>
     </div>

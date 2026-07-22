@@ -138,7 +138,9 @@
     "scheduled": "已计划",
     "unified_all_unread": "全部未读",
     "unified_all_starred": "全部加星标",
-    "unified_all_mail": "全部邮件"
+    "unified_all_mail": "全部邮件",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "默认应用",
@@ -648,7 +650,6 @@
     "continue_draft": "继续编辑草稿",
     "close_draft_title": "保存或丢弃草稿？",
     "close_draft_message": "您有未保存的更改。要将其保存为草稿还是丢弃？",
-    "save_draft": "保存草稿",
     "smime_sign_on": "S/MIME 签名已启用",
     "smime_sign_off": "启用 S/MIME 签名",
     "smime_encrypt_on": "S/MIME 加密已启用",
@@ -1628,6 +1629,11 @@
         "label": "键盘快捷键",
         "description": "查看可用快捷键",
         "button": "查看快捷方式"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "重置设置",

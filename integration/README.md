@@ -145,6 +145,13 @@ because the UI behaviour is currently incomplete. Worth a look:
 | `IT_WEBMAIL_URL`| `http://localhost:3000` | Webmail origin                                        |
 | `IT_JMAP_URL`   | `http://localhost:8025` | Stalwart JMAP/admin base URL                          |
 | `IT_SMTP_PORT`  | `1025`             | Stalwart submission port                                   |
+| `IT_VIDEO`      | `retain-on-failure`| Video capture: `on` records a `.webm` for **every** test; also `off` / `on-first-retry`. Videos land at `integration/test-results/<test>/video.webm` |
+
+Record videos for a whole run (passing tests included):
+
+```bash
+IT_VIDEO=on integration/run-tests.sh          # or a single spec: IT_VIDEO=on integration/run-tests.sh 01-login
+```
 
 By default the stack is **left running** after the suite so re-runs are fast and
 you can poke around (webmail on :3000, Stalwart admin on :8025). Tear it down
