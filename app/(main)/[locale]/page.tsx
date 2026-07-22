@@ -980,11 +980,16 @@ export default function Home() {
 
         await refreshScheduledMetadata(client);
 
-        // Fetch emails for the selected mailbox after scheduled metadata is available.
+        // Fetch emails for the selected mailbox after scheduled metadata is
+        // available. If the list is already populated (an account switch
+        // restored a cached snapshot, or login prefetched it), refresh in the
+        // background so the visible mail doesn't flash a loading overlay; only
+        // a genuine empty first load shows the skeleton.
+        const background = state.emails.length > 0;
         if (selectedMailboxId) {
-          await fetchEmails(client, selectedMailboxId);
+          await fetchEmails(client, selectedMailboxId, { background });
         } else {
-          await fetchEmails(client);
+          await fetchEmails(client, undefined, { background });
         }
 
         fetchTagCounts(client);

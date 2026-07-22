@@ -148,7 +148,7 @@ interface EmailStore {
 
   // JMAP operations
   fetchMailboxes: (client: IJMAPClient) => Promise<void>;
-  fetchEmails: (client: IJMAPClient, mailboxId?: string) => Promise<void>;
+  fetchEmails: (client: IJMAPClient, mailboxId?: string, opts?: { background?: boolean }) => Promise<void>;
   // Eager post-login bootstrap: fires mailboxes/quota/emails so the round-trips
   // overlap with Next's soft-nav + home-page hydration. Safe to call multiple
   // times; later calls are no-ops while a prior one is in flight.
@@ -1035,8 +1035,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     return target.__prefetchPromise;
   },
 
-  fetchEmails: async (client, mailboxId) => {
-    set({ isLoading: true, error: null }); // Keep previous emails visible during transition
+  fetchEmails: async (client, mailboxId, opts) => {
+    // A background refresh (e.g. after an account switch restored a cached list)
+    // repopulates the list without showing the loading overlay, so switching to
+    // an already-visited account doesn't flash a spinner over the visible mail.
+    const background = opts?.background ?? false;
+    set(background ? { error: null } : { isLoading: true, error: null }); // Keep previous emails visible during transition
     try {
       const targetMailboxId = mailboxId || get().selectedMailbox;
       if (targetMailboxId === VIRTUAL_SCHEDULED_MAILBOX_ID) {
@@ -1093,13 +1097,19 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       void get().fetchThreadEmailCounts(client);
     } catch (error) {
       console.error('Failed to fetch emails:', error);
-      set({
-        error: error instanceof Error ? error.message : "Failed to fetch emails",
-        isLoading: false,
-        emails: [],
-        hasMoreEmails: false,
-        totalEmails: 0
-      });
+      // A failed background refresh must not wipe the list it was refreshing -
+      // keep the restored/prefetched emails visible and just surface the error.
+      if (background) {
+        set({ error: error instanceof Error ? error.message : "Failed to fetch emails" });
+      } else {
+        set({
+          error: error instanceof Error ? error.message : "Failed to fetch emails",
+          isLoading: false,
+          emails: [],
+          hasMoreEmails: false,
+          totalEmails: 0
+        });
+      }
     }
   },
 
