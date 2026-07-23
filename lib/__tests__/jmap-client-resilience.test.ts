@@ -349,6 +349,68 @@ describe('JMAPClient resilience', () => {
     });
   });
 
+  // Every account switch tears down and re-creates push for all connected
+  // clients. Aborting an SSE connect that is still in flight must read as an
+  // intentional close: treated as a network failure it spawns an unsupervised
+  // 3s polling interval per client, and its late rejection nulls the abort
+  // controller of the connection set up right after - which then can never be
+  // closed and reconnects itself in parallel. Rapid switching multiplies both
+  // until the server's concurrency limit stalls the app.
+  describe('SSE connect aborted mid-flight (account-switch churn)', () => {
+    function inFlightFetch(signals: AbortSignal[]) {
+      return (_url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.signal) signals.push(init.signal);
+        return new Promise<Response>((_resolve, reject) => {
+          const abort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+          if (init?.signal?.aborted) return abort();
+          init?.signal?.addEventListener('abort', abort);
+        });
+      };
+    }
+
+    it('does not fall back to polling when the in-flight connect was aborted', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: false });
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(inFlightFetch([]));
+
+      client.setupPushNotifications();
+      client.closePushNotifications();
+
+      // Flush the 1s network-error retry inside authenticatedFetch and a few
+      // would-be polling ticks (3s each).
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      // The polling fallback is recognizable by its state-poll body; a
+      // keep-alive Core/echo that slips in must not fail the assertion.
+      const statePolls = fetchSpy.mock.calls.filter((call: unknown[]) => {
+        const body = (call[1] as RequestInit | undefined)?.body;
+        return typeof body === 'string' && body.includes('Mailbox/get');
+      });
+      expect(statePolls).toHaveLength(0);
+    });
+
+    it('keeps the replacement connection abortable when the aborted connect settles late', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: false });
+      const client = await createConnectedClient();
+      const signals: AbortSignal[] = [];
+      fetchSpy.mockImplementation(inFlightFetch(signals));
+
+      client.setupPushNotifications();
+      client.closePushNotifications();
+      client.setupPushNotifications();
+      // The retry inside authenticatedFetch re-sends the aborted first
+      // attempt later, so grab the replacement's signal now.
+      const replacementSignal = signals[signals.length - 1];
+
+      // Let the first attempt run through its retry and reject - after the
+      // replacement connect is already up.
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      client.closePushNotifications();
+      expect(replacementSignal.aborted).toBe(true);
+    });
+  });
+
   describe('fetchBlobAsObjectUrl', () => {
     it('fetches blob with authentication and returns an object URL', async () => {
       const client = await createConnectedClient();
