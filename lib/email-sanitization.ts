@@ -8,7 +8,11 @@ import DOMPurify from 'dompurify';
  */
 export const EMAIL_SANITIZE_CONFIG = {
   ADD_TAGS: [],
-  ADD_ATTR: ['target', 'rel', 'style', 'class', 'width', 'height', 'align', 'valign', 'bgcolor', 'color'],
+  // data-quoted-html is Bulwark's own reply-quote marker (see
+  // components/email/quoted-html.ts). Explicitly whitelisted despite
+  // ALLOW_DATA_ATTR:false so the viewer can detect and collapse the quoted
+  // original (lib/quote-collapse.ts); it's inert otherwise.
+  ADD_ATTR: ['target', 'rel', 'style', 'class', 'width', 'height', 'align', 'valign', 'bgcolor', 'color', 'data-quoted-html'],
   ALLOW_DATA_ATTR: false,
   FORCE_BODY: true,
   // Allow blob: URIs so authenticated inline images (CID) are not stripped.
@@ -182,8 +186,10 @@ export function sanitizeI18nHtml(html: string): string {
  * future code path passes raw HTML in by mistake.
  */
 const PLAIN_TEXT_RENDERED_CONFIG = {
-  ALLOWED_TAGS: ['a', 'br', 'p', 'div', 'span'],
-  ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style'],
+  // details/summary/title carry the script-less quote-collapse toggle emitted
+  // by collapsePlainTextQuotes (lib/quote-collapse.ts).
+  ALLOWED_TAGS: ['a', 'br', 'p', 'div', 'span', 'details', 'summary'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style', 'title'],
   // DOMPurify URI-tests every attribute value not on its URI-safe list, so the
   // strict ALLOWED_URI_REGEXP below would strip target="_blank" (and rel) —
   // "_blank" is not a URI. This branch renders into the main document rather

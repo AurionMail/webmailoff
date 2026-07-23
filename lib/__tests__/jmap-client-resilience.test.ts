@@ -302,6 +302,11 @@ describe('JMAPClient resilience', () => {
     });
 
     it('does not mark the connection lost or reconnect repeatedly while rate limited', async () => {
+      // The file-level shouldAdvanceTime lets fake time creep forward with
+      // the wall clock, which can fire the 30s keep-alive an extra time on a
+      // slow or loaded machine. This test counts pings, so pin the clock and
+      // advance it explicitly.
+      vi.useFakeTimers({ shouldAdvanceTime: false });
       const client = await createConnectedClient();
       const callback = vi.fn();
       client.onConnectionChange(callback);

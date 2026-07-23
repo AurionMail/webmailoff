@@ -151,10 +151,42 @@ export class DemoJMAPClient implements IJMAPClient {
 
   // ── Emails ────────────────────────────────────────────────────
 
-  async getEmails(mailboxId?: string, _accountId?: string, limit: number = 50, position: number = 0, _hasKeyword?: string, pinnedFirst?: boolean): Promise<{ emails: Email[]; hasMore: boolean; total: number }> {
+  /**
+   * Minimal JMAP filter evaluator for demo mode: supports the conditions the
+   * message-list category tabs use (hasKeyword / notKeyword / from and
+   * AND / OR / NOT operators). Unknown conditions match nothing.
+   */
+  private matchesFilter(e: Email, filter: Record<string, unknown>): boolean {
+    if (typeof filter.operator === 'string') {
+      const conditions = (Array.isArray(filter.conditions) ? filter.conditions : []) as Record<string, unknown>[];
+      switch (filter.operator) {
+        case 'AND': return conditions.every(c => this.matchesFilter(e, c));
+        case 'OR': return conditions.some(c => this.matchesFilter(e, c));
+        case 'NOT': return !conditions.some(c => this.matchesFilter(e, c));
+        default: return false;
+      }
+    }
+    if (typeof filter.hasKeyword === 'string' && !e.keywords[filter.hasKeyword]) return false;
+    if (typeof filter.notKeyword === 'string' && e.keywords[filter.notKeyword]) return false;
+    if (typeof filter.from === 'string') {
+      const q = filter.from.toLowerCase();
+      const match = (e.from || []).some(f =>
+        (f.email || '').toLowerCase().includes(q) || (f.name || '').toLowerCase().includes(q));
+      if (!match) return false;
+    }
+    return true;
+  }
+
+  async getEmails(mailboxId?: string, _accountId?: string, limit: number = 50, position: number = 0, hasKeyword?: string, pinnedFirst?: boolean, extraFilter?: Record<string, unknown>): Promise<{ emails: Email[]; hasMore: boolean; total: number }> {
     let filtered = this.data.emails;
     if (mailboxId) {
       filtered = filtered.filter(e => e.mailboxIds[mailboxId]);
+    }
+    if (hasKeyword) {
+      filtered = filtered.filter(e => e.keywords[hasKeyword]);
+    }
+    if (extraFilter) {
+      filtered = filtered.filter(e => this.matchesFilter(e, extraFilter));
     }
     const pinRank = (e: Email) => (pinnedFirst && e.keywords?.['$pinned'] ? 1 : 0);
     filtered.sort((a, b) =>
@@ -195,6 +227,17 @@ export class DemoJMAPClient implements IJMAPClient {
         total: tagged.length,
         unread: tagged.filter(e => !e.keywords.$seen).length,
       };
+    }
+    return result;
+  }
+
+  async getCategoryUnreadCounts(mailboxId: string, tabs: Array<{ id: string; filter: Record<string, unknown> | null }>, _accountId?: string): Promise<Record<string, number>> {
+    const inBox = this.data.emails.filter(e => e.mailboxIds[mailboxId] && !e.keywords.$seen);
+    const result: Record<string, number> = {};
+    for (const tab of tabs) {
+      result[tab.id] = tab.filter
+        ? inBox.filter(e => this.matchesFilter(e, tab.filter as Record<string, unknown>)).length
+        : inBox.length;
     }
     return result;
   }
@@ -282,6 +325,23 @@ export class DemoJMAPClient implements IJMAPClient {
   async setKeyword(emailId: string, keyword: string): Promise<void> {
     const email = this.data.emails.find(e => e.id === emailId);
     if (email) email.keywords[keyword] = true;
+  }
+
+  async removeKeyword(emailId: string, keyword: string): Promise<void> {
+    const email = this.data.emails.find(e => e.id === emailId);
+    if (email) delete email.keywords[keyword];
+  }
+
+  async batchUpdateKeywords(emailIds: string[], patch: Record<string, boolean | null>): Promise<void> {
+    for (const id of emailIds) {
+      const email = this.data.emails.find(e => e.id === id);
+      if (!email) continue;
+      for (const [pointer, value] of Object.entries(patch)) {
+        const keyword = pointer.startsWith('keywords/') ? pointer.slice('keywords/'.length) : pointer;
+        if (value === null || value === false) delete email.keywords[keyword];
+        else email.keywords[keyword] = true;
+      }
+    }
   }
 
   async migrateKeyword(oldKeyword: string, newKeyword: string): Promise<number> {

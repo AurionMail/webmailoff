@@ -277,6 +277,8 @@
     "no_subject": "(Без темы)",
     "no_body_content": "(Содержимое отсутствует)",
     "no_preview_available": "Предварительный просмотр недоступен",
+    "show_quoted_text": "Показать цитируемый текст",
+    "hide_quoted_text": "Скрыть цитируемый текст",
     "loading_email": "Загрузка письма...",
     "loading": "Загрузка...",
     "reply": "Ответить",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Адрес эл. почты",
     "recipient_name_placeholder": "Отображаемое имя",
     "autocomplete_search_server": "Искать на сервере",
-    "autocomplete_searching": "Поиск..."
+    "autocomplete_searching": "Поиск...",
+    "send_filing_warning": "Отправлено - но последующая очистка не удалась, может остаться устаревший черновик."
   },
   "confirm_dialog": {
     "confirm": "Подтвердить",
@@ -1118,6 +1121,13 @@
         "permanent": "Удалить навсегда",
         "warning": "Письма будут удалены навсегда и не могут быть восстановлены. Это действие необратимо."
       },
+      "message_spacing": {
+        "label": "Отступы сообщения",
+        "description": "Отступы вокруг текста сообщения при чтении",
+        "auto": "Автоматически (рекомендуется)",
+        "always": "Всегда добавлять отступы",
+        "edge": "От края до края"
+      },
       "archive_mode": {
         "label": "Архивировать в",
         "description": "Как организовывать письма при архивировании",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Вне офиса",
         "body_label": "Текст сообщения",
         "body_description": "Содержимое сообщения в виде обычного текста",
-        "body_placeholder": "Спасибо за ваше письмо. Я сейчас вне офиса и отвечу, когда вернусь."
+        "body_placeholder": "Спасибо за ваше письмо. Я сейчас вне офиса и отвечу, когда вернусь.",
+        "html_label": "Форматированное сообщение (HTML)",
+        "html_description": "Добавьте форматированную версию со ссылками и оформлением. Получатели, чей почтовый клиент не может её отобразить, увидят обычный текст выше.",
+        "html_placeholder": "Напишите форматированный ответ об отсутствии…"
       },
       "preview": {
         "title": "Предпросмотр",
@@ -1565,6 +1578,8 @@
       "role_none": "Нет",
       "create_folder": "Создать папку",
       "create_subfolder": "Создать подпапку",
+      "reorder": "Перетащите, чтобы изменить порядок",
+      "reorder_error": "Не удалось изменить порядок папок",
       "subfolder_of": "Внутри {name}",
       "subfolder_name": "Название подпапки",
       "new_folder_name": "Название папки",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

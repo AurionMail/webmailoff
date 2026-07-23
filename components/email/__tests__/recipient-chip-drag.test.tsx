@@ -136,6 +136,7 @@ vi.mock('@/lib/plugin-hooks', () => ({
     getRecipientSuggestions: { call: async () => [] },
     onSend: { call: async () => [] },
     beforeSend: { call: async () => [] },
+    onRecipientChipsChange: { transform: async (chips: unknown) => chips },
   },
   contactHooks: {
     search: { call: async () => [] },
@@ -229,8 +230,10 @@ describe('RecipientChipInput drag and drop', () => {
     const dt = new MockDataTransfer();
     fireEvent.dragStart(chipSpan, { dataTransfer: dt });
 
+    // The enrichment pass may have stamped extra display metadata on the
+    // chip by drag time, so match the essential fields rather than deep-equal.
     const payload = JSON.parse(dt.getData('application/x-recipient-chip'));
-    expect(payload).toEqual({ recipient: { email: 'alice@example.com' }, fromField: 'to', fromIndex: 0 });
+    expect(payload).toMatchObject({ recipient: { email: 'alice@example.com' }, fromField: 'to', fromIndex: 0 });
   });
 
   it('keeps a display name with a comma in a single chip (array model)', async () => {
@@ -244,7 +247,7 @@ describe('RecipientChipInput drag and drop', () => {
     const dt = new MockDataTransfer();
     fireEvent.dragStart(chipSpan, { dataTransfer: dt });
     const payload = JSON.parse(dt.getData('application/x-recipient-chip'));
-    expect(payload).toEqual({ recipient: { name: 'Doo, John', email: 'john@doo.org' }, fromField: 'to', fromIndex: 0 });
+    expect(payload).toMatchObject({ recipient: { name: 'Doo, John', email: 'john@doo.org' }, fromField: 'to', fromIndex: 0 });
   });
 
   it('onDragEnd clears the opacity class on the chip', async () => {

@@ -277,6 +277,8 @@
     "no_subject": "(بدون موضوع)",
     "no_body_content": "(محتوایی موجود نیست)",
     "no_preview_available": "پیش‌نمایشی در دسترس نیست",
+    "show_quoted_text": "نمایش متن نقل‌قول‌شده",
+    "hide_quoted_text": "پنهان کردن متن نقل‌قول‌شده",
     "loading_email": "در حال بارگذاری ایمیل...",
     "loading": "در حال بارگذاری...",
     "reply": "پاسخ",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "آدرس ایمیل",
     "recipient_name_placeholder": "نام نمایشی",
     "autocomplete_search_server": "جستجو در سرور",
-    "autocomplete_searching": "در حال جستجو..."
+    "autocomplete_searching": "در حال جستجو...",
+    "send_filing_warning": "ارسال شد - اما پاک‌سازی پس از ارسال ناموفق بود، ممکن است پیش‌نویس قدیمی باقی بماند."
   },
   "confirm_dialog": {
     "confirm": "تأیید",
@@ -1121,6 +1124,13 @@
         "permanent": "حذف دائمی",
         "warning": "غیرقابل بازگشت"
       },
+      "message_spacing": {
+        "label": "فاصله‌گذاری پیام",
+        "description": "حاشیه اطراف متن پیام در نمای خواندن",
+        "auto": "خودکار (پیشنهادی)",
+        "always": "همیشه فاصله اضافه شود",
+        "edge": "لبه به لبه"
+      },
       "archive_mode": {
         "label": "بایگانی در",
         "description": "سازمان‌دهی بایگانی",
@@ -1540,7 +1550,10 @@
         "subject_placeholder": "خارج از دفتر",
         "body_label": "بدنه پیام",
         "body_description": "محتوای پیام متنی ساده",
-        "body_placeholder": "از ایمیل شما متشکرم. من در حال حاضر خارج از دفتر هستم و پس از بازگشت پاسخ خواهم داد."
+        "body_placeholder": "از ایمیل شما متشکرم. من در حال حاضر خارج از دفتر هستم و پس از بازگشت پاسخ خواهم داد.",
+        "html_label": "پیام قالب‌بندی‌شده (HTML)",
+        "html_description": "یک نسخهٔ قالب‌بندی‌شده با پیوند و استایل اضافه کنید. گیرندگانی که برنامهٔ ایمیلشان نمی‌تواند آن را نمایش دهد، متن سادهٔ بالا را می‌بینند.",
+        "html_placeholder": "یک پاسخ خودکار قالب‌بندی‌شده بنویسید…"
       },
       "preview": {
         "title": "پیش‌نمایش",
@@ -1572,6 +1585,8 @@
       "role_none": "هیچکدام",
       "create_folder": "ایجاد پوشه",
       "create_subfolder": "ایجاد زیرپوشه",
+      "reorder": "برای تغییر ترتیب بکشید",
+      "reorder_error": "تغییر ترتیب پوشه‌ها ناموفق بود",
       "subfolder_of": "داخل {name}",
       "subfolder_name": "نام زیرپوشه",
       "new_folder_name": "نام پوشه",
@@ -1639,7 +1654,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

@@ -247,18 +247,18 @@ describe('contact-store', () => {
       expect(results.length).toBeLessThanOrEqual(10);
     });
 
-    it('should expand group members when group name matches', () => {
+    it('should suggest a matching group as a single entry with member count', () => {
       const member1 = makeContact({ id: 'm1', name: { components: [{ kind: 'given', value: 'Alice' }], isOrdered: true }, emails: { e0: { address: 'alice@test.com' } } });
       const member2 = makeContact({ id: 'm2', name: { components: [{ kind: 'given', value: 'Bob' }], isOrdered: true }, emails: { e0: { address: 'bob@test.com' } } });
       const group = makeGroup({ id: 'g1', members: { m1: true, m2: true } });
       useContactStore.setState({ contacts: [member1, member2, group] });
 
       const results = useContactStore.getState().getAutocomplete('Team');
-      expect(results).toHaveLength(2);
-      expect(results.map(r => r.email).sort()).toEqual(['alice@test.com', 'bob@test.com']);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual({ name: 'Team', email: '', group: { id: 'g1', memberCount: 2 } });
     });
 
-    it('should not include group itself in results', () => {
+    it('should not suggest a group with no addressable members', () => {
       const group = makeGroup({ id: 'g1' });
       useContactStore.setState({ contacts: [group] });
       const results = useContactStore.getState().getAutocomplete('Team');

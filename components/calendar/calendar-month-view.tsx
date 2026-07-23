@@ -9,6 +9,7 @@ import { buildWeekSegments, getEventDayBounds, getPrimaryCalendarId } from "@/li
 import type { CalendarEvent, Calendar } from "@/lib/jmap/types";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCalendarStore } from "@/stores/calendar-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import type { PendingEventPreview } from "./event-modal";
 import { toast } from "@/stores/toast-store";
 import { useCalendarLocale } from "@/hooks/use-calendar-locale";
@@ -45,6 +46,13 @@ export function CalendarMonthView({
   pendingPreview,
 }: CalendarMonthViewProps) {
   const t = useTranslations("calendar");
+  const showTimeInMonthView = useSettingsStore((state) => state.showTimeInMonthView);
+  // On mobile the month view collapses events to dots unless the user opted
+  // into full entries via "Show time in month view" (#666).
+  const showChips = !isMobile || showTimeInMonthView;
+  const overlayTop = isMobile ? 34 : 30;
+  const rowHeight = isMobile ? 18 : 22;
+  const chipHeight = rowHeight - 2;
   const {
     weekStartsOn,
     dayHeaderKeys,
@@ -157,7 +165,7 @@ export function CalendarMonthView({
           <div key={wi} className={cn(
             "relative flex-1 border-b border-border last:border-b-0",
             isMobile ? "min-h-[52px]" : "min-h-[100px]"
-          )} role="row" style={isMobile ? undefined : { minHeight: Math.max(100, 34 + rowCount * 22 + 8) }}>
+          )} role="row" style={showChips ? { minHeight: Math.max(isMobile ? 52 : 100, overlayTop + 4 + rowCount * rowHeight + 8) } : undefined}>
             <div className="grid grid-cols-7 h-full">
             {week.map((day) => {
               const inMonth = checkIsSameMonth(day, selectedDate);
@@ -201,7 +209,7 @@ export function CalendarMonthView({
                       {formatDayNumber(day)}
                     </span>
                   </div>
-                  {isMobile ? (
+                  {isMobile && !showChips ? (
                     <div className="flex items-center justify-center gap-0.5 flex-wrap">
                       {dayEvents.slice(0, 3).map((ev) => {
                         const calId = getPrimaryCalendarId(ev);
@@ -231,25 +239,28 @@ export function CalendarMonthView({
             })}
             </div>
 
-            {!isMobile && pendingPreview && (() => {
+            {showChips && pendingPreview && (() => {
               const previewDayIdx = week.findIndex(d => checkIsSameDay(d, pendingPreview.start));
               if (previewDayIdx === -1) return null;
               const previewRow = rowCount;
               const cal = calendarMap.get(pendingPreview.calendarId);
               const color = cal?.color || "#3b82f6";
               return (
-                <div className="absolute inset-x-0 pointer-events-none" style={{ top: 30 }}>
+                <div className="absolute inset-x-0 pointer-events-none" style={{ top: overlayTop }}>
                   <div
                     className="absolute px-0.5"
                     style={{
                       left: `calc(${(previewDayIdx / 7) * 100}% + 1px)`,
                       width: `calc(${(1 / 7) * 100}% - 2px)`,
-                      top: previewRow * 22,
-                      height: 20,
+                      top: previewRow * rowHeight,
+                      height: chipHeight,
                     }}
                   >
                     <div
-                      className="h-full rounded text-[10px] leading-[20px] font-medium px-1.5 truncate border-2 border-dashed"
+                      className={cn(
+                        "h-full rounded text-[10px] font-medium truncate border-2 border-dashed",
+                        isMobile ? "leading-[16px] px-1" : "leading-[20px] px-1.5"
+                      )}
                       style={{ borderColor: color, color, backgroundColor: `${color}10` }}
                     >
                       {pendingPreview.title}
@@ -259,8 +270,8 @@ export function CalendarMonthView({
               );
             })()}
 
-            {!isMobile && segments.length > 0 && (
-              <div className="absolute inset-x-0 pointer-events-none" style={{ top: 30 }}>
+            {showChips && segments.length > 0 && (
+              <div className="absolute inset-x-0 pointer-events-none" style={{ top: overlayTop }}>
                 {segments.map((segment) => {
                   const calId = getPrimaryCalendarId(segment.event);
                   return (
@@ -270,8 +281,8 @@ export function CalendarMonthView({
                       style={{
                         left: `calc(${(segment.startIndex / 7) * 100}% + 1px)`,
                         width: `calc(${(segment.span / 7) * 100}% - 2px)`,
-                        top: segment.row * 22,
-                        height: 20,
+                        top: segment.row * rowHeight,
+                        height: chipHeight,
                       }}
                     >
                       <EventCard
@@ -285,6 +296,7 @@ export function CalendarMonthView({
                         onMouseLeave={onHoverLeave}
                         onContextMenu={onContextMenuEvent}
                         draggable
+                        className={isMobile ? "text-[10px] px-1" : undefined}
                       />
                     </div>
                   );

@@ -277,6 +277,8 @@
     "no_subject": "(Kein Betreff)",
     "no_body_content": "(Kein Inhalt verfügbar)",
     "no_preview_available": "Keine Vorschau verfügbar",
+    "show_quoted_text": "Zitierten Text anzeigen",
+    "hide_quoted_text": "Zitierten Text ausblenden",
     "loading_email": "E-Mail wird geladen...",
     "loading": "Lädt...",
     "reply": "Antworten",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "E-Mail-Adresse",
     "recipient_name_placeholder": "Anzeigename",
     "autocomplete_search_server": "Auf dem Server suchen",
-    "autocomplete_searching": "Suche läuft..."
+    "autocomplete_searching": "Suche läuft...",
+    "send_filing_warning": "Gesendet - aber das Aufräumen danach schlug fehl, evtl. bleibt ein alter Entwurf sichtbar."
   },
   "confirm_dialog": {
     "confirm": "Bestätigen",
@@ -1118,6 +1121,13 @@
         "permanent": "Dauerhaft löschen",
         "warning": "E-Mails werden dauerhaft gelöscht und können nicht wiederhergestellt werden. Diese Aktion ist unwiderruflich."
       },
+      "message_spacing": {
+        "label": "Nachrichtenabstand",
+        "description": "Abstand um den Nachrichtentext in der Leseansicht",
+        "auto": "Automatisch (empfohlen)",
+        "always": "Immer Abstand hinzufügen",
+        "edge": "Randlos"
+      },
       "archive_mode": {
         "label": "Nachrichten archivieren in",
         "description": "Wie E-Mails beim Archivieren organisiert werden",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Abwesenheitsnotiz",
         "body_label": "Nachrichtentext",
         "body_description": "Nur-Text-Nachrichteninhalt",
-        "body_placeholder": "Vielen Dank für Ihre E-Mail. Ich bin derzeit nicht im Büro und werde nach meiner Rückkehr antworten."
+        "body_placeholder": "Vielen Dank für Ihre E-Mail. Ich bin derzeit nicht im Büro und werde nach meiner Rückkehr antworten.",
+        "html_label": "Formatierte Nachricht (HTML)",
+        "html_description": "Fügen Sie eine formatierte Version mit Links und Gestaltung hinzu. Empfänger, deren E-Mail-Programm sie nicht anzeigen kann, sehen den obigen Klartext.",
+        "html_placeholder": "Formatierte Abwesenheitsantwort schreiben…"
       },
       "preview": {
         "title": "Vorschau",
@@ -1565,6 +1578,8 @@
       "role_none": "Keine",
       "create_folder": "Ordner erstellen",
       "create_subfolder": "Unterordner erstellen",
+      "reorder": "Zum Neuanordnen ziehen",
+      "reorder_error": "Ordner konnten nicht neu angeordnet werden",
       "subfolder_of": "In {name}",
       "subfolder_name": "Name des Unterordners",
       "new_folder_name": "Ordnername",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

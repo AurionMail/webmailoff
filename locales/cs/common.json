@@ -277,6 +277,8 @@
     "no_subject": "(Bez předmětu)",
     "no_body_content": "(Žádný obsah těla)",
     "no_preview_available": "Náhled není k dispozici",
+    "show_quoted_text": "Zobrazit citovaný text",
+    "hide_quoted_text": "Skrýt citovaný text",
     "loading_email": "Načítání zprávy...",
     "loading": "Načítání...",
     "reply": "Odpovědět",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "E-mailová adresa",
     "recipient_name_placeholder": "Zobrazované jméno",
     "autocomplete_search_server": "Hledat na serveru",
-    "autocomplete_searching": "Hledání..."
+    "autocomplete_searching": "Hledání...",
+    "send_filing_warning": "Odesláno - ale následný úklid selhal, může zůstat zastaralý koncept."
   },
   "confirm_dialog": {
     "confirm": "Potvrdit",
@@ -1118,6 +1121,13 @@
         "permanent": "Trvale odstranit",
         "warning": "E-maily budou trvale odstraněny a nebude možné je obnovit. Tato akce je nevratná."
       },
+      "message_spacing": {
+        "label": "Odsazení zprávy",
+        "description": "Odsazení kolem těla zprávy při čtení",
+        "auto": "Automaticky (doporučeno)",
+        "always": "Vždy přidat odsazení",
+        "edge": "Od okraje k okraji"
+      },
       "archive_mode": {
         "label": "Archivovat do",
         "description": "Jak organizovat e-maily při archivaci",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Mimo kancelář",
         "body_label": "Tělo zprávy",
         "body_description": "Obsah zprávy v prostém textu",
-        "body_placeholder": "Děkuji za vaši zprávu. Momentálně jsem mimo kancelář a odpovím po svém návratu."
+        "body_placeholder": "Děkuji za vaši zprávu. Momentálně jsem mimo kancelář a odpovím po svém návratu.",
+        "html_label": "Formátovaná zpráva (HTML)",
+        "html_description": "Přidejte formátovanou verzi s odkazy a stylem. Příjemci, jejichž poštovní klient ji nedokáže zobrazit, uvidí prostý text výše.",
+        "html_placeholder": "Napište formátovanou odpověď o nepřítomnosti…"
       },
       "preview": {
         "title": "Náhled",
@@ -1565,6 +1578,8 @@
       "role_none": "Žádná",
       "create_folder": "Vytvořit složku",
       "create_subfolder": "Vytvořit podsložku",
+      "reorder": "Přetažením změníte pořadí",
+      "reorder_error": "Nepodařilo se změnit pořadí složek",
       "subfolder_of": "Ve složce {name}",
       "subfolder_name": "Název podsložky",
       "new_folder_name": "Název složky",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

@@ -392,8 +392,22 @@ export const identityHooks = {
 export const filterHooks = {
   onFiltersLoaded: new HookBus(),
   onFilterRuleChange: new HookBus(),
+  // Observer fired after the host successfully uploads the account's active
+  // Sieve script (visual-builder save or plugin-triggered regenerate).
   onFiltersSave: new HookBus(),
   onSieveScriptChange: new HookBus(),
+  /**
+   * Transform hook - runs on the full Sieve script text immediately before
+   * the host uploads it as the account's active script.
+   *
+   *   handler(script: string, ctx: SieveScriptGenerateContext): string | undefined
+   *
+   * Return a modified script (e.g. append a plugin-managed categorizer
+   * section) or undefined to pass through. Handlers MUST keep the script
+   * valid — put extra `require` statements at the very top. Trigger a
+   * regeneration from a plugin via `api.sieve.regenerate()`.
+   */
+  onSieveScriptGenerate: new HookBus(),
 };
 
 // §7.9 Task Hooks
@@ -565,6 +579,26 @@ export const renderHooks = {
   onRenderEmailBody: new HookBus(),
 };
 
+// §7.24 Message-List Tab Hooks (Gmail-style category tabs)
+export const messageListTabHooks = {
+  // Observer - the merged tab set changed (a plugin registered or cleared
+  // its tabs). Receives the resolved MessageListTab[] (empty when cleared).
+  onTabsChange: new HookBus(),
+  // Observer - the user switched tabs. Receives TabActivateContext.
+  onTabActivate: new HookBus(),
+  // Intercept - fires before the host applies a category keyword patch to
+  // messages (api.tabs.categorize or native UI). Receives
+  // EmailCategorizeContext; return false to cancel the move.
+  onBeforeEmailCategorize: new HookBus(),
+  // Observer - fires after the keyword patch was applied. Receives the same
+  // EmailCategorizeContext. This is where a plugin persists per-sender
+  // overrides and calls api.sieve.regenerate() ("do this for all mail from X").
+  onEmailCategorize: new HookBus(),
+  // Observer - per-tab unread counts were refreshed. Receives
+  // Record<tabId, number>.
+  onTabCountsRefresh: new HookBus(),
+};
+
 // ─── Aggregate: remove all handlers for a plugin across all buses ───
 
 const allHookGroups = [
@@ -573,7 +607,7 @@ const allHookGroups = [
   taskHooks, templateHooks, smimeHooks, vacationHooks,
   uiHooks, themeHooks, toastHooks, dragDropHooks,
   keyboardHooks, appLifecycleHooks, accountSecurityHooks, sidebarAppHooks,
-  avatarHooks, renderHooks, routerHooks,
+  avatarHooks, renderHooks, routerHooks, messageListTabHooks,
 ];
 
 export function removeAllPluginHooks(pluginId: string): void {

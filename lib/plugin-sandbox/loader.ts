@@ -10,8 +10,10 @@ import {
   uiHooks, themeHooks, toastHooks, dragDropHooks,
   keyboardHooks, appLifecycleHooks, accountSecurityHooks,
   sidebarAppHooks, avatarHooks, renderHooks, routerHooks,
+  messageListTabHooks,
   removeAllPluginHooks, pluginErrorTracker,
 } from '../plugin-hooks';
+import { useMessageListTabsStore } from '@/stores/message-list-tabs-store';
 import { verifyBundle } from './bundle-integrity';
 import { createBackgroundInstance } from './host-bridge';
 import { resolvePluginTier } from './tier';
@@ -30,6 +32,7 @@ const HOOK_BUSES: Record<string, AnyBus> = Object.assign({},
   uiHooks, themeHooks, toastHooks, dragDropHooks,
   keyboardHooks, appLifecycleHooks, accountSecurityHooks,
   sidebarAppHooks, avatarHooks, renderHooks, routerHooks,
+  messageListTabHooks,
 ) as Record<string, AnyBus>;
 
 // ─── Store accessor (status updates flow through the existing store) ──
@@ -179,6 +182,9 @@ export function unloadSandboxedPlugin(pluginId: string): void {
     try { d.dispose(); } catch { /* ignore */ }
   }
   removeAllPluginHooks(pluginId);
+  // Drop any message-list category tabs the plugin registered so the strip
+  // disappears (and the inbox unfilters) the moment the plugin is disabled.
+  try { useMessageListTabsStore.getState().clearTabs(pluginId); } catch { /* ignore */ }
   try { entry.background.destroy(); } catch { /* ignore */ }
   cancelPluginDialogs(pluginId);
   pluginErrorTracker.reset(pluginId);

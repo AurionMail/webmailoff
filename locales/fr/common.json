@@ -277,6 +277,8 @@
     "no_subject": "(Sans objet)",
     "no_body_content": "(Aucun contenu disponible)",
     "no_preview_available": "Aucun aperçu disponible",
+    "show_quoted_text": "Afficher le texte cité",
+    "hide_quoted_text": "Masquer le texte cité",
     "loading_email": "Chargement de l'email...",
     "loading": "Chargement...",
     "reply": "Répondre",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Adresse e-mail",
     "recipient_name_placeholder": "Nom d'affichage",
     "autocomplete_search_server": "Rechercher sur le serveur",
-    "autocomplete_searching": "Recherche en cours..."
+    "autocomplete_searching": "Recherche en cours...",
+    "send_filing_warning": "Envoyé - mais le nettoyage après envoi a échoué, un ancien brouillon peut subsister."
   },
   "confirm_dialog": {
     "confirm": "Confirmer",
@@ -1118,6 +1121,13 @@
         "permanent": "Supprimer définitivement",
         "warning": "Les emails seront supprimés définitivement et ne pourront pas être récupérés. Cette action est irréversible."
       },
+      "message_spacing": {
+        "label": "Espacement du message",
+        "description": "Marge autour du corps du message dans le lecteur",
+        "auto": "Automatique (recommandé)",
+        "always": "Toujours ajouter un espacement",
+        "edge": "Bord à bord"
+      },
       "archive_mode": {
         "label": "Archiver dans",
         "description": "Comment organiser les emails lors de l'archivage",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Absence du bureau",
         "body_label": "Corps du message",
         "body_description": "Contenu du message en texte brut",
-        "body_placeholder": "Merci pour votre email. Je suis actuellement absent du bureau et vous répondrai à mon retour."
+        "body_placeholder": "Merci pour votre email. Je suis actuellement absent du bureau et vous répondrai à mon retour.",
+        "html_label": "Message mis en forme (HTML)",
+        "html_description": "Ajoutez une version mise en forme avec des liens et du style. Les destinataires dont la messagerie ne peut pas l'afficher verront le texte brut ci-dessus.",
+        "html_placeholder": "Rédigez une réponse d'absence mise en forme…"
       },
       "preview": {
         "title": "Aperçu",
@@ -1565,6 +1578,8 @@
       "role_none": "Aucun",
       "create_folder": "Créer un dossier",
       "create_subfolder": "Créer un sous-dossier",
+      "reorder": "Glissez pour réorganiser",
+      "reorder_error": "Échec de la réorganisation des dossiers",
       "subfolder_of": "Dans {name}",
       "subfolder_name": "Nom du sous-dossier",
       "new_folder_name": "Nom du dossier",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

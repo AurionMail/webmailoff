@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { connectedAccountCandidates } from '../auth-store';
+import { connectedAccountCandidates, classifySessionMatch } from '../auth-store';
 import type { Identity } from '@/lib/jmap/types';
 
 // The account-switch guard force-re-auths only when the connected session
@@ -64,5 +64,35 @@ describe('connectedAccountCandidates (account-switch guard)', () => {
       fakeClient({ sessionUsername: undefined, identities: new Error('no idents') }), SERVER,
     );
     expect(out).toEqual([]);
+  });
+});
+
+describe('classifySessionMatch (account-switch verdict)', () => {
+  const CANDIDATES = ['linus@rathblume.de@mail.example.com', 'admin@rbm.systems@mail.example.com'];
+
+  it('accepts when a candidate equals the stored accountId (full-email login)', () => {
+    expect(classifySessionMatch(CANDIDATES, 'linus@rathblume.de@mail.example.com', [])).toBe('accept');
+  });
+
+  it('accepts a short-username accountId via captured server identifiers', () => {
+    // accountId built from the short login `linus`, which the server canonicalizes
+    // to linus@rathblume.de — the id itself never appears among the candidates.
+    expect(classifySessionMatch(CANDIDATES, 'linus@mail.example.com', CANDIDATES)).toBe('accept');
+  });
+
+  it('trusts a legacy account with no captured baseline (TOFU self-heal)', () => {
+    expect(classifySessionMatch(CANDIDATES, 'linus@mail.example.com', undefined)).toBe('trust');
+  });
+
+  it('rejects a real desync once a baseline exists', () => {
+    // slot resolves to a genuinely different account; baseline was captured before.
+    expect(
+      classifySessionMatch(['stranger@mail.example.com'], 'linus@mail.example.com', CANDIDATES),
+    ).toBe('reject');
+  });
+
+  it('accepts when nothing could be confirmed (empty candidates never bounce)', () => {
+    expect(classifySessionMatch([], 'linus@mail.example.com', undefined)).toBe('accept');
+    expect(classifySessionMatch([], 'linus@mail.example.com', CANDIDATES)).toBe('accept');
   });
 });

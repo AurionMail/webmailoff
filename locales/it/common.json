@@ -277,6 +277,8 @@
     "no_subject": "(Nessun oggetto)",
     "no_body_content": "(Nessun contenuto disponibile)",
     "no_preview_available": "Anteprima non disponibile",
+    "show_quoted_text": "Mostra testo citato",
+    "hide_quoted_text": "Nascondi testo citato",
     "loading_email": "Caricamento messaggio...",
     "loading": "Caricamento...",
     "reply": "Rispondi",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Indirizzo email",
     "recipient_name_placeholder": "Nome visualizzato",
     "autocomplete_search_server": "Cerca nel server",
-    "autocomplete_searching": "Ricerca in corso..."
+    "autocomplete_searching": "Ricerca in corso...",
+    "send_filing_warning": "Inviato - ma la pulizia successiva non è riuscita, potrebbe restare una bozza obsoleta."
   },
   "confirm_dialog": {
     "confirm": "Conferma",
@@ -1118,6 +1121,13 @@
         "permanent": "Elimina definitivamente",
         "warning": "I messaggi verranno eliminati definitivamente e non potranno essere recuperati. Questa azione è irreversibile."
       },
+      "message_spacing": {
+        "label": "Spaziatura del messaggio",
+        "description": "Margine attorno al corpo del messaggio nel lettore",
+        "auto": "Automatica (consigliata)",
+        "always": "Aggiungi sempre spaziatura",
+        "edge": "Da bordo a bordo"
+      },
       "archive_mode": {
         "label": "Archivia in",
         "description": "Come organizzare le email durante l'archiviazione",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Fuori ufficio",
         "body_label": "Corpo del messaggio",
         "body_description": "Contenuto del messaggio in testo semplice",
-        "body_placeholder": "Grazie per la tua email. Sono attualmente fuori ufficio e risponderò al mio ritorno."
+        "body_placeholder": "Grazie per la tua email. Sono attualmente fuori ufficio e risponderò al mio ritorno.",
+        "html_label": "Messaggio formattato (HTML)",
+        "html_description": "Aggiungi una versione formattata con link e stile. I destinatari il cui client di posta non può visualizzarla vedranno il testo semplice qui sopra.",
+        "html_placeholder": "Scrivi una risposta di assenza formattata…"
       },
       "preview": {
         "title": "Anteprima",
@@ -1565,6 +1578,8 @@
       "role_none": "Nessuno",
       "create_folder": "Crea cartella",
       "create_subfolder": "Crea sottocartella",
+      "reorder": "Trascina per riordinare",
+      "reorder_error": "Impossibile riordinare le cartelle",
       "subfolder_of": "Dentro {name}",
       "subfolder_name": "Nome della sottocartella",
       "new_folder_name": "Nome della cartella",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

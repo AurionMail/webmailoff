@@ -1,5 +1,14 @@
-import { unlink, writeFileSync } from "fs";
+import { mkdtempSync, unlink, writeFileSync } from "fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// The route consults admin-dashboard overrides (ADMIN_CONFIG_DIR, default
+// data/admin) before env vars. Point it at an empty temp dir so local admin
+// state on the developer's machine can't leak into these env-driven
+// assertions. Must happen before the first GET, because the config manager
+// singleton loads the directory once and caches it.
+process.env.ADMIN_CONFIG_DIR = mkdtempSync(path.join(tmpdir(), 'bw-config-route-'));
 
 // Mock NextResponse before importing the route
 vi.mock('next/server', () => ({

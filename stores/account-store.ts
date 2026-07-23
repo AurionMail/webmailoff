@@ -17,6 +17,15 @@ export interface AccountEntry {
   cookieSlot: number;
   /** Whether "Remember Me" was checked (basic auth only) */
   rememberMe: boolean;
+  /**
+   * Server-confirmed account identifiers captured at login: the account-id form
+   * ({@link generateAccountId}) of the JMAP Session.username and the primary
+   * sending-identity email. The account-switch guard matches a reconnected
+   * session against these so a short login username (e.g. `linus`) that the
+   * server canonicalizes to a full address (`linus@example.com`) is still
+   * recognized as the same account. `undefined` = never captured (legacy entry).
+   */
+  serverIdentifiers?: string[];
   /** Cached display info */
   displayName: string;
   email: string;

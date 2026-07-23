@@ -244,9 +244,16 @@ export const API_METHODS = [
   'webauthn.getOrCreate',
   'jmap.fetchBlob', 'jmap.sendRaw',
   'upfiles.get', 'upfiles.save',
+  'contact.get', 'contact.update', 'contact.create', 'contact.search',
   'admin.getConfig', 'admin.getAllConfig', 'admin.setConfig', 'admin.deleteConfig',
   'toast.success', 'toast.error', 'toast.info', 'toast.warning',
-  'ui.confirm', 'ui.alert', 'ui.prompt', 'ui.rerenderEmail', 'ui.rerenderFetchedEmails', 'ui.openExternalUrl', 'ui.downloadFile'
+  'ui.confirm', 'ui.alert', 'ui.prompt', 'ui.rerenderEmail', 'ui.rerenderFetchedEmails', 'ui.openExternalUrl', 'ui.downloadFile',
+  // Email keyword mutations (JMAP Email/set keyword patches).
+  'email.setKeyword', 'email.removeKeyword',
+  // Message-list category tabs (Gmail-style inbox tabs).
+  'tabs.set', 'tabs.clear', 'tabs.getState', 'tabs.categorize', 'tabs.refreshCounts',
+  // Sieve integration for delivery-time classification plugins.
+  'sieve.isSupported', 'sieve.getActiveScript', 'sieve.validateScript', 'sieve.regenerate',
 ] as const;
 
 export type ApiMethod = (typeof API_METHODS)[number];

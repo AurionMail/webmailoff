@@ -277,6 +277,8 @@
     "no_subject": "(Konu Yok)",
     "no_body_content": "(İçerik yok)",
     "no_preview_available": "Önizleme kullanılamıyor",
+    "show_quoted_text": "Alıntılanan metni göster",
+    "hide_quoted_text": "Alıntılanan metni gizle",
     "loading_email": "E-posta yükleniyor...",
     "loading": "Yükleniyor...",
     "reply": "Yanıtla",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "E-posta adresi",
     "recipient_name_placeholder": "Görünen ad",
     "autocomplete_search_server": "Sunucuda ara",
-    "autocomplete_searching": "Aranıyor..."
+    "autocomplete_searching": "Aranıyor...",
+    "send_filing_warning": "Gönderildi - ancak sonrasındaki temizleme başarısız oldu, eski bir taslak kalabilir."
   },
   "confirm_dialog": {
     "confirm": "Onayla",
@@ -1118,6 +1121,13 @@
         "permanent": "Kalıcı Olarak Sil",
         "warning": "E-postalar kalıcı olarak silinecek ve kurtarılamayacak. Bu işlem geri alınamaz."
       },
+      "message_spacing": {
+        "label": "İleti boşluğu",
+        "description": "Okuyucuda ileti gövdesinin çevresindeki boşluk",
+        "auto": "Otomatik (önerilen)",
+        "always": "Her zaman boşluk ekle",
+        "edge": "Kenardan kenara"
+      },
       "archive_mode": {
         "label": "Arşivle",
         "description": "Arşivlerken e-postaların nasıl düzenleneceği",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Ofis Dışındayım",
         "body_label": "İleti Gövdesi",
         "body_description": "Düz metin ileti içeriği",
-        "body_placeholder": "E-postanız için teşekkür ederim. Şu anda ofis dışındayım ve döndüğümde yanıt vereceğim."
+        "body_placeholder": "E-postanız için teşekkür ederim. Şu anda ofis dışındayım ve döndüğümde yanıt vereceğim.",
+        "html_label": "Biçimlendirilmiş mesaj (HTML)",
+        "html_description": "Bağlantılar ve stil içeren biçimlendirilmiş bir sürüm ekleyin. E-posta istemcisi bunu görüntüleyemeyen alıcılar yukarıdaki düz metni görür.",
+        "html_placeholder": "Biçimlendirilmiş bir ofis dışı yanıtı yazın…"
       },
       "preview": {
         "title": "Önizleme",
@@ -1565,6 +1578,8 @@
       "role_none": "Yok",
       "create_folder": "Klasör Oluştur",
       "create_subfolder": "Alt Klasör Oluştur",
+      "reorder": "Yeniden sıralamak için sürükleyin",
+      "reorder_error": "Klasörler yeniden sıralanamadı",
       "subfolder_of": "{name} içinde",
       "subfolder_name": "Alt klasör adı",
       "new_folder_name": "Klasör adı",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

@@ -277,6 +277,8 @@
     "no_subject": "(Geen onderwerp)",
     "no_body_content": "(Geen inhoud beschikbaar)",
     "no_preview_available": "Geen voorbeeld beschikbaar",
+    "show_quoted_text": "Geciteerde tekst tonen",
+    "hide_quoted_text": "Geciteerde tekst verbergen",
     "loading_email": "E-mail laden...",
     "loading": "Laden...",
     "reply": "Beantwoorden",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "E-mailadres",
     "recipient_name_placeholder": "Weergavenaam",
     "autocomplete_search_server": "Op de server zoeken",
-    "autocomplete_searching": "Bezig met zoeken..."
+    "autocomplete_searching": "Bezig met zoeken...",
+    "send_filing_warning": "Verzonden - maar het opruimen daarna is mislukt, mogelijk blijft een oud concept staan."
   },
   "confirm_dialog": {
     "confirm": "Bevestigen",
@@ -1118,6 +1121,13 @@
         "permanent": "Permanent verwijderen",
         "warning": "E-mails worden permanent verwijderd en kunnen niet worden hersteld. Deze actie is onomkeerbaar."
       },
+      "message_spacing": {
+        "label": "Berichtmarge",
+        "description": "Ruimte rond de berichtinhoud in de leesweergave",
+        "auto": "Automatisch (aanbevolen)",
+        "always": "Altijd ruimte toevoegen",
+        "edge": "Rand tot rand"
+      },
       "archive_mode": {
         "label": "Archiveren in",
         "description": "Hoe e-mails bij archivering worden georganiseerd",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Afwezigheidsbericht",
         "body_label": "Berichttekst",
         "body_description": "Inhoud van het bericht in platte tekst",
-        "body_placeholder": "Bedankt voor je e-mail. Ik ben momenteel niet aanwezig en zal reageren bij terugkomst."
+        "body_placeholder": "Bedankt voor je e-mail. Ik ben momenteel niet aanwezig en zal reageren bij terugkomst.",
+        "html_label": "Opgemaakt bericht (HTML)",
+        "html_description": "Voeg een opgemaakte versie met links en stijl toe. Ontvangers van wie het e-mailprogramma deze niet kan weergeven, zien de platte tekst hierboven.",
+        "html_placeholder": "Schrijf een opgemaakt afwezigheidsantwoord…"
       },
       "preview": {
         "title": "Voorbeeld",
@@ -1565,6 +1578,8 @@
       "role_none": "Geen",
       "create_folder": "Map maken",
       "create_subfolder": "Submap maken",
+      "reorder": "Sleep om te herschikken",
+      "reorder_error": "Herschikken van mappen is mislukt",
       "subfolder_of": "In {name}",
       "subfolder_name": "Naam van submap",
       "new_folder_name": "Mapnaam",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

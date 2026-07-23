@@ -138,7 +138,9 @@
     "scheduled": "Naplánované",
     "unified_all_unread": "Všetky neprečítané",
     "unified_all_starred": "Všetky s hviezdičkou",
-    "unified_all_mail": "Všetka pošta"
+    "unified_all_mail": "Všetka pošta",
+    "remove_account": "Odstrániť účet",
+    "remove_account_confirm": "Odstrániť {account} z tohto zariadenia? Neskôr ho môžete znova pridať."
   },
   "protocol_handlers": {
     "title": "Predvolené aplikácie",
@@ -275,6 +277,8 @@
     "no_subject": "(Bez predmetu)",
     "no_body_content": "(Obsah správy nie je dostupný)",
     "no_preview_available": "Náhľad nie je dostupný",
+    "show_quoted_text": "Zobraziť citovaný text",
+    "hide_quoted_text": "Skryť citovaný text",
     "loading_email": "Načítavanie e-mailu...",
     "loading": "Načítavanie...",
     "reply": "Odpovedať",
@@ -681,7 +685,8 @@
     "recipient_email_placeholder": "E-mailová adresa",
     "recipient_name_placeholder": "Zobrazené meno",
     "autocomplete_search_server": "Hľadať na serveri",
-    "autocomplete_searching": "Hľadanie..."
+    "autocomplete_searching": "Hľadanie...",
+    "send_filing_warning": "Odoslané - ale následné upratovanie zlyhalo, môže zostať zastaraný koncept."
   },
   "confirm_dialog": {
     "confirm": "Potvrdiť",
@@ -1119,6 +1124,13 @@
         "permanent": "Trvalo odstrániť",
         "warning": "E-maily budú trvalo odstránené a nedajú sa obnoviť."
       },
+      "message_spacing": {
+        "label": "Odsadenie správy",
+        "description": "Odsadenie okolo tela správy pri čítaní",
+        "auto": "Automaticky (odporúčané)",
+        "always": "Vždy pridať odsadenie",
+        "edge": "Od okraja po okraj"
+      },
       "archive_mode": {
         "label": "Archivovať do",
         "description": "Ako organizovať e-maily pri archivácii",
@@ -1538,7 +1550,10 @@
         "subject_placeholder": "Mimo kancelárie",
         "body_label": "Telo správy",
         "body_description": "Obsah správy v prostom texte",
-        "body_placeholder": "Ďakujem za vašu správu. Momentálne som mimo kancelárie a odpoviem po svojom návrate."
+        "body_placeholder": "Ďakujem za vašu správu. Momentálne som mimo kancelárie a odpoviem po svojom návrate.",
+        "html_label": "Formátovaná správa (HTML)",
+        "html_description": "Pridajte formátovanú verziu s odkazmi a štýlom. Príjemcovia, ktorých poštový klient ju nedokáže zobraziť, uvidia obyčajný text vyššie.",
+        "html_placeholder": "Napíšte formátovanú odpoveď o neprítomnosti…"
       },
       "preview": {
         "title": "Náhľad",
@@ -1570,6 +1585,8 @@
       "role_none": "Žiadna",
       "create_folder": "Vytvoriť priečinok",
       "create_subfolder": "Vytvoriť podpriečinok",
+      "reorder": "Potiahnutím zmeníte poradie",
+      "reorder_error": "Nepodarilo sa zmeniť poradie priečinkov",
       "subfolder_of": "V priečinku {name}",
       "subfolder_name": "Názov podpriečinka",
       "new_folder_name": "Názov priečinka",
@@ -1634,6 +1651,11 @@
         "label": "Klávesové skratky",
         "description": "Zobraziť dostupné klávesové skratky",
         "button": "Zobraziť skratky"
+      },
+      "refresh_cache": {
+        "label": "Obnoviť uložené údaje",
+        "description": "Znova načíta kontakty, kalendáre a priečinky zo servera. Zachová vaše účty a prihlásenia — opraví zastarané alebo nesprávne zobrazenie bez odhlásenia.",
+        "button": "Obnoviť"
       },
       "reset_settings": {
         "label": "Resetovať nastavenia",

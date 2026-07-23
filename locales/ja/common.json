@@ -277,6 +277,8 @@
     "no_subject": "（件名なし）",
     "no_body_content": "（本文がありません）",
     "no_preview_available": "プレビューは利用できません",
+    "show_quoted_text": "引用テキストを表示",
+    "hide_quoted_text": "引用テキストを非表示",
     "loading_email": "メールを読み込み中...",
     "loading": "読み込み中...",
     "reply": "返信",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "メールアドレス",
     "recipient_name_placeholder": "表示名",
     "autocomplete_search_server": "サーバーを検索",
-    "autocomplete_searching": "検索中..."
+    "autocomplete_searching": "検索中...",
+    "send_filing_warning": "送信されましたが、送信後の整理に失敗しました。古い下書きが残る場合があります。"
   },
   "confirm_dialog": {
     "confirm": "確認",
@@ -1118,6 +1121,13 @@
         "permanent": "完全に削除",
         "warning": "メールは完全に削除され、復元できません。この操作は元に戻せません。"
       },
+      "message_spacing": {
+        "label": "メッセージの余白",
+        "description": "閲覧時のメッセージ本文まわりの余白",
+        "auto": "自動（推奨）",
+        "always": "常に余白を追加",
+        "edge": "余白なし"
+      },
       "archive_mode": {
         "label": "アーカイブ先",
         "description": "アーカイブ時のメール整理方法",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "不在通知",
         "body_label": "メッセージ本文",
         "body_description": "テキスト形式のメッセージ内容",
-        "body_placeholder": "メールをいただきありがとうございます。現在不在にしており、戻り次第ご返信いたします。"
+        "body_placeholder": "メールをいただきありがとうございます。現在不在にしており、戻り次第ご返信いたします。",
+        "html_label": "書式付きメッセージ（HTML）",
+        "html_description": "リンクやスタイルを含む書式付きの版を追加します。表示できないメールソフトの受信者には上記のプレーンテキストが表示されます。",
+        "html_placeholder": "書式付きの不在返信を入力…"
       },
       "preview": {
         "title": "プレビュー",
@@ -1565,6 +1578,8 @@
       "role_none": "なし",
       "create_folder": "フォルダーを作成",
       "create_subfolder": "サブフォルダーを作成",
+      "reorder": "ドラッグして並べ替え",
+      "reorder_error": "フォルダーの並べ替えに失敗しました",
       "subfolder_of": "{name} の中",
       "subfolder_name": "サブフォルダー名",
       "new_folder_name": "フォルダー名",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

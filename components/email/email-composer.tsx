@@ -1143,7 +1143,30 @@ export function EmailComposer({
         setShowBcc(true);
       }
     } else {
-      setBody((prev) => bodyContent + (plainTextMode ? '\n' : '') + prev);
+      // Reply/forward: insert the template at the caret so it lands after any
+      // text the user has already typed, instead of always prepending it (#539).
+      if (plainTextMode) {
+        const textarea = bodyRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart ?? textarea.value.length;
+          const end = textarea.selectionEnd ?? start;
+          setBody((prev) => prev.slice(0, start) + bodyContent + prev.slice(end));
+          // Restore the caret just past the inserted text once React re-renders.
+          requestAnimationFrame(() => {
+            const caret = start + bodyContent.length;
+            textarea.focus();
+            textarea.setSelectionRange(caret, caret);
+          });
+        } else {
+          setBody((prev) => bodyContent + '\n' + prev);
+        }
+      } else if (editorRef.current) {
+        // insertContent lands at the editor's current selection; onUpdate
+        // propagates the resulting HTML back through onChange → setBody.
+        editorRef.current.chain().focus().insertContent(bodyContent).run();
+      } else {
+        setBody((prev) => bodyContent + prev);
+      }
     }
 
     if (template.identityId) {
@@ -1825,7 +1848,12 @@ export function EmailComposer({
         inReplyTo: threadingHeaders?.inReplyTo?.[0],
       };
       const sendAllowed = await emailHooks.onBeforeEmailSend.intercept(sendablePreview);
-      if (!sendAllowed) return;
+      if (!sendAllowed) {
+        // A plugin vetoed the send (it is expected to show its own UI).
+        // Leave a trace so a silent no-op send is diagnosable (#592).
+        debug.log('email', 'Send aborted by an onBeforeEmailSend plugin handler');
+        return;
+      }
 
       // Hand off to a crypto plugin (S/MIME, PGP, …) if one wants to take over
       // the send: it builds raw MIME, signs/encrypts, and submits via

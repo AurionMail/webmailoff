@@ -277,6 +277,8 @@
     "no_subject": "(Sem Assunto)",
     "no_body_content": "(Sem conteúdo disponível)",
     "no_preview_available": "Pré-visualização não disponível",
+    "show_quoted_text": "Mostrar texto citado",
+    "hide_quoted_text": "Ocultar texto citado",
     "loading_email": "Carregando e-mail...",
     "loading": "Carregando...",
     "reply": "Responder",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Endereço de e-mail",
     "recipient_name_placeholder": "Nome de exibição",
     "autocomplete_search_server": "Pesquisar no servidor",
-    "autocomplete_searching": "Pesquisando..."
+    "autocomplete_searching": "Pesquisando...",
+    "send_filing_warning": "Enviado - mas a limpeza posterior falhou, um rascunho antigo pode permanecer."
   },
   "confirm_dialog": {
     "confirm": "Confirmar",
@@ -1118,6 +1121,13 @@
         "permanent": "Excluir Permanentemente",
         "warning": "Os e-mails serão excluídos permanentemente e não poderão ser recuperados. Esta ação é irreversível."
       },
+      "message_spacing": {
+        "label": "Espaçamento da mensagem",
+        "description": "Margem ao redor do corpo da mensagem no leitor",
+        "auto": "Automático (recomendado)",
+        "always": "Sempre adicionar espaçamento",
+        "edge": "De borda a borda"
+      },
       "archive_mode": {
         "label": "Arquivar em",
         "description": "Como organizar os e-mails ao arquivar",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Fora do escritório",
         "body_label": "Corpo da mensagem",
         "body_description": "Conteúdo da mensagem em texto simples",
-        "body_placeholder": "Obrigado pelo seu e-mail. Estou atualmente fora do escritório e responderei quando retornar."
+        "body_placeholder": "Obrigado pelo seu e-mail. Estou atualmente fora do escritório e responderei quando retornar.",
+        "html_label": "Mensagem formatada (HTML)",
+        "html_description": "Adicione uma versão formatada, com links e estilo. Os destinatários cujo cliente de e-mail não a exibir verão o texto simples acima.",
+        "html_placeholder": "Escreva uma resposta de ausência formatada…"
       },
       "preview": {
         "title": "Pré-visualização",
@@ -1565,6 +1578,8 @@
       "role_none": "Nenhum",
       "create_folder": "Criar pasta",
       "create_subfolder": "Criar subpasta",
+      "reorder": "Arraste para reordenar",
+      "reorder_error": "Falha ao reordenar as pastas",
       "subfolder_of": "Dentro de {name}",
       "subfolder_name": "Nome da subpasta",
       "new_folder_name": "Nome da pasta",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

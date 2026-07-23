@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Sidebar } from "@/components/layout/sidebar";
 import { EmailList } from "@/components/email/email-list";
+import { MessageListTabs } from "@/components/email/message-list-tabs";
 import { EmailViewer } from "@/components/email/email-viewer";
 import { EmailComposer } from "@/components/email/email-composer";
 import type { ComposerDraftData } from "@/components/email/email-composer";
@@ -979,11 +980,16 @@ export default function Home() {
 
         await refreshScheduledMetadata(client);
 
-        // Fetch emails for the selected mailbox after scheduled metadata is available.
+        // Fetch emails for the selected mailbox after scheduled metadata is
+        // available. If the list is already populated (an account switch
+        // restored a cached snapshot, or login prefetched it), refresh in the
+        // background so the visible mail doesn't flash a loading overlay; only
+        // a genuine empty first load shows the skeleton.
+        const background = state.emails.length > 0;
         if (selectedMailboxId) {
-          await fetchEmails(client, selectedMailboxId);
+          await fetchEmails(client, selectedMailboxId, { background });
         } else {
-          await fetchEmails(client);
+          await fetchEmails(client, undefined, { background });
         }
 
         fetchTagCounts(client);
@@ -1216,6 +1222,14 @@ export default function Home() {
 
       const result = await sendEmail(client, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.delayedUntil, data.envelopeMailFrom, { requestReadReceipt: data.requestReadReceipt });
       setShowComposer(false);
+      if (result.filingError) {
+        // The mail went out, but a post-send step (filing to Sent /
+        // removing the old draft) was rejected - warn instead of staying
+        // silent, so a stale draft row is not mistaken for a failed send
+        // and re-sent (#592).
+        const toastInstance = (await import('sonner')).toast;
+        toastInstance.warning(t('email_composer.send_filing_warning'));
+      }
       if (result.scheduled) {
         await refreshScheduledMetadata(client);
         if (isScheduledView) await fetchScheduledEmails(client);
@@ -3126,6 +3140,9 @@ export default function Home() {
             )}
 
             <div className="flex-1 min-h-0 flex flex-col">
+            {/* Plugin-registered category tabs (Gmail-style). Renders nothing
+                unless an enabled plugin registered tabs via api.tabs.set. */}
+            {!isScheduledView && <MessageListTabs />}
             <WelcomeBanner />
 
             <ErrorBoundary fallback={EmailListErrorFallback}>

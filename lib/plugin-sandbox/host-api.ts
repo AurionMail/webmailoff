@@ -7,10 +7,14 @@ import { IMPLICIT_PERMISSIONS } from '../plugin-types';
 import { toast as appToast } from '@/stores/toast-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useEmailStore } from '@/stores/email-store';
+import { useFilterStore } from '@/stores/filter-store';
+import { useMessageListTabsStore } from '@/stores/message-list-tabs-store';
+import type { MessageListTabsConfig } from '../plugin-types';
 import { apiFetch } from '../browser-navigation';
 import { awaitDialog, awaitPrompt, type PromptField } from './host-dialog';
 import { fileStorage } from '../plugin-storage';
 import { generateUUID } from '../utils';
+import { ContactCard } from '../jmap/types';
 
 /**
  * Methods only callable from the privileged (same-origin) tier. These expose
@@ -53,6 +57,11 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'upfiles.get' : 'email:blob-write',
   'upfiles.save' : 'email:blob-write',
   'webauthn.getOrCreate': 'crypto:full',
+  // contact
+  'contact.get': 'contacts:read',
+  'contact.update': 'contacts:write',
+  'contact.create': 'contacts:write',
+  'contact.search': 'contacts:read',
   // admin
   'admin.getConfig': 'admin:config',
   'admin.getAllConfig': 'admin:config',
@@ -65,7 +74,23 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'ui.rerenderEmail': null,
   'ui.rerenderFetchedEmails': null,
   'ui.openExternalUrl': null,
-  'ui.downloadFile': 'ui:download-file'
+  'ui.downloadFile': 'ui:download-file',
+  // email keyword mutations
+  'email.setKeyword': 'email:write',
+  'email.removeKeyword': 'email:write',
+  // message-list category tabs
+  'tabs.set': 'ui:message-list-tabs',
+  'tabs.clear': 'ui:message-list-tabs',
+  'tabs.getState': 'ui:message-list-tabs',
+  'tabs.refreshCounts': 'ui:message-list-tabs',
+  // categorize rewrites message keywords, so it needs the write permission
+  // (a tabs-only plugin can still render tabs without it).
+  'tabs.categorize': 'email:write',
+  // sieve (delivery-time classification)
+  'sieve.isSupported': 'filters:read',
+  'sieve.getActiveScript': 'filters:read',
+  'sieve.validateScript': 'filters:write',
+  'sieve.regenerate': 'filters:write',
 };
 
 function hasPermission(plugin: InstalledPlugin, perm: Permission): boolean {
@@ -369,6 +394,40 @@ async function doJmapImportRaw(
   );
 }
 
+async function doContactSearch(query: string): Promise<ContactCard[]> {
+    const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('contact.search: no active session');
+  }
+  return await client.searchContacts(query);
+}
+
+async function doContactGet(contactId: string): Promise<ContactCard | null> {
+    const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('contact.get: no active session');
+  }
+  return await client.getContact(contactId);
+}
+
+async function doContactUpdate(id: string, contact: Partial<ContactCard>): Promise<void> {
+    const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('contact.update: no active session');
+  }
+
+  await client.updateContact(id, contact);
+}
+
+async function doContactCreate(contact: ContactCard): Promise<ContactCard> {
+    const { client } = useAuthStore.getState();
+      if (!client) {
+    throw new Error('contact.create: no active session');
+  }
+
+  return await client.createContact(contact);
+}
+
 // ─── WebAuthn (privileged tier) ─────────────────────────────────────────────
 
 // This salt acts as a constant context identifier for key derivation.
@@ -511,6 +570,90 @@ async function downloadFile(args: { content: string; filename: string; contentTy
     }
 }
 
+// ─── Email keyword mutations ──────────────────────────────────
+
+// Syntactic JMAP keyword check (RFC 5788 charset, conservative). Semantics
+// (reserved keywords for category tabs) are enforced by the tabs store.
+const PLUGIN_KEYWORD_RE = /^[a-z0-9$][a-z0-9$_.:-]{0,127}$/i;
+
+function assertPluginKeyword(keyword: unknown): string {
+  if (typeof keyword !== 'string' || !PLUGIN_KEYWORD_RE.test(keyword)) {
+    throw new Error(`Invalid JMAP keyword "${String(keyword)}"`);
+  }
+  return keyword;
+}
+
+function requireClient() {
+  const { client } = useAuthStore.getState();
+  if (!client) throw new Error('No active session');
+  return client;
+}
+
+// ─── Message-list category tabs ───────────────────────────────
+
+/**
+ * Resolve the currently viewed mailbox to its JMAP id + owning account, the
+ * same way email-store's fetchEmails does (shared mailboxes use namespaced
+ * store ids).
+ */
+function resolveSelectedMailboxForQuery(): { jmapMailboxId: string; accountId?: string } | null {
+  const { selectedMailbox, mailboxes } = useEmailStore.getState();
+  if (!selectedMailbox) return null;
+  const mailbox = mailboxes.find((mb) => mb.id === selectedMailbox);
+  if (!mailbox) return null;
+  return {
+    jmapMailboxId: mailbox.originalId || mailbox.id,
+    accountId: mailbox.isShared ? mailbox.accountId : undefined,
+  };
+}
+
+async function doTabsRefreshCounts(): Promise<Record<string, number>> {
+  const client = requireClient();
+  const resolved = resolveSelectedMailboxForQuery();
+  if (!resolved) return {};
+  await useMessageListTabsStore.getState().refreshCounts(client, resolved.jmapMailboxId, resolved.accountId);
+  return useMessageListTabsStore.getState().tabCounts;
+}
+
+async function doTabsCategorize(emailIds: unknown, tabId: unknown): Promise<boolean> {
+  if (!Array.isArray(emailIds) || emailIds.some((id) => typeof id !== 'string')) {
+    throw new Error('tabs.categorize: emailIds must be a string array');
+  }
+  if (typeof tabId !== 'string') throw new Error('tabs.categorize: tabId must be a string');
+  const client = requireClient();
+  const moved = await useMessageListTabsStore.getState().categorizeEmails(client, emailIds as string[], tabId);
+  if (moved) void doTabsRefreshCounts().catch(() => { /* counts refresh is best-effort */ });
+  return moved;
+}
+
+// ─── Sieve (delivery-time classification) ─────────────────────
+
+async function doSieveGetActiveScript(): Promise<{ id: string; name: string; content: string } | null> {
+  const client = requireClient();
+  if (!client.supportsSieve()) return null;
+  const scripts = await client.getSieveScripts();
+  const active = scripts.find((s) => s.isActive);
+  if (!active) return null;
+  const content = await client.getSieveScriptContent(active.blobId);
+  return { id: active.id, name: active.name, content };
+}
+
+/**
+ * Re-generate and re-upload the account's active Sieve script through the
+ * filter store, which runs the filterHooks.onSieveScriptGenerate transform -
+ * the supported way for a plugin to install/update its managed section
+ * (e.g. the inbox-category classifier) without clobbering user filters.
+ */
+async function doSieveRegenerate(): Promise<void> {
+  const client = requireClient();
+  if (!client.supportsSieve()) throw new Error('Sieve is not supported by this server');
+  const filterStore = useFilterStore.getState();
+  // Sync from the server first: a background plugin may call this before the
+  // filters settings page has ever populated the store.
+  await filterStore.fetchFilters(client);
+  await useFilterStore.getState().saveFilters(client);
+}
+
 // ─── admin config (same as before) ────────────────────────────
 
 async function adminGetAll(pluginId: string): Promise<Record<string, unknown>> {
@@ -596,6 +739,11 @@ export async function dispatchApiCall(
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
     case 'webauthn.getOrCreate': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string | undefined, args[2] as string | undefined);
+    
+    case 'contact.get': return doContactGet(args[0] as string);
+    case 'contact.update': return doContactUpdate(args[0] as string, args[1] as Partial<ContactCard>);
+    case 'contact.create': return doContactCreate(args[0] as ContactCard);
+    case 'contact.search': return doContactSearch(args[0] as string);
 
     case 'admin.getConfig':    return adminGet(plugin.id, args[0] as string);
     case 'admin.getAllConfig': return adminGetAll(plugin.id);
@@ -678,6 +826,48 @@ export async function dispatchApiCall(
     case 'ui.downloadFile': {
       const opts = args[0] as { content: string; filename: string; contentType?: string };
       return downloadFile(opts);
+    }
+
+    case 'email.setKeyword': {
+      const keyword = assertPluginKeyword(args[1]);
+      await requireClient().setKeyword(String(args[0]), keyword, args[2] as string | undefined);
+      return undefined;
+    }
+    case 'email.removeKeyword': {
+      const keyword = assertPluginKeyword(args[1]);
+      await requireClient().removeKeyword(String(args[0]), keyword, args[2] as string | undefined);
+      return undefined;
+    }
+
+    case 'tabs.set': {
+      // validateTabsConfig (inside registerTabs) throws a developer-readable
+      // error that surfaces as the api.tabs.set rejection in the sandbox.
+      useMessageListTabsStore.getState().registerTabs(plugin.id, args[0] as MessageListTabsConfig);
+      return undefined;
+    }
+    case 'tabs.clear': {
+      useMessageListTabsStore.getState().clearTabs(plugin.id);
+      return undefined;
+    }
+    case 'tabs.getState': {
+      const { tabs, activeTabId, tabCounts } = useMessageListTabsStore.getState();
+      return { tabs, activeTabId, tabCounts };
+    }
+    case 'tabs.refreshCounts': return doTabsRefreshCounts();
+    case 'tabs.categorize': return doTabsCategorize(args[0], args[1]);
+
+    case 'sieve.isSupported': {
+      const { client } = useAuthStore.getState();
+      return !!client?.supportsSieve();
+    }
+    case 'sieve.getActiveScript': return doSieveGetActiveScript();
+    case 'sieve.validateScript': {
+      if (typeof args[0] !== 'string') throw new Error('sieve.validateScript: content must be a string');
+      return requireClient().validateSieveScript(args[0]);
+    }
+    case 'sieve.regenerate': {
+      await doSieveRegenerate();
+      return undefined;
     }
 
     default:

@@ -7,6 +7,7 @@ import { emailExportFilename, attachmentDownloadFilename, attachmentsBundleFilen
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
 import { EMAIL_IFRAME_SANITIZE_CONFIG, applyNewTabToAnchor, blockExternalResourcesOnNode, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, sanitizeEmailHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
+import { collapsePlainTextQuotes, setupQuoteCollapse } from "@/lib/quote-collapse";
 import { withBasePath } from "@/lib/browser-navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -1702,7 +1703,11 @@ export function EmailViewer({
         const textContent = email.bodyValues[email.textBody[0].partId].value;
 
         return {
-          html: plainTextToSafeHtml(textContent),
+          // Trailing ">"-quoted block collapses behind a <details> toggle (#480).
+          html: collapsePlainTextQuotes(plainTextToSafeHtml(textContent), {
+            show: t('show_quoted_text'),
+            hide: t('hide_quoted_text'),
+          }),
           isHtml: false,
           hasStyleTag: false,
           externalBlocked: false,
@@ -1742,6 +1747,11 @@ export function EmailViewer({
 
   // Override email content with S/MIME decrypted content when available
   const effectiveEmailContent = useMemo(() => {
+    const plainToHtml = (text: string) =>
+      collapsePlainTextQuotes(plainTextToSafeHtml(text), {
+        show: t('show_quoted_text'),
+        hide: t('hide_quoted_text'),
+      });
     if (pluginRenderedHtml) {
       const htmlWithCidUrls = pluginRenderedHtml.replace(
         /\bcid:([^"'\s)]+)/gi,
@@ -1753,7 +1763,7 @@ export function EmailViewer({
       return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(pluginRenderedHtml), externalBlocked: false };
     }
     if (pluginRenderedText) {
-      return { html: plainTextToSafeHtml(pluginRenderedText), isHtml: false, hasStyleTag: false, externalBlocked: false };
+      return { html: plainToHtml(pluginRenderedText), isHtml: false, hasStyleTag: false, externalBlocked: false };
     }
     // TNEF (winmail.dat) extracted content
     if (tnefHtml) {
@@ -1761,7 +1771,7 @@ export function EmailViewer({
       return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(tnefHtml), externalBlocked: false };
     }
     if (tnefText) {
-      return { html: plainTextToSafeHtml(tnefText), isHtml: false, hasStyleTag: false, externalBlocked: false };
+      return { html: plainToHtml(tnefText), isHtml: false, hasStyleTag: false, externalBlocked: false };
     }
     // Embedded message/rfc822 unwrapped content
     if (embeddedEmailHtml) {
@@ -1769,10 +1779,10 @@ export function EmailViewer({
       return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(embeddedEmailHtml), externalBlocked: false };
     }
     if (embeddedEmailText) {
-      return { html: plainTextToSafeHtml(embeddedEmailText), isHtml: false, hasStyleTag: false, externalBlocked: false };
+      return { html: plainToHtml(embeddedEmailText), isHtml: false, hasStyleTag: false, externalBlocked: false };
     }
     return emailContent;
-  }, [cidBlobUrls, emailContent, pluginRenderedHtml, pluginRenderedText, tnefHtml, tnefText, embeddedEmailHtml, embeddedEmailText]);
+  }, [cidBlobUrls, emailContent, pluginRenderedHtml, pluginRenderedText, tnefHtml, tnefText, embeddedEmailHtml, embeddedEmailText, t]);
 
   const resolveAttachmentName = useCallback(
     (attachment: EffectiveAttachment) => {
@@ -2244,6 +2254,14 @@ export function EmailViewer({
       if (initializedDocRef.current === doc) return;
       initializedDocRef.current = doc;
       {
+        // Collapse the quoted original of a reply behind a "•••" toggle
+        // (#480). Before the height wiring, so the initial measurement
+        // already reflects the collapsed body.
+        setupQuoteCollapse(doc, {
+          show: t('show_quoted_text'),
+          hide: t('hide_quoted_text'),
+        });
+
         // Auto-resize iframe to fit content
         // Measure max(documentElement, body): a height:100% wrapper can leave
         // documentElement.scrollHeight short while the real content lives in body.
@@ -2415,7 +2433,7 @@ export function EmailViewer({
     } catch {
       // Cross-origin restrictions - iframe will still display content
     }
-  }, [isDark, emailHasNativeDarkMode, email?.id]);
+  }, [isDark, emailHasNativeDarkMode, email?.id, t]);
 
   // Wire up the iframe as soon as its sandboxed document has parsed, rather than
   // waiting for the iframe 'load' event. 'load' also waits on every subresource,

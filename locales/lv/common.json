@@ -277,6 +277,8 @@
     "no_subject": "(nav temata)",
     "no_body_content": "(nav satura)",
     "no_preview_available": "Priekšskatījums nav pieejams",
+    "show_quoted_text": "Rādīt citēto tekstu",
+    "hide_quoted_text": "Paslēpt citēto tekstu",
     "loading_email": "Ielādē vēstuli...",
     "loading": "Ielādē...",
     "reply": "Atbildēt",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "E-pasta adrese",
     "recipient_name_placeholder": "Parādāmais vārds",
     "autocomplete_search_server": "Meklēt serverī",
-    "autocomplete_searching": "Meklē..."
+    "autocomplete_searching": "Meklē...",
+    "send_filing_warning": "Nosūtīts - bet pēcapstrāde neizdevās, var palikt novecojis melnraksts."
   },
   "confirm_dialog": {
     "confirm": "Apstiprināt",
@@ -1118,6 +1121,13 @@
         "permanent": "Dzēst neatgriezeniski",
         "warning": "Vēstules tiks dzēstas neatgriezeniski. Šī darbība nav atceļama."
       },
+      "message_spacing": {
+        "label": "Ziņojuma atstarpes",
+        "description": "Atstarpe ap ziņojuma tekstu lasītājā",
+        "auto": "Automātiski (ieteicams)",
+        "always": "Vienmēr pievienot atstarpi",
+        "edge": "No malas līdz malai"
+      },
       "archive_mode": {
         "label": "Arhivēt mapē",
         "description": "Kā organizēt vēstules arhivējot",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Atvaļinājumā / Esmu prom",
         "body_label": "Ziņojuma teksts",
         "body_description": "Ziņojuma saturs parastā tekstā",
-        "body_placeholder": "Paldies par e-pastu. Pašlaik esmu prombūtnē un atbildēšu, kad atgriezīšos."
+        "body_placeholder": "Paldies par e-pastu. Pašlaik esmu prombūtnē un atbildēšu, kad atgriezīšos.",
+        "html_label": "Formatēts ziņojums (HTML)",
+        "html_description": "Pievienojiet formatētu versiju ar saitēm un noformējumu. Saņēmēji, kuru e-pasta programma to nevar parādīt, redzēs iepriekš redzamo vienkāršo tekstu.",
+        "html_placeholder": "Rakstiet formatētu prombūtnes atbildi…"
       },
       "preview": {
         "title": "Priekšskatījums",
@@ -1565,6 +1578,8 @@
       "role_none": "Nav",
       "create_folder": "Izveidot mapi",
       "create_subfolder": "Izveidot apakšmapi",
+      "reorder": "Velciet, lai pārkārtotu",
+      "reorder_error": "Neizdevās pārkārtot mapes",
       "subfolder_of": "Mapē {name}",
       "subfolder_name": "Apakšmapes nosaukums",
       "new_folder_name": "Mapes nosaukums",
@@ -1613,7 +1628,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

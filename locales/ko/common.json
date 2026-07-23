@@ -277,6 +277,8 @@
     "no_subject": "(제목 없음)",
     "no_body_content": "(본문 내용 없음)",
     "no_preview_available": "미리 보기를 사용할 수 없습니다",
+    "show_quoted_text": "인용된 텍스트 표시",
+    "hide_quoted_text": "인용된 텍스트 숨기기",
     "loading_email": "메일을 불러오는 중...",
     "loading": "불러오는 중...",
     "reply": "답장",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "이메일 주소",
     "recipient_name_placeholder": "표시 이름",
     "autocomplete_search_server": "서버에서 검색",
-    "autocomplete_searching": "검색 중..."
+    "autocomplete_searching": "검색 중...",
+    "send_filing_warning": "보냈지만 전송 후 정리에 실패했습니다. 오래된 임시 보관 메일이 남아 있을 수 있습니다."
   },
   "confirm_dialog": {
     "confirm": "확인",
@@ -1118,6 +1121,13 @@
         "permanent": "영구 삭제",
         "warning": "메일이 영구적으로 삭제되며 복구할 수 없어요. 주의해서 사용해 주세요."
       },
+      "message_spacing": {
+        "label": "메시지 여백",
+        "description": "읽기 화면에서 메시지 본문 주위의 여백",
+        "auto": "자동 (권장)",
+        "always": "항상 여백 추가",
+        "edge": "가장자리까지 채우기"
+      },
       "archive_mode": {
         "label": "보관 방식",
         "description": "메일을 보관할 때 어떻게 분류할지 설정해요",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "부재중 알림",
         "body_label": "메시지 본문",
         "body_description": "일반 텍스트로 보낼 메시지 내용이에요",
-        "body_placeholder": "메일을 보내주셔서 감사합니다. 현재 자리를 비우고 있어 돌아오는 대로 답변드리겠습니다."
+        "body_placeholder": "메일을 보내주셔서 감사합니다. 현재 자리를 비우고 있어 돌아오는 대로 답변드리겠습니다.",
+        "html_label": "서식 있는 메시지 (HTML)",
+        "html_description": "링크와 스타일이 포함된 서식 있는 버전을 추가합니다. 메일 클라이언트가 이를 표시할 수 없는 수신자에게는 위의 일반 텍스트가 표시됩니다.",
+        "html_placeholder": "서식 있는 부재중 자동 회신 작성…"
       },
       "preview": {
         "title": "미리보기",
@@ -1565,6 +1578,8 @@
       "role_none": "없음",
       "create_folder": "폴더 만들기",
       "create_subfolder": "하위 폴더 만들기",
+      "reorder": "드래그하여 순서 변경",
+      "reorder_error": "폴더 순서 변경에 실패했습니다",
       "subfolder_of": "{name} 내부에 생성",
       "subfolder_name": "하위 폴더 이름",
       "new_folder_name": "폴더 이름",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

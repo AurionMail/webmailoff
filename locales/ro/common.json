@@ -277,6 +277,8 @@
     "no_subject": "(Fără subiect)",
     "no_body_content": "(Nu există conținut disponibil)",
     "no_preview_available": "Nu este disponibilă previzualizarea",
+    "show_quoted_text": "Afișează textul citat",
+    "hide_quoted_text": "Ascunde textul citat",
     "loading_email": "Se încarcă e-mailul...",
     "loading": "Se încarcă...",
     "reply": "Răspunde",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Adresă de e-mail",
     "recipient_name_placeholder": "Numele afișat",
     "autocomplete_search_server": "Caută pe server",
-    "autocomplete_searching": "Se caută..."
+    "autocomplete_searching": "Se caută...",
+    "send_filing_warning": "Trimis - dar curățarea ulterioară a eșuat, poate rămâne o ciornă veche."
   },
   "confirm_dialog": {
     "confirm": "Confirmare",
@@ -1121,6 +1124,13 @@
         "permanent": "Șterge definitiv",
         "warning": "E-mailurile vor fi șterse definitiv și nu pot fi recuperate. Această acțiune este ireversibilă."
       },
+      "message_spacing": {
+        "label": "Spațierea mesajului",
+        "description": "Spațiu în jurul corpului mesajului în cititor",
+        "auto": "Automat (recomandat)",
+        "always": "Adaugă întotdeauna spațiere",
+        "edge": "Din margine în margine"
+      },
       "archive_mode": {
         "label": "Arhivați în",
         "description": "Cum să organizați e-mailurile atunci când le arhivați",
@@ -1540,7 +1550,10 @@
         "subject_placeholder": "Absent de la birou",
         "body_label": "Corpul mesajului",
         "body_description": "Conținutul mesajelor în text simplu",
-        "body_placeholder": "Vă mulțumesc pentru e-mail. În prezent nu mă aflu la birou și vă voi răspunde la întoarcere."
+        "body_placeholder": "Vă mulțumesc pentru e-mail. În prezent nu mă aflu la birou și vă voi răspunde la întoarcere.",
+        "html_label": "Mesaj formatat (HTML)",
+        "html_description": "Adăugați o versiune formatată, cu linkuri și stil. Destinatarii al căror client de e-mail nu o poate afișa vor vedea textul simplu de mai sus.",
+        "html_placeholder": "Scrieți un răspuns de absență formatat…"
       },
       "preview": {
         "title": "Previzualizare",
@@ -1572,6 +1585,8 @@
       "role_none": "Niciunul",
       "create_folder": "Creați un dosar",
       "create_subfolder": "Creați un subfolder",
+      "reorder": "Trageți pentru a reordona",
+      "reorder_error": "Reordonarea dosarelor a eșuat",
       "subfolder_of": "În interiorul {name}",
       "subfolder_name": "Numele subfolderului",
       "new_folder_name": "Numele folderului",
@@ -1639,7 +1654,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

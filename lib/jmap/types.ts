@@ -95,6 +95,12 @@ export interface SendEmailResult {
   emailSubmissionId?: string;
   sendAt?: string;
   isSmime?: boolean;
+  /**
+   * Set when the submission succeeded but a post-send step was rejected
+   * (the implicit onSuccessUpdateEmail filing patch, or destroying the
+   * old draft). The mail left the server - callers should warn, not fail.
+   */
+  filingError?: string;
 }
 
 export interface ScheduledEmail extends Email {

@@ -80,11 +80,15 @@ export interface IJMAPClient {
   // ── Emails ────────────────────────────────────────────────────
   // `pinnedFirst` sorts emails carrying the $pinned keyword to the top
   // (server-side hasKeyword sort comparator, RFC 8621), then receivedAt desc.
-  getEmails(mailboxId?: string, accountId?: string, limit?: number, position?: number, hasKeyword?: string, pinnedFirst?: boolean): Promise<{ emails: Email[]; hasMore: boolean; total: number }>;
+  // `extraFilter` is an arbitrary JMAP FilterCondition/FilterOperator ANDed
+  // into the view - used by the message-list category tabs (search-based).
+  getEmails(mailboxId?: string, accountId?: string, limit?: number, position?: number, hasKeyword?: string, pinnedFirst?: boolean, extraFilter?: Record<string, unknown>): Promise<{ emails: Email[]; hasMore: boolean; total: number }>;
   getEmailsInMailbox(mailboxId: string): Promise<Email[]>;
   getEmail(emailId: string, accountId?: string): Promise<Email | null>;
   getSomeEmails(emailsId: string[], accountId?: string): Promise<Email[]>
   getTagCounts(tagIds: string[]): Promise<Record<string, { total: number; unread: number }>>;
+  /** Per-tab unread counts for message-list category tabs (filter = resolved tab fragment, null = unfiltered). */
+  getCategoryUnreadCounts(mailboxId: string, tabs: Array<{ id: string; filter: Record<string, unknown> | null }>, accountId?: string): Promise<Record<string, number>>;
   searchEmails(query: string, mailboxId?: string, accountId?: string, limit?: number, position?: number): Promise<{ emails: Email[]; hasMore: boolean; total: number }>;
   advancedSearchEmails(
     filter: Record<string, unknown>,
@@ -106,6 +110,9 @@ export interface IJMAPClient {
   toggleStar(emailId: string, starred: boolean, accountId?: string): Promise<void>;
   updateEmailKeywords(emailId: string, keywords: Record<string, boolean>, accountId?: string): Promise<void>;
   setKeyword(emailId: string, keyword: string, accountId?: string): Promise<void>;
+  removeKeyword(emailId: string, keyword: string, accountId?: string): Promise<void>;
+  /** Apply one `keywords/<name>` patch fragment (true=add, null=remove) to many messages in a single Email/set. */
+  batchUpdateKeywords(emailIds: string[], patch: Record<string, boolean | null>, accountId?: string): Promise<void>;
   migrateKeyword(oldKeyword: string, newKeyword: string): Promise<number>;
   deleteEmail(emailId: string, accountId?: string): Promise<void>;
   moveToTrash(emailId: string, trashMailboxId: string, accountId?: string, markAsRead?: boolean): Promise<void>;

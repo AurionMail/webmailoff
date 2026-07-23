@@ -400,8 +400,8 @@ export default function ContactsPage() {
   }, [clearSelection, toggleContactSelection, groups.length]);
 
   const handleDuplicateContact = useCallback(async (source: ContactCard) => {
-    const { id: _id, created: _created, updated: _updated, ...rest } = source;
-    void _id; void _created; void _updated;
+    const { id: _id, uid: _uid, created: _created, updated: _updated, ...rest } = source;
+    void _id; void _uid; void _created; void _updated;
     const data: Partial<ContactCard> = JSON.parse(JSON.stringify(rest));
     if (supportsSync && client) {
       await createContact(client, data);

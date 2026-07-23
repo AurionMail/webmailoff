@@ -277,6 +277,8 @@
     "no_subject": "(No Subject)",
     "no_body_content": "(No body content available)",
     "no_preview_available": "No preview available",
+    "show_quoted_text": "Show quoted text",
+    "hide_quoted_text": "Hide quoted text",
     "loading_email": "Loading email...",
     "loading": "Loading...",
     "reply": "Reply",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Email address",
     "recipient_name_placeholder": "Display name",
     "autocomplete_search_server": "Search the server",
-    "autocomplete_searching": "Searching..."
+    "autocomplete_searching": "Searching...",
+    "send_filing_warning": "Sent - but the post-send cleanup failed, a stale draft may remain."
   },
   "confirm_dialog": {
     "confirm": "Confirm",
@@ -1547,7 +1550,10 @@
         "subject_placeholder": "Out of Office",
         "body_label": "Message Body",
         "body_description": "Plain text message content",
-        "body_placeholder": "Thank you for your email. I am currently out of the office and will respond when I return."
+        "body_placeholder": "Thank you for your email. I am currently out of the office and will respond when I return.",
+        "html_label": "Formatted message (HTML)",
+        "html_description": "Add a rich, formatted version with links and styling. Recipients whose mail client can't display it fall back to the plain text above.",
+        "html_placeholder": "Write a formatted out-of-office reply…"
       },
       "preview": {
         "title": "Preview",
@@ -2700,7 +2706,7 @@
       "invitation_parsing": "Parse email invitations",
       "invitation_parsing_desc": "Detect calendar invitations in email attachments and show calendar actions",
       "show_time_in_month_view": "Show time in month view",
-      "show_time_in_month_view_desc": "Display event times in the month calendar view",
+      "show_time_in_month_view_desc": "Display event times in the month calendar view. On small screens this shows full event entries instead of dots.",
       "show_week_numbers": "Show week numbers",
       "show_week_numbers_desc": "Display week numbers in the mini-calendar",
       "enable_tasks": "Enable tasks",

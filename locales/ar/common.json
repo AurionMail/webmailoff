@@ -138,7 +138,9 @@
     "scheduled": "المجدولة",
     "unified_all_unread": "كل غير المقروء",
     "unified_all_starred": "كل المميز بنجمة",
-    "unified_all_mail": "كل البريد"
+    "unified_all_mail": "كل البريد",
+    "remove_account": "إزالة الحساب",
+    "remove_account_confirm": "هل تريد إزالة {account} من هذا الجهاز؟ يمكنك إضافته مرة أخرى لاحقًا."
   },
   "protocol_handlers": {
     "title": "التطبيقات الافتراضية",
@@ -275,6 +277,8 @@
     "no_subject": "(بلا موضوع)",
     "no_body_content": "(لا يوجد محتوى نصي متاح)",
     "no_preview_available": "لا تتوفر معاينة",
+    "show_quoted_text": "إظهار النص المقتبس",
+    "hide_quoted_text": "إخفاء النص المقتبس",
     "loading_email": "جارٍ تحميل الرسالة...",
     "loading": "جارٍ التحميل...",
     "reply": "رد",
@@ -651,7 +655,6 @@
     "continue_draft": "متابعة المسودة",
     "close_draft_title": "حفظ المسودة أم تجاهلها؟",
     "close_draft_message": "لديك تغييرات غير محفوظة. هل تريد حفظها كمسودة أم تجاهلها؟",
-    "save_draft": "حفظ كمسودة",
     "smime_sign_on": "توقيع S/MIME مفعّل",
     "smime_sign_off": "تفعيل توقيع S/MIME",
     "smime_encrypt_on": "تشفير S/MIME مفعّل",
@@ -682,7 +685,8 @@
     "recipient_email_placeholder": "عنوان البريد الإلكتروني",
     "recipient_name_placeholder": "الاسم المعروض",
     "autocomplete_search_server": "البحث في الخادم",
-    "autocomplete_searching": "جارٍ البحث..."
+    "autocomplete_searching": "جارٍ البحث...",
+    "send_filing_warning": "تم الإرسال - لكن التنظيف بعد الإرسال فشل، وقد تبقى مسودة قديمة."
   },
   "confirm_dialog": {
     "confirm": "تأكيد",
@@ -1120,6 +1124,13 @@
         "permanent": "الحذف نهائيًا",
         "warning": "سيتم حذف الرسائل نهائيًا ولا يمكن استرجاعها. هذا الإجراء لا رجعة فيه."
       },
+      "message_spacing": {
+        "label": "تباعد الرسالة",
+        "description": "الهوامش حول نص الرسالة في وضع القراءة",
+        "auto": "تلقائي (مستحسن)",
+        "always": "إضافة تباعد دائمًا",
+        "edge": "من الحافة إلى الحافة"
+      },
       "archive_mode": {
         "label": "الأرشفة في",
         "description": "كيفية تنظيم الرسائل عند الأرشفة",
@@ -1539,7 +1550,10 @@
         "subject_placeholder": "خارج المكتب",
         "body_label": "نص الرسالة",
         "body_description": "محتوى الرسالة النصي العادي",
-        "body_placeholder": "شكرًا لرسالتك. أنا حاليًا خارج المكتب وسأرد عند عودتي."
+        "body_placeholder": "شكرًا لرسالتك. أنا حاليًا خارج المكتب وسأرد عند عودتي.",
+        "html_label": "رسالة منسّقة (HTML)",
+        "html_description": "أضِف نسخة منسّقة تتضمّن روابط وتنسيقًا. سيرى المستلمون الذين لا يستطيع برنامج بريدهم عرضها النصّ العادي أعلاه.",
+        "html_placeholder": "اكتب ردّ غياب منسّقًا…"
       },
       "preview": {
         "title": "معاينة",
@@ -1571,6 +1585,8 @@
       "role_none": "بلا",
       "create_folder": "إنشاء مجلد",
       "create_subfolder": "إنشاء مجلد فرعي",
+      "reorder": "اسحب لإعادة الترتيب",
+      "reorder_error": "فشل في إعادة ترتيب المجلدات",
       "subfolder_of": "داخل {name}",
       "subfolder_name": "اسم المجلد الفرعي",
       "new_folder_name": "اسم المجلد",
@@ -1635,6 +1651,11 @@
         "label": "اختصارات لوحة المفاتيح",
         "description": "عرض اختصارات لوحة المفاتيح المتاحة",
         "button": "عرض الاختصارات"
+      },
+      "refresh_cache": {
+        "label": "تحديث البيانات المخزنة مؤقتًا",
+        "description": "إعادة تحميل جهات الاتصال والتقويمات والمجلدات من الخادم. يحافظ على حساباتك وجلساتك — يصلح العرض القديم أو الخاطئ دون تسجيل الخروج.",
+        "button": "تحديث"
       },
       "reset_settings": {
         "label": "إعادة تعيين الإعدادات",

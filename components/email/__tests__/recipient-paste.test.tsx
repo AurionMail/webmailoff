@@ -135,6 +135,7 @@ vi.mock('@/lib/plugin-hooks', () => ({
     getRecipientSuggestions: { call: async () => [] },
     onSend: { call: async () => [] },
     beforeSend: { call: async () => [] },
+    onRecipientChipsChange: { transform: async (chips: unknown) => chips },
   },
   contactHooks: {
     search: { call: async () => [] },

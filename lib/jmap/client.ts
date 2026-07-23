@@ -1173,16 +1173,27 @@ export class JMAPClient implements IJMAPClient {
     }
   }
 
-  async getEmails(mailboxId?: string, accountId?: string, limit: number = 50, position: number = 0, hasKeyword?: string, pinnedFirst?: boolean): Promise<{ emails: Email[], hasMore: boolean, total: number }> {
+  async getEmails(mailboxId?: string, accountId?: string, limit: number = 50, position: number = 0, hasKeyword?: string, pinnedFirst?: boolean, extraFilter?: Record<string, unknown>): Promise<{ emails: Email[], hasMore: boolean, total: number }> {
     try {
       const targetAccountId = accountId || this.accountId;
-      const filter: { inMailbox?: string; hasKeyword?: string } = {};
+      const simple: { inMailbox?: string; hasKeyword?: string } = {};
       if (mailboxId) {
-        filter.inMailbox = mailboxId;
+        simple.inMailbox = mailboxId;
       }
       if (hasKeyword) {
-        filter.hasKeyword = hasKeyword;
+        simple.hasKeyword = hasKeyword;
       }
+      // `extraFilter` is an arbitrary FilterCondition/FilterOperator ANDed
+      // into the view - the message-list category tabs' search contract.
+      const filter: Record<string, unknown> = extraFilter
+        ? {
+            operator: "AND",
+            conditions: [
+              ...(Object.keys(simple).length > 0 ? [simple] : []),
+              extraFilter,
+            ],
+          }
+        : simple;
       // Pinned-first uses the hasKeyword sort comparator (RFC 8621 §4.4.2);
       // every page of a view must use the same sort or pagination tears.
       const sort = pinnedFirst
@@ -1296,6 +1307,46 @@ export class JMAPClient implements IJMAPClient {
       return result;
     } catch (error) {
       console.error('Failed to get tag counts:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Per-tab unread counts for message-list category tabs. One Email/query
+   * (limit 0, calculateTotal) per tab, batched in a single request. Each
+   * entry's `filter` is the tab's resolved FilterCondition/FilterOperator
+   * (null = no extra condition, i.e. all unread in the mailbox).
+   */
+  async getCategoryUnreadCounts(
+    mailboxId: string,
+    tabs: Array<{ id: string; filter: Record<string, unknown> | null }>,
+    accountId?: string,
+  ): Promise<Record<string, number>> {
+    if (tabs.length === 0) return {};
+    const targetAccountId = accountId || this.accountId;
+    try {
+      const methodCalls: JMAPMethodCall[] = tabs.map((tab, i) => {
+        const conditions: Record<string, unknown>[] = [
+          { inMailbox: mailboxId },
+          { notKeyword: "$seen" },
+        ];
+        if (tab.filter) conditions.push(tab.filter);
+        return ["Email/query", {
+          accountId: targetAccountId,
+          filter: { operator: "AND", conditions },
+          limit: 0,
+          calculateTotal: true,
+        }, `tab_${i}`];
+      });
+
+      const response = await this.request(methodCalls);
+      const result: Record<string, number> = {};
+      for (let i = 0; i < tabs.length; i++) {
+        result[tabs[i].id] = response.methodResponses?.[i]?.[1]?.total ?? 0;
+      }
+      return result;
+    } catch (error) {
+      console.error('Failed to get category tab counts:', error);
       return {};
     }
   }
@@ -1455,6 +1506,32 @@ export class JMAPClient implements IJMAPClient {
           },
         },
       }, "0"],
+    ]);
+  }
+
+  async removeKeyword(emailId: string, keyword: string, accountId?: string): Promise<void> {
+    await this.request([
+      ["Email/set", {
+        accountId: accountId || this.accountId,
+        update: {
+          [emailId]: {
+            [`keywords/${keyword}`]: null,
+          },
+        },
+      }, "0"],
+    ]);
+  }
+
+  /**
+   * Apply the same keyword PatchObject fragment to many messages in one
+   * Email/set. `patch` keys are `keywords/<name>` pointers with true (add)
+   * or null (remove) values - the category-tab move primitive.
+   */
+  async batchUpdateKeywords(emailIds: string[], patch: Record<string, boolean | null>, accountId?: string): Promise<void> {
+    if (emailIds.length === 0 || Object.keys(patch).length === 0) return;
+    const update = Object.fromEntries(emailIds.map(id => [id, { ...patch }]));
+    await this.request([
+      ["Email/set", { accountId: accountId || this.accountId, update }, "0"],
     ]);
   }
 
@@ -2630,6 +2707,7 @@ export class JMAPClient implements IJMAPClient {
     let createdEmailId: string | undefined;
     let emailSubmissionId: string | undefined;
     let serverSendAt: string | undefined;
+    let filingError: string | undefined;
 
     if (response.methodResponses) {
       for (const [methodName, result] of response.methodResponses) {
@@ -2663,6 +2741,24 @@ export class JMAPClient implements IJMAPClient {
           );
         }
 
+        // Post-submission filing problems (the implicit Email/set from
+        // onSuccessUpdateEmail, or destroying the old draft) must not fail
+        // the send - the message already left - but they must not stay
+        // silent either: a silently rejected filing/cleanup is exactly how
+        // "sent mail still sits in Drafts" reports look (#592, #588's
+        // sibling note in 4dc76bbb). Log the details and surface a warning
+        // to the caller.
+        if (result.notUpdated && Object.keys(result.notUpdated).length) {
+          console.error(`[sendEmail] ${methodName} notUpdated:`, JSON.stringify(result.notUpdated, null, 2));
+          const first = Object.values(result.notUpdated as Record<string, { type?: string; description?: string }>)[0];
+          filingError = filingError ?? (first?.description || first?.type || 'post-send filing failed');
+        }
+        if (result.notDestroyed && Object.keys(result.notDestroyed).length) {
+          console.error(`[sendEmail] ${methodName} notDestroyed (old draft):`, JSON.stringify(result.notDestroyed, null, 2));
+          const first = Object.values(result.notDestroyed as Record<string, { type?: string; description?: string }>)[0];
+          filingError = filingError ?? (first?.description || first?.type || 'old draft cleanup failed');
+        }
+
         if (methodName === 'Email/set' && result.created?.[emailId]?.id) {
           createdEmailId = result.created[emailId].id;
         }
@@ -2678,8 +2774,8 @@ export class JMAPClient implements IJMAPClient {
     }
 
     return delayedUntil
-      ? { scheduled: true, emailId: createdEmailId, emailSubmissionId, sendAt: serverSendAt }
-      : { scheduled: false, emailId: createdEmailId, emailSubmissionId };
+      ? { scheduled: true, emailId: createdEmailId, emailSubmissionId, sendAt: serverSendAt, filingError }
+      : { scheduled: false, emailId: createdEmailId, emailSubmissionId, filingError };
   }
 
   /**
@@ -4321,6 +4417,8 @@ export class JMAPClient implements IJMAPClient {
         create: {
           "new-contact": {
             ...contactData,
+            //  Stalwart stores the card without one if omitted (#644)
+            uid: contactData.uid || `urn:uuid:${crypto.randomUUID()}`,
             addressBookIds,
           }
         }
@@ -4468,6 +4566,7 @@ export class JMAPClient implements IJMAPClient {
 
       for (const accountId of accountIds) {
         const isPrimary = accountId === primaryId;
+        if (!isPrimary && this.calendarAccessDenied.has(accountId)) continue;
         const account = this.accounts[accountId];
 
         try {
@@ -4674,6 +4773,11 @@ export class JMAPClient implements IJMAPClient {
       .map((event) => normalizeCalendarEventLike(event));
   }
 
+  // Shared accounts the server rejected calendar access for - probed once,
+  // then skipped for the rest of the session (see getCalendarCapableAccountIds
+  // for why the fan-out has to probe on suspicion).
+  private calendarAccessDenied = new Set<string>();
+
   async queryAllCalendarEvents(
     filter: CalendarEventFilter,
     sort?: Array<{ property: string; isAscending: boolean }>,
@@ -4686,6 +4790,7 @@ export class JMAPClient implements IJMAPClient {
 
       for (const accountId of accountIds) {
         const isPrimary = accountId === primaryId;
+        if (!isPrimary && this.calendarAccessDenied.has(accountId)) continue;
         const account = this.accounts[accountId];
 
         try {
@@ -4751,7 +4856,12 @@ export class JMAPClient implements IJMAPClient {
 
       if (queryResponse.methodResponses?.[0]?.[0] === "error") {
         const error = queryResponse.methodResponses[0][1];
-        throw new Error(error?.description || error?.type || "CalendarEvent/query failed");
+        // Keep the JMAP error type so the catch below can tell an expected
+        // access rejection apart from a genuine failure.
+        throw Object.assign(
+          new Error(error?.description || error?.type || "CalendarEvent/query failed"),
+          { jmapErrorType: error?.type },
+        );
       }
 
       const ids: string[] = queryResponse.methodResponses?.[0]?.[1]?.ids || [];
@@ -4795,6 +4905,18 @@ export class JMAPClient implements IJMAPClient {
 
       return filtered;
     } catch (error) {
+      // The fan-out over shared accounts probes on suspicion (see
+      // getCalendarCapableAccountIds) and may hit accounts that grant no
+      // calendar access at all. Remember the rejection and go quiet instead
+      // of re-probing - and re-logging - on every range change.
+      const type = (error as { jmapErrorType?: string } | null)?.jmapErrorType;
+      const denied = type === 'forbidden' || type === 'accountNotFound' ||
+        /not have access/i.test(error instanceof Error ? error.message : '');
+      if (targetAccountId && denied) {
+        this.calendarAccessDenied.add(targetAccountId);
+        debug.log('calendar', `No calendar access to account ${targetAccountId} - skipping it from now on`);
+        return [];
+      }
       console.error('Failed to query calendar events:', error);
       return [];
     }

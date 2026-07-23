@@ -301,6 +301,48 @@ describe('JMAPClient contact methods', () => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
+    it('should generate a urn:uuid uid when none is provided (#644)', async () => {
+      const client = createClient();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/set', { created: { 'new-contact': { id: 'new-id' } } }, '0']],
+      });
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/get', { list: [{ ...mockContact, id: 'new-id' }] }, '0']],
+      });
+
+      await client.createContact({
+        emails: { email: { address: 'trusted@example.com' } },
+        addressBookIds: { 'ab-1': true },
+      });
+
+      const setBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+      const created = setBody.methodCalls[0][1].create['new-contact'];
+      expect(created.uid).toMatch(/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    });
+
+    it('should preserve a caller-provided uid', async () => {
+      const client = createClient();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/set', { created: { 'new-contact': { id: 'new-id' } } }, '0']],
+      });
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/get', { list: [{ ...mockContact, id: 'new-id' }] }, '0']],
+      });
+
+      await client.createContact({
+        uid: 'urn:uuid:12345678-1234-1234-1234-123456789abc',
+        addressBookIds: { 'ab-1': true },
+      });
+
+      const setBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+      const created = setBody.methodCalls[0][1].create['new-contact'];
+      expect(created.uid).toBe('urn:uuid:12345678-1234-1234-1234-123456789abc');
+    });
+
     it('should throw on notCreated error with description', async () => {
       const client = createClient();
       const fetchSpy = vi.spyOn(globalThis, 'fetch');

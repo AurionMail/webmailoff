@@ -137,7 +137,9 @@
     "scheduled": "מתוכננים",
     "unified_all_unread": "הכל שלא נקראו",
     "unified_all_starred": "הכל מסומנים",
-    "unified_all_mail": "הכל דוא״ל"
+    "unified_all_mail": "הכל דוא״ל",
+    "remove_account": "הסרת חשבון",
+    "remove_account_confirm": "להסיר את {account} מהמכשיר הזה? ניתן להוסיף אותו שוב מאוחר יותר."
   },
   "sidebar_apps": {
     "modal_title": "אפליקציות בסרגל הצד",
@@ -476,6 +478,8 @@
     },
     "no_body_content": "(אין תוכן גוף זמין)",
     "no_preview_available": "אין תצוגה מקדימה זמינה",
+    "show_quoted_text": "הצג טקסט מצוטט",
+    "hide_quoted_text": "הסתר טקסט מצוטט",
     "unread": "סמן כלא נקרא",
     "read": "קרא",
     "spam_short": "דואר זבל",
@@ -646,7 +650,8 @@
     "recipient_email_placeholder": "כתובת דוא״ל",
     "recipient_name_placeholder": "שם תצוגה",
     "autocomplete_search_server": "חיפוש בשרת",
-    "autocomplete_searching": "מחפש..."
+    "autocomplete_searching": "מחפש...",
+    "send_filing_warning": "נשלח - אך הניקוי שלאחר השליחה נכשל, ייתכן שתישאר טיוטה ישנה."
   },
   "confirm_dialog": {
     "confirm": "אשר",
@@ -1503,7 +1508,10 @@
         "subject_placeholder": "מחוץ למשרד",
         "body_label": "גוף ההודעה",
         "body_description": "תוכן הודעת טקסט רגילה",
-        "body_placeholder": "תודה על המייל שלך. אני כרגע מחוץ למשרד ואענה כשאחזור."
+        "body_placeholder": "תודה על המייל שלך. אני כרגע מחוץ למשרד ואענה כשאחזור.",
+        "html_label": "הודעה מעוצבת (HTML)",
+        "html_description": "הוסיפו גרסה מעוצבת עם קישורים וסגנון. נמענים שתוכנת הדוא״ל שלהם אינה יכולה להציג אותה יראו את הטקסט הרגיל שלמעלה.",
+        "html_placeholder": "כתבו תשובת היעדרות מעוצבת…"
       },
       "preview": {
         "title": "תצוגה מקדימה",
@@ -1598,6 +1606,11 @@
         "label": "קיצורי מקלדת",
         "description": "הצג קיצורי מקשים זמינים",
         "button": "הצג קיצורי דרך"
+      },
+      "refresh_cache": {
+        "label": "רענון נתונים שמורים",
+        "description": "טעינה מחדש של אנשי קשר, לוחות שנה ותיקיות מהשרת. שומר על החשבונות וההתחברויות שלך — מתקן תצוגה מיושנת או שגויה ללא התנתקות.",
+        "button": "רענון"
       },
       "reset_settings": {
         "label": "אפס את ההגדרות",

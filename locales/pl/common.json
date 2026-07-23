@@ -277,6 +277,8 @@
     "no_subject": "(Bez tematu)",
     "no_body_content": "(Brak treści)",
     "no_preview_available": "Podgląd niedostępny",
+    "show_quoted_text": "Pokaż cytowany tekst",
+    "hide_quoted_text": "Ukryj cytowany tekst",
     "loading_email": "Ładowanie wiadomości...",
     "loading": "Ładowanie...",
     "reply": "Odpowiedz",
@@ -683,7 +685,8 @@
     "recipient_email_placeholder": "Adres e-mail",
     "recipient_name_placeholder": "Wyświetlana nazwa",
     "autocomplete_search_server": "Szukaj na serwerze",
-    "autocomplete_searching": "Wyszukiwanie..."
+    "autocomplete_searching": "Wyszukiwanie...",
+    "send_filing_warning": "Wysłano - ale późniejsze porządkowanie nie powiodło się, może pozostać nieaktualna wersja robocza."
   },
   "confirm_dialog": {
     "confirm": "Potwierdź",
@@ -1118,6 +1121,13 @@
         "permanent": "Usuń trwale",
         "warning": "Wiadomości e-mail zostaną trwale usunięte i nie będzie można ich odzyskać. Ta akcja jest nieodwracalna."
       },
+      "message_spacing": {
+        "label": "Odstępy wiadomości",
+        "description": "Margines wokół treści wiadomości w czytniku",
+        "auto": "Automatycznie (zalecane)",
+        "always": "Zawsze dodawaj odstępy",
+        "edge": "Od krawędzi do krawędzi"
+      },
       "archive_mode": {
         "label": "Archiwizuj w",
         "description": "Jak organizować wiadomości e-mail podczas archiwizacji",
@@ -1533,7 +1543,10 @@
         "subject_placeholder": "Poza biurem",
         "body_label": "Treść wiadomości",
         "body_description": "Treść wiadomości w zwykłym tekście",
-        "body_placeholder": "Dziękuję za wiadomość. Obecnie jestem poza biurem i odpowiem po powrocie."
+        "body_placeholder": "Dziękuję za wiadomość. Obecnie jestem poza biurem i odpowiem po powrocie.",
+        "html_label": "Wiadomość sformatowana (HTML)",
+        "html_description": "Dodaj sformatowaną wersję z odnośnikami i stylami. Odbiorcy, których program pocztowy nie może jej wyświetlić, zobaczą powyższy zwykły tekst.",
+        "html_placeholder": "Napisz sformatowaną odpowiedź o nieobecności…"
       },
       "preview": {
         "title": "Podgląd",
@@ -1565,6 +1578,8 @@
       "role_none": "Brak",
       "create_folder": "Utwórz folder",
       "create_subfolder": "Utwórz podfolder",
+      "reorder": "Przeciągnij, aby zmienić kolejność",
+      "reorder_error": "Nie udało się zmienić kolejności folderów",
       "subfolder_of": "W folderze {name}",
       "subfolder_name": "Nazwa podfolderu",
       "new_folder_name": "Nazwa folderu",
@@ -1632,7 +1647,7 @@
       },
       "refresh_cache": {
         "label": "Refresh cached data",
-        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions \u2014 fixes a stale or wrong view without signing out.",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
         "button": "Refresh"
       },
       "reset_settings": {

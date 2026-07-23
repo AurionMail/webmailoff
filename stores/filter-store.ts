@@ -3,6 +3,7 @@ import type { IJMAPClient } from '@/lib/jmap/client-interface';
 import type { FilterRule, SieveCapabilities, VacationSieveConfig } from '@/lib/jmap/sieve-types';
 import { parseScript } from '@/lib/sieve/parser';
 import { generateScript } from '@/lib/sieve/generator';
+import { filterHooks } from '@/lib/plugin-hooks';
 import { debug } from '@/lib/debug';
 
 interface SieveAccount {
@@ -144,6 +145,16 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
         content = generateScript(rules, vacationSettings || undefined, { externalRequires });
       }
 
+      // Let plugins graft their managed sections (e.g. an inbox-category
+      // classifier) into the script before it becomes the active one. A
+      // handler returning a non-string is ignored to keep the upload valid.
+      const transformed = await filterHooks.onSieveScriptGenerate.transform(content, {
+        accountId: selectedAccountId || null,
+      });
+      if (typeof transformed === 'string' && transformed.trim().length > 0) {
+        content = transformed;
+      }
+
       if (activeScriptId) {
         await client.updateSieveScript(activeScriptId, content, true, selectedAccountId || undefined);
       } else {
@@ -153,6 +164,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
 
       set({ isSaving: false, rawScript: content });
       debug.log('filters', 'Filters saved successfully');
+      void filterHooks.onFiltersSave.emit({ accountId: selectedAccountId || null });
+      void filterHooks.onSieveScriptChange.emit({ accountId: selectedAccountId || null, script: content });
     } catch (error) {
       debug.error('Failed to save filters:', error);
       set({
