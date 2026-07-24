@@ -245,7 +245,7 @@ export function LayoutSettings() {
         />
       </SettingItem>
 
-      {(accounts.length > 1 || hasGroupInboxes) && !isSettingHidden('enableUnifiedMailbox') && (
+      {!isSettingHidden('enableUnifiedMailbox') && (
         <SettingItem
           label={t('unified_mailbox.label')}
           description={t('unified_mailbox.description')}
