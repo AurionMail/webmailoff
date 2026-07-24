@@ -39,6 +39,7 @@ describe('plugin-types constants', () => {
       expect(ALL_PERMISSIONS).toContain('ui:toolbar');
       expect(ALL_PERMISSIONS).toContain('ui:email-banner');
       expect(ALL_PERMISSIONS).toContain('ui:email-footer');
+      expect(ALL_PERMISSIONS).toContain('ui:contact-cryptokeys');
       expect(ALL_PERMISSIONS).toContain('ui:composer-toolbar');
       expect(ALL_PERMISSIONS).toContain('ui:sidebar-widget');
       expect(ALL_PERMISSIONS).toContain('ui:settings-section');

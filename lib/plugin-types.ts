@@ -287,7 +287,8 @@ export type SlotName =
   | 'context-menu-email'
   | 'navigation-rail-bottom'
   | 'calendar-event-actions'
-  | 'admin-plugin-page';
+  | 'admin-plugin-page'
+  | 'contact-cryptokeys';
 
 export interface SlotRegistration {
   pluginId: string;
@@ -1036,7 +1037,7 @@ export const ALL_PERMISSIONS = [
   'security:read',
   'auth:observe',
   'http:post', 'http:fetch',
-  'ui:observe', 'ui:toolbar', 'ui:app-top-banner', 'ui:email-banner', 'ui:email-footer',
+  'ui:observe', 'ui:toolbar', 'ui:app-top-banner', 'ui:email-banner', 'ui:email-footer', 'ui:contact-cryptokeys',
   'ui:email-details',
   'ui:download-file',
   // Register native message-list category tabs (Gmail-style inbox tabs).

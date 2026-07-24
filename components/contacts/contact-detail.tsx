@@ -12,6 +12,8 @@ import { ContactActivity } from "./contact-activity";
 import { toast } from "@/stores/toast-store";
 import { exportContact } from "./contact-export";
 import { printContact } from "./contact-print";
+import { usePluginSlotOffers } from "@/hooks/use-plugin-slot-offers";
+import { PluginSlot } from "@/components/plugins/plugin-slot";
 
 type MoreItem =
   | {
@@ -118,6 +120,7 @@ export function ContactDetail({ contact, onEdit, onDelete, onAddToGroup, onDupli
   const t = useTranslations("contacts");
 
   const cryptoKeys = contact?.cryptoKeys ? Object.values(contact.cryptoKeys) : [];
+  const hasCryptoKeysSlotOffers = usePluginSlotOffers('contact-cryptokeys').length > 0;
 
   if (!contact) {
     return (
@@ -426,7 +429,12 @@ export function ContactDetail({ contact, onEdit, onDelete, onAddToGroup, onDupli
         {cryptoKeys.length > 0 && (
           <Section title={t("detail.crypto_keys")}>
             <div className="space-y-3">
-              {cryptoKeys.map((key, i) => (
+
+             {hasCryptoKeysSlotOffers && (
+              <PluginSlot name="contact-cryptokeys" extraProps={{ cryptoKeys }} />
+              )}
+
+              {!hasCryptoKeysSlotOffers &&cryptoKeys.map((key, i) => (
                 <div key={i} className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1">
                   <div className="flex items-start gap-2 text-sm break-all">
                     <KeyRound className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
