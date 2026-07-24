@@ -7,6 +7,8 @@ import { ErrorBoundary, EmailViewerErrorFallback } from "@/components/error";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useIdentityStore } from "@/stores/identity-store";
+import { useProMultiAccountIdentities } from "@/hooks/use-pro-multi-account-identities";
+import { findDraftIdentityId } from "@/lib/reply-identity";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "@/stores/toast-store";
 import { useProTabStore, type ProEmailTabData, type ProReplyContext } from "@/stores/pro-tab-store";
@@ -56,6 +58,7 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const settingsKeywords = useSettingsStore((s) => s.emailKeywords);
   const identities = useIdentityStore((s) => s.identities);
+  const multiAccountIdentities = useProMultiAccountIdentities();
 
   const closeTab = useProTabStore((s) => s.closeTab);
   const openComposeTab = useProTabStore((s) => s.openComposeTab);
@@ -242,11 +245,12 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
       ? email.bodyValues[draftHtmlPart.partId].value
       : undefined;
 
-    // Preserve the identity that matches the draft's From address.
-    const draftFromEmail = email.from?.[0]?.email;
-    const matchedIdentity = draftFromEmail
-      ? identities.find((id) => id.email === draftFromEmail)
-      : null;
+    // Preserve the identity the draft was composed with — match name + address
+    // against the same list the composer renders (see findDraftIdentityId).
+    const composerIdentities = multiAccountIdentities.enabled
+      ? multiAccountIdentities.allIdentities
+      : identities;
+    const matchedIdentityId = findDraftIdentityId(composerIdentities, email.from?.[0]);
 
     composerSessionIdRef.current += 1;
     openComposeTab({
@@ -261,14 +265,14 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
         body: htmlBody || bodyText,
         showCc: (email.cc?.length || 0) > 0,
         showBcc: (email.bcc?.length || 0) > 0,
-        selectedIdentityId: matchedIdentity?.id ?? null,
+        selectedIdentityId: matchedIdentityId,
         subAddressTag: '',
         mode: 'compose',
         draftId: email.id,
       },
     });
     closeTab(tabId);
-  }, [email, identities, openComposeTab, closeTab, tabId, t]);
+  }, [email, identities, multiAccountIdentities, openComposeTab, closeTab, tabId, t]);
 
   return (
     <div className="flex h-full w-full flex-col bg-background">

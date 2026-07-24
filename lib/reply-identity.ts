@@ -95,6 +95,45 @@ export function findComposeIdentityId(
   return baseIdentity?.id ?? null;
 }
 
+/**
+ * Restore the identity a draft was composed with from its saved From. A draft
+ * stores only the From address+name, not an identityId, so when two identities
+ * share an address (a default + an alias with a different display name) the name
+ * has to disambiguate — an email-only match picks the wrong one. Falls back to
+ * email, then `+tag`-stripped email. Returns null when none match (caller keeps
+ * the default). Pass the same identity list the composer renders (the flat
+ * cross-account list when multi-account is on) so the returned id is usable
+ * there.
+ */
+export function findDraftIdentityId(
+  identities: Identity[],
+  from?: { email?: string | null; name?: string | null } | null,
+): string | null {
+  const email = from?.email?.trim();
+  if (identities.length === 0 || !email) {
+    return null;
+  }
+
+  const wantEmail = normalizeEmailAddress(email);
+  const wantName = (from?.name ?? '').trim();
+
+  const nameAndEmail = identities.find(
+    (i) => normalizeEmailAddress(i.email) === wantEmail && (i.name ?? '').trim() === wantName,
+  );
+  if (nameAndEmail) {
+    return nameAndEmail.id;
+  }
+
+  const exact = identities.find((i) => normalizeEmailAddress(i.email) === wantEmail);
+  if (exact) {
+    return exact.id;
+  }
+
+  const wantBase = normalizeBaseEmailAddress(email);
+  const base = identities.find((i) => normalizeBaseEmailAddress(i.email) === wantBase);
+  return base?.id ?? null;
+}
+
 export interface ReplyFromResolution {
   /** Identity to use for JMAP `identityId` and the SMTP envelope MAIL FROM. */
   identityId: string;

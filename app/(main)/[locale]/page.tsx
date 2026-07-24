@@ -61,7 +61,8 @@ import { isFilePreviewable } from "@/lib/file-preview";
 import { appendHtmlSignature, appendPlainTextSignature } from "@/lib/signature-utils";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
-import { resolveReplyFrom } from "@/lib/reply-identity";
+import { findDraftIdentityId, resolveReplyFrom } from "@/lib/reply-identity";
+import { useProMultiAccountIdentities } from "@/hooks/use-pro-multi-account-identities";
 import { Search, Filter, ChevronDown, X, Paperclip, Star, Mail, MailOpen, RotateCcw, PenSquare, PenLine, CheckSquare, Square, AlertTriangle } from "lucide-react";
 import { ResizeHandle } from "@/components/layout/resize-handle";
 import { Button } from "@/components/ui/button";
@@ -119,6 +120,7 @@ export default function Home() {
   const initialMailLoadClientRef = useRef<object | null>(null);
   const { isAuthenticated, client, logout, checkAuth, switchAccount, activeAccountId, isLoading: authLoading, connectionLost, isRateLimited, rateLimitUntil } = useAuthStore();
   const { identities } = useIdentityStore();
+  const multiAccountIdentities = useProMultiAccountIdentities();
   useIdentitySync();
   const trustedSendersAddressBook = useSettingsStore((state) => state.trustedSendersAddressBook);
   const sendDelaySeconds = useSettingsStore((state) => state.sendDelaySeconds);
@@ -1409,11 +1411,15 @@ export default function Home() {
       ? draft.bodyValues[draftHtmlPart.partId].value
       : undefined;
 
-    // Try to find the identity that matches the draft's from address to preserve it
-    const draftFromEmail = draft.from?.[0]?.email;
-    const matchedIdentity = draftFromEmail
-      ? identities.find(id => id.email === draftFromEmail)
-      : null;
+    // Restore the identity the draft was composed with. Match the saved From
+    // (name + address) against the same list the composer renders — the flat
+    // cross-account list when multi-account is on — so a draft from a non-active
+    // account, or one of two identities sharing an address, is restored rather
+    // than reset to the default.
+    const composerIdentities = multiAccountIdentities.enabled
+      ? multiAccountIdentities.allIdentities
+      : identities;
+    const matchedIdentityId = findDraftIdentityId(composerIdentities, draft.from?.[0]);
 
     // Increment session ID to force the composer to remount with fresh state,
     // even if it was already open (e.g. right-clicking a draft while composing).
@@ -1426,7 +1432,7 @@ export default function Home() {
       body: htmlBody || bodyText,
       showCc: (draft.cc?.length || 0) > 0,
       showBcc: (draft.bcc?.length || 0) > 0,
-      selectedIdentityId: matchedIdentity?.id ?? null,
+      selectedIdentityId: matchedIdentityId,
       subAddressTag: '',
       mode: 'compose',
       draftId: draft.id,

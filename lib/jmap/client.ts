@@ -5957,18 +5957,29 @@ export class JMAPClient implements IJMAPClient {
       .replace('{closeafter}', 'no')
       .replace('{ping}', '30');
 
-    this.sseAbortController = new AbortController();
+    // Each attempt tracks its own controller. When closePushNotifications
+    // aborts a connect that is still in flight (every account switch tears
+    // down and re-creates push for all connected clients), the rejection
+    // lands in the catch below AFTER the next attempt has already been set
+    // up - treating it as a network failure there would spawn an
+    // unsupervised polling interval and, via fallbackToPolling nulling
+    // sseAbortController, orphan the replacement connection.
+    const controller = new AbortController();
+    this.sseAbortController = controller;
 
     this.authenticatedFetch(url, {
       headers: { 'Accept': 'text/event-stream' },
-      signal: this.sseAbortController.signal,
+      signal: controller.signal,
     }).then(response => {
+      if (controller.signal.aborted) return;
       if (!response.ok || !response.body) {
         this.fallbackToPolling();
         return;
       }
-      this.readSSEStream(response.body);
+      this.readSSEStream(response.body, controller);
     }).catch((error) => {
+      // Intentional close, not a failure - no polling fallback.
+      if (controller.signal.aborted) return;
       if (error instanceof RateLimitError) {
         this.sseAbortController = null;
         this.scheduleSSEReconnect();
@@ -5978,7 +5989,7 @@ export class JMAPClient implements IJMAPClient {
     });
   }
 
-  private async readSSEStream(body: ReadableStream<Uint8Array>): Promise<void> {
+  private async readSSEStream(body: ReadableStream<Uint8Array>, controller: AbortController): Promise<void> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -6007,8 +6018,10 @@ export class JMAPClient implements IJMAPClient {
 
     this.stopSSEPingMonitor();
 
-    // Stream ended - reconnect unless we were intentionally closed
-    if (this.sseAbortController && !this.sseAbortController.signal.aborted) {
+    // Stream ended - reconnect only if this stream is still the current one
+    // and was not intentionally closed. A superseded stream must not spawn a
+    // second connection next to its replacement.
+    if (this.sseAbortController === controller && !controller.signal.aborted) {
       this.scheduleSSEReconnect();
     }
   }

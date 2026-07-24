@@ -120,12 +120,10 @@ test.describe('Drafts', () => {
     expect((draft.from ?? [])[0]?.name, 'draft From carries the selected identity').toBe('Alice Team');
   });
 
-  // KNOWN BUG (documented via test.fail): a draft composed with a non-default
-  // identity is saved with the right From on the server (see the test above),
-  // but reopening the draft resets the composer's From selector to the default
-  // identity instead of restoring the one the draft was written with. If this
-  // starts passing, the reopen path was fixed — flip this back to a plain test.
-  test.fail('reopening a draft restores the changed sender in the From selector', async ({ page }) => {
+  // Regression: reopening a draft must restore the identity it was written with
+  // (drafts store the From address+name, not an identity id, so the reopen path
+  // matches name+address against the identity list — see findDraftIdentityId).
+  test('reopening a draft restores the changed sender in the From selector', async ({ page }) => {
     const altId = await jmap.ensureIdentity('Alice Team', alice.email);
     const subject = subj('draft-from-reopen');
 
