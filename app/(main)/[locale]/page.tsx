@@ -282,6 +282,7 @@ export default function Home() {
     toggleStar,
     setEmailKeywordsLocal,
     moveToMailbox,
+    moveToMailboxCrossAware,
     moveThreadToMailbox,
     searchEmails,
     searchQuery,
@@ -3229,7 +3230,7 @@ export default function Home() {
                 }}
                 onMoveToMailbox={async (emailId, mailboxId) => {
                   if (client) {
-                    await moveToMailbox(client, emailId, mailboxId);
+                    await moveToMailboxCrossAware(client, emailId, mailboxId);
                   }
                 }}
                 onMarkAsSpam={async (email) => {
@@ -3499,7 +3500,7 @@ export default function Home() {
                     selectedMailbox={selectedMailbox}
                     onMoveToMailbox={async (mailboxId) => {
                       if (client && selectedEmail) {
-                        await moveToMailbox(client, selectedEmail.id, mailboxId);
+                        await moveToMailboxCrossAware(client, selectedEmail.id, mailboxId);
                       }
                     }}
                     className={isMobile ? "flex-1" : undefined}
