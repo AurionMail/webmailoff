@@ -303,9 +303,8 @@ export const KEYBOARD_SHORTCUTS = {
     { key: "x", description: "shortcuts.threads.expand_collapse" },
   ],
   composer: [
-    { key: "Ctrl + Enter", description: "shortcuts.composer.send" },
-    { key: "Ctrl + Shift + Enter", description: "shortcuts.composer.schedule_send" },
-    { key: "t", description: "shortcuts.composer.template_picker" },
     { key: "Ctrl/Cmd + Enter", description: "shortcuts.composer.send" },
+    { key: "Ctrl/Cmd + Shift + Enter", description: "shortcuts.composer.schedule_send" },
+    { key: "t", description: "shortcuts.composer.template_picker" },
   ],
 } as const;

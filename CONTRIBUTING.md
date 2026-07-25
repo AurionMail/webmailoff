@@ -10,13 +10,13 @@
 
 # Contributing to Bulwark Webmail
 
-We're writing the webmail we wanted in 2026 and didn't find. Modern protocol, modern tooling, modern UI. Not a SaaS. Not a startup. Not for sale.
+We're writing the webmail we wanted in 2026 and didn't find: a JMAP-native client with an interface built this decade. It's AGPL and self-hosted, run by the people who use it rather than sold to them.
 
-If that resonates with you, we'd love your help. This guide covers how to get the project running, the conventions we follow, and how to land your first change.
+If that sounds like your kind of project, we'd love the help.
 
 ## Join the Community
 
-You don't need to be an expert to contribute. Whether you're setting up your dev environment for the first time, filing a bug, or translating a string, the Discord is the fastest way to get unstuck and meet the people working on this.
+You don't need to be an expert to contribute. A dev environment that won't start, a bug you're not sure how to report, a translation you're stuck on: Discord is the fastest way to get unstuck and to meet the people working on this.
 
 - **Get support** - real-time help with development hurdles
 - **Share ideas** - feature suggestions, design feedback, doc improvements
@@ -46,14 +46,20 @@ You don't need to be an expert to contribute. Whether you're setting up your dev
 3. **Set up environment**:
 
    ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your JMAP server URL
+   cp .env.dev.example .env.local
    ```
 
+   This enables the built-in mock JMAP server (`DEV_MOCK_JMAP=true`), so you can
+   develop without a mail server. Log in with any username and password. To work
+   against a real server instead, copy `.env.example` and set `JMAP_SERVER_URL`.
+
 4. **Start development server**:
+
    ```bash
    npm run dev
    ```
+
+   Then open http://localhost:3000.
 
 ### Code Quality
 
@@ -71,6 +77,19 @@ npm run lint:fix
 ```
 
 These checks run automatically on commit via Husky pre-commit hooks.
+
+### Testing
+
+| Suite            | Command                    | What it covers                                                     |
+| ---------------- | -------------------------- | ------------------------------------------------------------------ |
+| **Unit**         | `npx vitest run`           | Vitest + jsdom. Tests live in `__tests__/` folders next to the code |
+| **Translations** | `npm run test:translations` | Locale files checked for structural drift against English           |
+| **Integration**  | `npm run test:integration`  | Playwright against a real Stalwart server in Docker                 |
+| **E2E smoke**    | `npx playwright test`      | UI smoke tests against `npm run dev`                                |
+
+Run a single unit test file with `npx vitest run lib/__tests__/<name>.test.ts`, or `npx vitest` to watch.
+
+The integration suite needs Docker and takes several minutes; it has its own setup notes and findings log in [integration/README.md](integration/README.md). New behavior that touches mail/folder synchronization or multi-account handling belongs there.
 
 ## Code Style Guidelines
 
@@ -97,7 +116,9 @@ These checks run automatically on commit via Husky pre-commit hooks.
 
 ## Internationalization (i18n)
 
-This project uses **next-intl**. English (`/locales/en/common.json`) is the source of truth; we ship 15 additional locales (cs, de, es, fr, it, ja, ko, lv, nl, pl, pt, ru, tr, uk, zh).
+This project uses **next-intl**. English (`/locales/en/common.json`) is the source of truth; we ship 23 additional locales (ar, ca, cs, da, de, es, fa, fr, he, hu, it, ja, ko, lv, nl, pl, pt, ro, ru, sk, tr, uk, zh).
+
+Arabic, Hebrew, and Persian render right-to-left (see `i18n/direction.ts`). Use Tailwind's **logical** utilities (`ms-*`/`me-*`, `ps-*`/`pe-*`, `start-*`/`end-*`) rather than physical ones (`ml-*`, `pl-*`, `left-*`) so layouts flip correctly. For popovers positioned in JS via `getBoundingClientRect()`, check `isDocumentRTL()`: inline `position: fixed` styles don't pick up logical utilities.
 
 ### Rules
 
@@ -126,6 +147,19 @@ This project uses **next-intl**. English (`/locales/en/common.json`) is the sour
    router.push(`/${params.locale}/settings`);
    ```
 
+### Adding a new locale
+
+Registering a new locale takes edits in four places:
+
+1. `locales/<code>/common.json` - copy `locales/en/common.json` and translate
+2. `i18n/routing.ts` - add the code to `SUPPORTED_LOCALES`
+3. `i18n/request.ts` - add a `case` to the static-import switch
+4. `components/ui/language-switcher.tsx` - add `{ value, label }` with the **native** language name, plus a flag in `components/ui/flag-icons.tsx`
+
+For a right-to-left language, also add the code to `rtlLocales` in `i18n/direction.ts`.
+
+Run `npm run test:translations` afterwards - it checks the locale files for structural drift against English.
+
 ## Pull Request Process
 
 ### Before Submitting
@@ -138,13 +172,13 @@ This project uses **next-intl**. English (`/locales/en/common.json`) is the sour
 
 2. **Make your changes** following the code style guidelines
 
-3. **Test your changes** thoroughly
+3. **Test your changes** thoroughly, and add unit tests for new logic
 
 4. **Update translations** if you added user-facing text
 
 5. **Run all checks**:
    ```bash
-   npm run typecheck && npm run lint
+   npm run typecheck && npm run lint && npx vitest run
    ```
 
 ### Submitting
@@ -181,21 +215,33 @@ docs: update README with keyboard shortcuts
 
 ```
 webmail/
-├── app/                    # Next.js App Router pages
-│   └── [locale]/          # Locale-aware routing
-├── components/            # React components
-│   ├── email/            # Email-related components
-│   ├── layout/           # Layout components
-│   ├── settings/         # Settings components
-│   └── ui/               # Reusable UI components
-├── contexts/             # React contexts
-├── hooks/                # Custom React hooks
-├── lib/                  # Utilities and libraries
-│   └── jmap/            # JMAP client implementation
-├── locales/              # Translation files
-│   ├── en/              # English translations
-│   └── fr/              # French translations
-└── stores/               # Zustand state stores
+├── app/                       # Next.js App Router
+│   ├── (main)/[locale]/      # Locale-aware app pages (mail, calendar, contacts, files, settings)
+│   ├── (main)/admin/         # Admin dashboard
+│   ├── (main)/setup/         # First-launch setup wizard
+│   ├── (sandbox)/            # Isolated plugin sandbox routes
+│   └── api/                  # Route handlers (auth, admin, jmap, caldav, …)
+├── components/               # React components
+│   ├── email/               # Email list, viewer, composer
+│   ├── calendar/ contacts/ files/ filters/ templates/
+│   ├── layout/              # Sidebar, shell, navigation
+│   ├── settings/            # Settings panels
+│   ├── plugins/             # Plugin host UI
+│   └── ui/                  # Reusable primitives
+├── contexts/                 # React contexts
+├── hooks/                    # Custom React hooks
+├── i18n/                     # next-intl routing, locale detection, RTL direction
+├── lib/                      # Utilities and libraries
+│   ├── jmap/                # JMAP client implementation
+│   ├── stalwart/            # Stalwart-specific admin/API helpers
+│   ├── admin/ auth/ oauth/  # Config, sessions, OAuth flows
+│   ├── plugin-sandbox/      # Plugin sandbox bridge and hardening
+│   └── __tests__/           # Vitest unit tests
+├── locales/                  # Translation files, one directory per locale
+├── stores/                   # Zustand state stores
+├── public/                   # Static assets and branding
+├── e2e/                      # Playwright smoke tests (against `npm run dev`)
+└── integration/              # Dockerized Stalwart + Playwright suite
 ```
 
 ## Security
