@@ -70,7 +70,7 @@ The wizard writes to `ADMIN_CONFIG_DIR` (`./data/admin` by default). Setting `JM
 </tr>
 </table>
 
-## Overview
+## What Bulwark includes
 
 Bulwark is a full webmail suite. It bundles the four apps most self-hosters end up wanting:
 
@@ -85,7 +85,7 @@ Full feature list: **[FEATURES.md](FEATURES.md)**.
 
 ---
 
-## Quick Start
+## Quick start
 
 ### Docker
 
@@ -101,7 +101,7 @@ docker compose up -d
 
 On first launch, open `http://localhost:3000` and the setup wizard takes over. Installs that already define `JMAP_SERVER_URL` skip it and keep the env-managed flow under [Configuration](#configuration).
 
-### From Source
+### From source
 
 ```bash
 git clone https://github.com/bulwarkmail/webmail.git
@@ -308,7 +308,7 @@ Then point your reverse proxy at the container without stripping the prefix. The
 
 </details>
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Key                  | Action                  |
 | -------------------- | ----------------------- |
@@ -331,7 +331,7 @@ Then point your reverse proxy at the container without stripping the prefix. The
 
 In the composer: `Ctrl/Cmd`+`Enter` sends, `Ctrl/Cmd`+`Shift`+`Enter` opens scheduled send, and `t` opens the template picker.
 
-## Tech Stack
+## Tech stack
 
 |               |                                                   |
 | ------------- | ------------------------------------------------- |

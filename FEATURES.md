@@ -54,7 +54,7 @@
 - Trusted senders live in their own JMAP address book
 - Autocomplete on To, Cc, and Bcc
 
-## Filters & Templates
+## Filters & templates
 
 - Server-side filters as JMAP Sieve Scripts (RFC 9661)
 - A visual rule builder: conditions on From, To, Subject, Size, Body, Attachment and more, each matching multiple values, with actions to move, forward, star, or discard
@@ -73,7 +73,7 @@
 - Cut, copy, paste, duplicate; favorites; recent files
 - JMAP sharing (RFC 9670) for files and folders. Pick a user or group from the principal picker and grant read, read/write, or manager. Shared items get an indicator, and anything other principals share with you appears under "Shared with me".
 
-## Security & Privacy
+## Security & privacy
 
 - External content stays blocked until you say otherwise, and trusted senders are remembered
 - HTML sanitized through DOMPurify
@@ -111,7 +111,7 @@
 - The browser's `Accept-Language` picks the first language, and the choice persists per user
 - `NEXT_PUBLIC_DEFAULT_LOCALE` sets the fallback, `NEXT_PUBLIC_LOCALE_PREFIX` the URL prefix
 
-## Identity & Multi-Account
+## Identity & multi-account
 
 - Run several accounts at once and switch instantly, each keeping its own session. The 5-account cap lifts on HTTP/2 servers; on HTTP/1.1, browser connection pooling still sets the limit.
 - An account switcher showing connection status, and a default account
@@ -123,7 +123,7 @@
 - Several JMAP servers per deployment, optionally auto-picked by email domain
 - Custom JMAP endpoints on the login form, when `ALLOW_CUSTOM_JMAP_ENDPOINT` permits it
 
-## Admin & Extensibility
+## Admin & extensibility
 
 - A setup wizard runs on first launch and walks through JMAP servers, OAuth/OIDC, the session secret, logging, branding (uploads included), and the admin password. It writes to the admin config dir, so `.env.local` stays untouched.
 - The Stalwart admin dashboard, its policy sections collapsed into one tabbed page

@@ -14,7 +14,7 @@ We're writing the webmail we wanted in 2026 and didn't find: a JMAP-native clien
 
 If that sounds like your kind of project, we'd love the help.
 
-## Join the Community
+## Join the community
 
 You don't need to be an expert to contribute. A dev environment that won't start, a bug you're not sure how to report, a translation you're stuck on: Discord is the fastest way to get unstuck and to meet the people working on this.
 
@@ -26,9 +26,9 @@ You don't need to be an expert to contribute. A dev environment that won't start
 
 ---
 
-## Getting Started
+## Getting started
 
-### Development Setup
+### Development setup
 
 1. **Fork and clone** the repository:
 
@@ -61,7 +61,7 @@ You don't need to be an expert to contribute. A dev environment that won't start
 
    Then open http://localhost:3000.
 
-### Code Quality
+### Code quality
 
 Before submitting a pull request, ensure your code passes all checks:
 
@@ -91,7 +91,7 @@ Run a single unit test file with `npx vitest run lib/__tests__/<name>.test.ts`, 
 
 The integration suite needs Docker and takes several minutes; it has its own setup notes and findings log in [integration/README.md](integration/README.md). New behavior that touches mail/folder synchronization or multi-account handling belongs there.
 
-## Code Style Guidelines
+## Code style guidelines
 
 ### TypeScript
 
@@ -100,7 +100,7 @@ The integration suite needs Docker and takes several minutes; it has its own set
 - Avoid `any` types when possible
 - Use meaningful variable and function names
 
-### React Components
+### React components
 
 - Use functional components with hooks
 - Keep components focused and single-purpose
@@ -160,9 +160,9 @@ For a right-to-left language, also add the code to `rtlLocales` in `i18n/directi
 
 Run `npm run test:translations` afterwards - it checks the locale files for structural drift against English.
 
-## Pull Request Process
+## Pull request process
 
-### Before Submitting
+### Before submitting
 
 1. **Create a feature branch**:
 
@@ -191,7 +191,7 @@ Run `npm run test:translations` afterwards - it checks the locale files for stru
    - Screenshots for UI changes
    - Reference to any related issues
 
-### Commit Message Convention
+### Commit message convention
 
 Follow the conventional commits format:
 
@@ -211,7 +211,7 @@ fix: resolve attachment download issue
 docs: update README with keyboard shortcuts
 ```
 
-## Project Structure
+## Project structure
 
 ```
 webmail/
