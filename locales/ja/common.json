@@ -298,6 +298,7 @@
     "print": "印刷",
     "view_source": "ソースを表示",
     "export_email": ".emlとしてエクスポート",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml または .zip をインポート",
     "keyboard_shortcuts": "キーボードショートカット (?)",
     "email_source": "メールソース",

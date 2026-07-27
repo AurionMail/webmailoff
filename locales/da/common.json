@@ -298,6 +298,7 @@
     "print": "Udskriv",
     "view_source": "Vis kilde",
     "export_email": "Eksportér som .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Importér .eml eller .zip",
     "keyboard_shortcuts": "Tastaturgenveje (?)",
     "email_source": "E-mail-kilde",

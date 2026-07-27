@@ -245,6 +245,7 @@
     "print": "הדפס",
     "view_source": "צפה במקור",
     "export_email": "ייצא כ-.eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "ייבוא .eml",
     "keyboard_shortcuts": "קיצורי מקשים (?)",
     "email_source": "מקור דוא\"ל",

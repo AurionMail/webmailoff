@@ -298,6 +298,7 @@
     "print": "打印",
     "view_source": "查看源码",
     "export_email": "导出为 .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "导入 .eml 或 .zip",
     "keyboard_shortcuts": "键盘快捷键（？）",
     "email_source": "邮件源码",

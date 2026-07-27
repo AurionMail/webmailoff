@@ -298,6 +298,7 @@
     "print": "Print",
     "view_source": "View source",
     "export_email": "Export as .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Import .eml or .zip",
     "keyboard_shortcuts": "Keyboard shortcuts (?)",
     "email_source": "Email Source",

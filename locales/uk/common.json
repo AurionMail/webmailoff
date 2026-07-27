@@ -298,6 +298,7 @@
     "print": "Роздрукувати",
     "view_source": "Переглянути джерело",
     "export_email": "Експортувати як .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Імпорт .eml або .zip",
     "keyboard_shortcuts": "Комбінації клавіш (?)",
     "email_source": "Джерело електронної пошти",

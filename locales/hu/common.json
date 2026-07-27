@@ -298,6 +298,7 @@
     "print": "Nyomtatás",
     "view_source": "Forrás megtekintése",
     "export_email": "Exportálás .eml-ként",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Importálás .eml vagy .zip fájlból",
     "keyboard_shortcuts": "Billentyűparancsok (?)",
     "email_source": "E-mail forrás",

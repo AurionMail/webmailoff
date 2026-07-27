@@ -298,6 +298,7 @@
     "print": "Drukāt",
     "view_source": "Skatīt avota kodu",
     "export_email": "Eksportēt kā .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Importēt .eml vai .zip",
     "keyboard_shortcuts": "Īsinājumtaustiņi (?)",
     "email_source": "Vēstules avota kods",

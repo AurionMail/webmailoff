@@ -298,6 +298,7 @@
     "print": "Imprimeix",
     "view_source": "Mostra el codi font",
     "export_email": "Exporta com a .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Importa .eml o .zip",
     "keyboard_shortcuts": "Dreceres de teclat (?)",
     "email_source": "Codi font del correu",

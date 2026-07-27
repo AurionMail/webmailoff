@@ -77,6 +77,7 @@ import { appLifecycleHooks, uiHooks, routerHooks, toastHooks, emailHooks } from 
 import { emailToReadView } from "@/lib/plugin-projection";
 import { buildQuoteHeader } from "@/lib/quote-header";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
+import { buildForwardAsAttachmentPayload } from "@/lib/forward-as-attachment";
 import { getEffectiveLocale } from '@/i18n/detect-locale';
 import type { QuoteHeader } from "@/lib/plugin-types";
 
@@ -1534,6 +1535,52 @@ export default function Home() {
       setComposerQuoteHeader(null);
     }
     startFreshComposerSession();
+    setComposerMode('forward');
+    setShowComposer(true);
+    if (isMobile) setActiveView('viewer');
+  };
+
+  // Forward the original message as a message/rfc822 attachment instead of
+  // inline-quoted text - e.g. for reporting spam to an upstream gateway
+  // that expects the raw original as an attachment, or preserving exact
+  // formatting/headers the recipient needs to see untouched. Reuses the
+  // same attachment-carry-forward mechanism native Forward already uses
+  // for a forwarded message's own attachments (see the `attachments`
+  // useState initializer in email-composer.tsx) - we just add one more
+  // synthetic entry representing the whole original message, referenced
+  // by its existing blobId (no re-fetch/re-upload needed - JMAP blobs are
+  // account-scoped, not per-email). Skips prepareComposerQuoteHeader
+  // entirely, so the body starts blank instead of quoting the original.
+  const handleForwardAsAttachment = async () => {
+    if (!selectedEmail) return;
+    const payload = buildForwardAsAttachmentPayload(selectedEmail, t('email_composer.prefix.forward'));
+    if (!payload) return;
+
+    const ok = await emailHooks.onBeforeForward.intercept({
+      originalEmailId: selectedEmail.id,
+      originalEmail: emailToReadView(selectedEmail),
+      mode: 'forward' as const,
+    });
+    if (!ok) return;
+
+    startFreshComposerSession();
+    setPendingDraft({
+      to: "",
+      cc: "",
+      bcc: "",
+      subject: payload.subject,
+      body: "",
+      showCc: false,
+      showBcc: false,
+      selectedIdentityId: null,
+      subAddressTag: "",
+      mode: "forward",
+      draftId: null,
+      replyTo: {
+        subject: selectedEmail.subject,
+        attachments: [payload.attachment],
+      },
+    });
     setComposerMode('forward');
     setShowComposer(true);
     if (isMobile) setActiveView('viewer');
@@ -3436,6 +3483,7 @@ export default function Home() {
                     onReply={handleReply}
                     onReplyAll={handleReplyAll}
                     onForward={handleForward}
+                    onForwardAsAttachment={handleForwardAsAttachment}
                     onDelete={() => {
                       // Deleting the open message returns to the list (Gmail-style),
                       // not the next email — unless the user turned the setting off.
