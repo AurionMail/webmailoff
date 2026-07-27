@@ -41,7 +41,11 @@ export function buildForwardAsAttachmentPayload(
   if (!email.blobId) return null;
 
   return {
-    subject: buildForwardSubject(email.subject, forwardPrefix),
+    // Match the normal Forward flow's getInitialSubject(), which leaves the
+    // subject blank rather than prefix-only when the original has none -
+    // buildForwardSubject("", prefix) would otherwise return just the bare
+    // prefix (e.g. "Fwd:") for a subject-less message.
+    subject: email.subject ? buildForwardSubject(email.subject, forwardPrefix) : "",
     attachment: {
       blobId: email.blobId,
       name: emailExportFilename(email, filenameOptions),
