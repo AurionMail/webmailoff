@@ -785,7 +785,15 @@ export default function Home() {
   // This makes the Pro composer behave like Thunderbird's pop-out window.
   useEffect(() => {
     if (!isEmbedded || !showComposer) return;
-    const replyTo = selectedEmail ? {
+    // pendingDraft.replyTo, when set, was built by the opener (e.g.
+    // handleForwardAsAttachment) with intent that must survive the hop into
+    // the Pro tab - mirrors the same precedence the non-embedded render path
+    // uses just below (`replyTo={pendingDraft !== null ? pendingDraft.replyTo
+    // : ...}`). Building fresh from selectedEmail unconditionally here would
+    // silently drop that intent (e.g. the synthetic message/rfc822
+    // attachment "Forward as attachment" stages), falling back to a normal
+    // quoted forward instead.
+    const replyTo = pendingDraft?.replyTo ?? (selectedEmail ? {
       from: selectedEmail.from,
       replyToAddresses: selectedEmail.replyTo,
       to: selectedEmail.to,
@@ -801,7 +809,7 @@ export default function Home() {
       quoteHeaderHtml: composerQuoteHeader?.html,
       quoteHeaderText: composerQuoteHeader?.text,
       quoteWrapInBlockquote: composerQuoteHeader?.wrapInBlockquote,
-    } : undefined;
+    } : undefined);
 
     const effectiveMode = pendingDraft?.mode ?? composerMode;
     const baseSubject = (pendingDraft?.subject?.trim() || selectedEmail?.subject?.trim()) ?? '';
