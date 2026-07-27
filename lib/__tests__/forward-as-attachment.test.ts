@@ -45,4 +45,14 @@ describe('buildForwardAsAttachmentPayload', () => {
     const payload = buildForwardAsAttachmentPayload(email, 'Fwd:');
     expect(payload?.subject).toBe('Fwd: already forwarded once');
   });
+
+  it('honors a custom filename template, matching "Export as .eml" naming instead of always using the default', () => {
+    const email = makeEmail({ subject: 'Missed spam example' });
+    const payload = buildForwardAsAttachmentPayload(email, 'Fwd:', {
+      template: 'custom-{subject}',
+      lowercase: true,
+      spaceReplacement: 'dash',
+    });
+    expect(payload?.attachment.name).toBe('custom-missed-spam-example.eml');
+  });
 });

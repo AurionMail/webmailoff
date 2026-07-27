@@ -1,6 +1,6 @@
 import type { Email } from "@/lib/jmap/types";
 import { buildForwardSubject } from "@/lib/subject-prefix";
-import { emailExportFilename } from "@/lib/download-filename";
+import { emailExportFilename, type EmailFilenameOptions } from "@/lib/download-filename";
 
 export interface ForwardAsAttachmentEntry {
   blobId: string;
@@ -24,11 +24,19 @@ export interface ForwardAsAttachmentPayload {
  * not per-email, so the same blobId a message already has can be attached
  * to a brand new outgoing email directly.
  *
+ * `filenameOptions`, when passed, should be the same options the caller
+ * uses for "Export as .eml" / drag-out (the user's configured filename
+ * template, space/case/diacritics transforms - see
+ * useSettingsStore's emailDownloadTemplate and friends), so the two
+ * actions produce consistent filenames for the same message. Falls back
+ * to emailExportFilename's own default template when omitted.
+ *
  * Returns null when the email has no blobId (nothing to reference).
  */
 export function buildForwardAsAttachmentPayload(
   email: Email,
   forwardPrefix: string,
+  filenameOptions?: EmailFilenameOptions,
 ): ForwardAsAttachmentPayload | null {
   if (!email.blobId) return null;
 
@@ -36,7 +44,7 @@ export function buildForwardAsAttachmentPayload(
     subject: buildForwardSubject(email.subject, forwardPrefix),
     attachment: {
       blobId: email.blobId,
-      name: emailExportFilename(email),
+      name: emailExportFilename(email, filenameOptions),
       type: "message/rfc822",
       size: email.size,
     },

@@ -1561,7 +1561,24 @@ export default function Home() {
   // entirely, so the body starts blank instead of quoting the original.
   const handleForwardAsAttachment = async () => {
     if (!selectedEmail) return;
-    const payload = buildForwardAsAttachmentPayload(selectedEmail, t('email_composer.prefix.forward'));
+    // Same filename options "Export as .eml" uses (see emailFilenameOptions
+    // in email-viewer.tsx), so the two actions produce consistent filenames
+    // for the same message rather than the synthetic attachment silently
+    // ignoring the user's configured naming template.
+    const {
+      emailDownloadTemplate,
+      filenameSpaceReplacement,
+      filenameLowercase,
+      filenameStripDiacritics,
+      filenameCollapseSeparators,
+    } = useSettingsStore.getState();
+    const payload = buildForwardAsAttachmentPayload(selectedEmail, t('email_composer.prefix.forward'), {
+      template: emailDownloadTemplate,
+      spaceReplacement: filenameSpaceReplacement,
+      lowercase: filenameLowercase,
+      stripDiacritics: filenameStripDiacritics,
+      collapseSeparators: filenameCollapseSeparators,
+    });
     if (!payload) return;
 
     const ok = await emailHooks.onBeforeForward.intercept({
