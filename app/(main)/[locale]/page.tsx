@@ -1559,8 +1559,16 @@ export default function Home() {
   // by its existing blobId (no re-fetch/re-upload needed - JMAP blobs are
   // account-scoped, not per-email). Skips prepareComposerQuoteHeader
   // entirely, so the body starts blank instead of quoting the original.
-  const handleForwardAsAttachment = async () => {
-    if (!selectedEmail) return;
+  // Takes an explicit `email` (defaulting to selectedEmail), same pattern
+  // handleDelete uses just below, rather than always reading selectedEmail
+  // from this closure - callers that just called selectEmail(email) and
+  // invoke this synchronously in the same tick would otherwise see the
+  // PRE-update value (the Zustand store updates immediately, but this
+  // render's selectedEmail closure doesn't until the next render),
+  // forwarding the previously selected message or no-op'ing on an
+  // unselected row. See the list context-menu wiring below.
+  const handleForwardAsAttachment = async (email: Email | null = selectedEmail) => {
+    if (!email) return;
     // Same filename options "Export as .eml" uses (see emailFilenameOptions
     // in email-viewer.tsx), so the two actions produce consistent filenames
     // for the same message rather than the synthetic attachment silently
@@ -1572,7 +1580,7 @@ export default function Home() {
       filenameStripDiacritics,
       filenameCollapseSeparators,
     } = useSettingsStore.getState();
-    const payload = buildForwardAsAttachmentPayload(selectedEmail, t('email_composer.prefix.forward'), {
+    const payload = buildForwardAsAttachmentPayload(email, t('email_composer.prefix.forward'), {
       template: emailDownloadTemplate,
       spaceReplacement: filenameSpaceReplacement,
       lowercase: filenameLowercase,
@@ -1582,8 +1590,8 @@ export default function Home() {
     if (!payload) return;
 
     const ok = await emailHooks.onBeforeForward.intercept({
-      originalEmailId: selectedEmail.id,
-      originalEmail: emailToReadView(selectedEmail),
+      originalEmailId: email.id,
+      originalEmail: emailToReadView(email),
       mode: 'forward' as const,
     });
     if (!ok) return;
@@ -1602,7 +1610,7 @@ export default function Home() {
       mode: "forward",
       draftId: null,
       replyTo: {
-        subject: selectedEmail.subject,
+        subject: email.subject,
         attachments: [payload.attachment],
       },
     });
@@ -3280,7 +3288,7 @@ export default function Home() {
                 }}
                 onForwardAsAttachment={(email) => {
                   selectEmail(email);
-                  handleForwardAsAttachment();
+                  handleForwardAsAttachment(email);
                 }}
                 onMarkAsRead={async (email, read) => {
                   if (client) {
