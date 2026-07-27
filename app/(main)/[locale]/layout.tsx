@@ -7,6 +7,7 @@ import { RateLimitToastProvider } from "@/components/providers/rate-limit-toast-
 import { TourProvider } from "@/components/tour/tour-provider";
 import { ProtocolLaunchHandlerProvider } from "@/components/protocol/protocol-launch-handler-provider";
 import { ProInterfaceRedirect } from "@/components/pro/pro-interface-redirect";
+import { ImpersonationReconciler } from "@/components/impersonation/impersonation-reconciler";
 import { PluginDialogHost } from "@/components/plugins/plugin-dialog-host";
 import { PluginConsentDialog } from "@/components/plugins/plugin-consent-dialog";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
@@ -39,6 +40,7 @@ export default async function LocaleLayout({
               <TourProvider>
                 <ProtocolLaunchHandlerProvider>
                   <ProInterfaceRedirect />
+                  <ImpersonationReconciler />
                   {children}
                   <PluginDialogHost />
                   <PluginConsentDialog />
