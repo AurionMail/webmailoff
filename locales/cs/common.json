@@ -298,6 +298,7 @@
     "print": "Tisk",
     "view_source": "Zobrazit zdrojový kód",
     "export_email": "Exportovat jako .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Importovat .eml nebo .zip",
     "keyboard_shortcuts": "Klávesové zkratky (?)",
     "email_source": "Zdrojový kód zprávy",

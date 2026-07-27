@@ -298,6 +298,7 @@
     "print": "Yazdır",
     "view_source": "Kaynağı görüntüle",
     "export_email": ".eml olarak dışa aktar",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml veya .zip içe aktar",
     "keyboard_shortcuts": "Klavye kısayolları (?)",
     "email_source": "E-posta Kaynağı",

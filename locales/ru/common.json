@@ -298,6 +298,7 @@
     "print": "Распечатать",
     "view_source": "Просмотреть исходный код",
     "export_email": "Экспортировать как .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Импортировать .eml или .zip",
     "keyboard_shortcuts": "Сочетания клавиш (?)",
     "email_source": "Исходный код письма",

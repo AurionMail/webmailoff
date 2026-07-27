@@ -298,6 +298,7 @@
     "print": "Afdrukken",
     "view_source": "Bron bekijken",
     "export_email": "Exporteren als .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml of .zip importeren",
     "keyboard_shortcuts": "Sneltoetsen (?)",
     "email_source": "E-mailbron",

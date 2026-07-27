@@ -298,6 +298,7 @@
     "print": "چاپ",
     "view_source": "مشاهده منبع",
     "export_email": "خروجی .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "وارد کردن .eml یا .zip",
     "keyboard_shortcuts": "میانبرهای صفحه کلید (?)",
     "email_source": "منبع ایمیل",

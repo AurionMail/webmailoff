@@ -298,6 +298,7 @@
     "print": "Imprimare",
     "view_source": "Vizualizați sursa",
     "export_email": "Exportați ca fișier .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "Importați fișiere .eml sau .zip",
     "keyboard_shortcuts": "Comenzi rapide de la tastatură (?)",
     "email_source": "Sursa e-mailului",
