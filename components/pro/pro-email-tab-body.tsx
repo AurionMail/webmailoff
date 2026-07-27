@@ -15,6 +15,7 @@ import { useProTabStore, type ProEmailTabData, type ProReplyContext } from "@/st
 import type { Email } from "@/lib/jmap/types";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
 import { getQuoteBodies } from "@/lib/email-composer-utils";
+import { buildForwardAsAttachmentPayload } from "@/lib/forward-as-attachment";
 
 interface ProEmailTabBodyProps {
   tabId: string;
@@ -133,6 +134,44 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
       replyTo: buildReplyContext(email),
       sourceEmailId: email.id,
       title: buildForwardSubject(email.subject || t('email_composer.new_message'), t('email_composer.prefix.forward')),
+    });
+  }, [email, openComposeTab, t]);
+
+  // Mirrors handleForward, but attaches the original as a message/rfc822
+  // file instead of quoting it inline - see lib/forward-as-attachment.ts.
+  // This is a separate, self-contained render path from the main Mail
+  // tab's EmailViewer (page.tsx) - Pro tabs fetch their own `email` and
+  // open compose tabs directly via useProTabStore, not through
+  // page.tsx's pendingDraft/selectedEmail plumbing - so it needed its own
+  // wiring rather than falling out of the page.tsx fix automatically.
+  const handleForwardAsAttachment = useCallback(() => {
+    if (!email) return;
+    const {
+      emailDownloadTemplate,
+      filenameSpaceReplacement,
+      filenameLowercase,
+      filenameStripDiacritics,
+      filenameCollapseSeparators,
+    } = useSettingsStore.getState();
+    const payload = buildForwardAsAttachmentPayload(email, t('email_composer.prefix.forward'), {
+      template: emailDownloadTemplate,
+      spaceReplacement: filenameSpaceReplacement,
+      lowercase: filenameLowercase,
+      stripDiacritics: filenameStripDiacritics,
+      collapseSeparators: filenameCollapseSeparators,
+    });
+    if (!payload) return;
+
+    composerSessionIdRef.current += 1;
+    openComposeTab({
+      sessionId: composerSessionIdRef.current,
+      mode: 'forward',
+      replyTo: {
+        subject: email.subject,
+        attachments: [payload.attachment],
+      },
+      sourceEmailId: email.id,
+      title: payload.subject,
     });
   }, [email, openComposeTab, t]);
 
@@ -283,6 +322,7 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
           onReply={handleReply}
           onReplyAll={handleReplyAll}
           onForward={handleForward}
+          onForwardAsAttachment={handleForwardAsAttachment}
           onDelete={handleDelete}
           onArchive={handleArchive}
           onToggleStar={handleToggleStar}
