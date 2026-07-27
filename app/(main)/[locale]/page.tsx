@@ -3261,6 +3261,10 @@ export default function Home() {
                   selectEmail(email);
                   handleForward();
                 }}
+                onForwardAsAttachment={(email) => {
+                  selectEmail(email);
+                  handleForwardAsAttachment();
+                }}
                 onMarkAsRead={async (email, read) => {
                   if (client) {
                     await markAsRead(client, email.id, read);

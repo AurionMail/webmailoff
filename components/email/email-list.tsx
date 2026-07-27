@@ -33,6 +33,7 @@ interface EmailListProps {
   onReply?: (email: Email) => void;
   onReplyAll?: (email: Email) => void;
   onForward?: (email: Email) => void;
+  onForwardAsAttachment?: (email: Email) => void;
   onMarkAsRead?: (email: Email, read: boolean) => void;
   onToggleStar?: (email: Email) => void;
   onTogglePinned?: (email: Email) => void;
@@ -63,6 +64,7 @@ export function EmailList({
   onReply,
   onReplyAll,
   onForward,
+  onForwardAsAttachment,
   onMarkAsRead,
   onToggleStar,
   onTogglePinned,
@@ -583,6 +585,7 @@ export function EmailList({
           onReply={() => onReply?.(contextMenu.data!)}
           onReplyAll={() => onReplyAll?.(contextMenu.data!)}
           onForward={() => onForward?.(contextMenu.data!)}
+          onForwardAsAttachment={() => onForwardAsAttachment?.(contextMenu.data!)}
           onMarkAsRead={(read) => onMarkAsRead?.(contextMenu.data!, read)}
           onToggleStar={() => onToggleStar?.(contextMenu.data!)}
           onTogglePinned={onTogglePinned ? () => onTogglePinned(contextMenu.data!) : undefined}
