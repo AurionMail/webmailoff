@@ -171,7 +171,13 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
         attachments: [payload.attachment],
       },
       sourceEmailId: email.id,
-      title: payload.subject,
+      // payload.subject is intentionally blank for a subject-less email (to
+      // match normal Forward's *composer* subject behavior - see
+      // buildForwardAsAttachmentPayload). The Pro tab *title* is a separate
+      // UI label that still needs a sensible fallback, same as handleForward
+      // above uses - reusing payload.subject here would give the tab an
+      // empty title instead of e.g. "Fwd: New message".
+      title: buildForwardSubject(email.subject || t('email_composer.new_message'), t('email_composer.prefix.forward')),
     });
   }, [email, openComposeTab, t]);
 
