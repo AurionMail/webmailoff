@@ -3344,7 +3344,7 @@ export function EmailViewer({
               )}
               <div className="h-px bg-border my-1" />
               {/* Forward as attachment */}
-              {onForwardAsAttachment && (
+              {onForwardAsAttachment && email?.blobId && (
                 <button
                   onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                   className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
@@ -3475,7 +3475,7 @@ export function EmailViewer({
                 </button>
               )}
               <div className="h-px bg-border my-1" />
-              {onForwardAsAttachment && (
+              {onForwardAsAttachment && email?.blobId && (
                 <button
                   onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); }}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
