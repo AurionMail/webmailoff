@@ -38,6 +38,9 @@ import {
 } from "lucide-react";
 import { cn, buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
+import { buildKeywordTree, hasChildKeywords, type KeywordNode } from "@/lib/keyword-nesting";
+import { useShortenedText } from "@/hooks/use-shortened-text";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
 import { isEditableEventTarget } from "@/lib/keyboard";
 import { Mailbox } from "@/lib/jmap/types";
 import { useContextMenu } from "@/hooks/use-context-menu";
@@ -51,7 +54,7 @@ import { useTagDrop } from "@/hooks/use-tag-drop";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useVacationStore } from "@/stores/vacation-store";
-import { useSettingsStore, KEYWORD_PALETTE, KeywordDefinition } from "@/stores/settings-store";
+import { useSettingsStore, KEYWORD_PALETTE } from "@/stores/settings-store";
 import { useEmailStore } from "@/stores/email-store";
 import { toast } from "@/stores/toast-store";
 import { debug } from "@/lib/debug";
@@ -241,6 +244,9 @@ function SidebarRowCounts({
 interface SidebarRowProps {
   icon: ReactNode;
   label: string;
+  /** Progressively shorter renderings of `label`, longest first. The widest one
+   *  that fits the row is shown; without this the full label is used. */
+  labelCandidates?: string[];
   depth?: number;
   isSelected?: boolean;
   isVirtual?: boolean;
@@ -266,6 +272,7 @@ interface SidebarRowProps {
 function SidebarRow({
   icon,
   label,
+  labelCandidates,
   depth = 0,
   isSelected = false,
   isVirtual = false,
@@ -288,6 +295,7 @@ function SidebarRow({
 }: SidebarRowProps) {
   const t = useTranslations('sidebar');
   const leftPad = isCollapsed ? 0 : ROW_PX_BASE + depth * INDENT_STEP;
+  const [labelRef, shortenedLabel] = useShortenedText(labelCandidates ?? [label]);
 
   return (
     <div
@@ -353,7 +361,7 @@ function SidebarRow({
         </span>
         {!isCollapsed && (
           <>
-            <span className="flex-1 truncate">{label}</span>
+            <span ref={labelRef} className="flex-1 truncate">{shortenedLabel}</span>
             <SidebarRowCounts
               unread={unread}
               total={total}
@@ -559,42 +567,54 @@ const TAG_ICON_COLOR: Record<string, string> = {
 };
 
 function TagItem({
-  kw,
-  isSelected,
+  node,
+  selectedKeyword,
+  expandedTags,
   isCollapsed,
   onTagSelect,
-  totalCount,
-  unreadCount,
+  onToggleExpand,
+  tagCounts,
   colorful,
 }: {
-  kw: KeywordDefinition;
-  isSelected: boolean;
+  node: KeywordNode;
+  selectedKeyword: string | null;
+  expandedTags: Set<string>;
   isCollapsed: boolean;
   onTagSelect?: (keywordId: string | null) => void;
-  totalCount: number;
-  unreadCount: number;
+  onToggleExpand: (keywordId: string) => void;
+  tagCounts: Record<string, { total: number; unread: number }>;
   colorful: boolean;
 }) {
   const t = useTranslations('notifications');
-  const palette = KEYWORD_PALETTE[kw.color];
+  const { tagNameCandidates } = useKeywordFormat();
+  const palette = KEYWORD_PALETTE[node.color];
+  const hasChildren = node.children.length > 0;
+  const isExpanded = expandedTags.has(node.id);
+  const isSelected = selectedKeyword === node.id;
+  // Nested rows are placed by their indentation, so they show their own name.
+  // A root spells out its path, which matters when an intermediate tag is
+  // missing from this client's settings and the row would otherwise read as a
+  // bare leaf name. Toasts have the room for the whole thing.
+  const labelCandidates = node.depth === 0 ? tagNameCandidates(node.id) : [node.label];
+  const label = labelCandidates[0];
   const { isDragging: globalDragging } = useDragDropContext();
   const { dropHandlers, isValidDropTarget } = useTagDrop({
-    tagId: kw.id,
-    onSuccess: (count, _tagLabel) => {
+    tagId: node.id,
+    onSuccess: (count) => {
       if (count === 1) {
-        toast.success(t('email_tagged'), kw.label);
+        toast.success(t('email_tagged'), label);
       } else {
-        toast.success(t('emails_tagged', { count }), kw.label);
+        toast.success(t('emails_tagged', { count }), label);
       }
     },
     onError: () => {
-      toast.error(t('tag_failed'), kw.label);
+      toast.error(t('tag_failed'), label);
     },
   });
 
   const tagIcon = colorful ? (
     <Tag
-      className={cn("w-4 h-4 flex-shrink-0", TAG_ICON_COLOR[kw.color] || "text-muted-foreground")}
+      className={cn("w-4 h-4 flex-shrink-0", TAG_ICON_COLOR[node.color] || "text-muted-foreground")}
       fill="currentColor"
     />
   ) : (
@@ -602,18 +622,38 @@ function TagItem({
   );
 
   return (
-    <SidebarRow
-      icon={tagIcon}
-      label={kw.label}
-      depth={0}
-      isSelected={isSelected}
-      unread={unreadCount}
-      total={totalCount}
-      onClick={() => onTagSelect?.(isSelected ? null : kw.id)}
-      isCollapsed={isCollapsed}
-      dropHandlers={globalDragging ? (dropHandlers as Record<string, unknown>) : undefined}
-      isValidDropTarget={isValidDropTarget}
-    />
+    <>
+      <SidebarRow
+        icon={tagIcon}
+        label={label}
+        labelCandidates={labelCandidates}
+        depth={node.depth}
+        isSelected={isSelected}
+        unread={tagCounts[node.id]?.unread ?? 0}
+        total={tagCounts[node.id]?.total ?? 0}
+        onClick={() => onTagSelect?.(isSelected ? null : node.id)}
+        hasChildren={hasChildren}
+        isExpanded={isExpanded}
+        onExpandToggle={() => onToggleExpand(node.id)}
+        isCollapsed={isCollapsed}
+        dropHandlers={globalDragging ? (dropHandlers as Record<string, unknown>) : undefined}
+        isValidDropTarget={isValidDropTarget}
+      />
+
+      {hasChildren && isExpanded && !isCollapsed && node.children.map((child) => (
+        <TagItem
+          key={child.id}
+          node={child}
+          selectedKeyword={selectedKeyword}
+          expandedTags={expandedTags}
+          isCollapsed={isCollapsed}
+          onTagSelect={onTagSelect}
+          onToggleExpand={onToggleExpand}
+          tagCounts={tagCounts}
+          colorful={colorful}
+        />
+      ))}
+    </>
   );
 }
 
@@ -737,6 +777,7 @@ export function Sidebar({
   const { sidebarCollapsed: isCollapsed, toggleSidebarCollapsed } = useUIStore();
   const { primaryIdentity: _primaryIdentity, activeAccountId } = useAuthStore();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
   const [foldersExpanded, setFoldersExpanded] = useState(() => {
     try {
       const stored = localStorage.getItem('sidebarFoldersExpanded');
@@ -779,6 +820,7 @@ export function Sidebar({
     return new Set();
   });
   const emailKeywords = useSettingsStore(s => s.emailKeywords);
+  const nestedTags = useSettingsStore(s => s.nestedTags);
   const isEmbedded = useIsEmbedded();
   // The Pro shell owns the global chrome (rail + tab bar), so the sidebar's
   // own AccountSwitcher would be a redundant second account UI in the same
@@ -842,6 +884,37 @@ export function Sidebar({
     });
   };
 
+  useEffect(() => {
+    const stored = localStorage.getItem('expandedTags');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setExpandedTags(new Set(parsed));
+      } catch (e) {
+        debug.error('Failed to parse expanded tags:', e);
+      }
+    } else {
+      setExpandedTags(
+        new Set(emailKeywords.filter((kw) => hasChildKeywords(kw.id, emailKeywords)).map((kw) => kw.id))
+      );
+    }
+  }, [emailKeywords]);
+
+  const handleToggleTagExpand = (keywordId: string) => {
+    setExpandedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(keywordId)) {
+        next.delete(keywordId);
+      } else {
+        next.add(keywordId);
+      }
+      try {
+        localStorage.setItem('expandedTags', JSON.stringify(Array.from(next)));
+      } catch { /* storage full or unavailable */ }
+      return next;
+    });
+  };
+
   // When the app renders its own virtual "Scheduled" folder (for delayed
   // sends, driven by EmailSubmission), hide the server-provided scheduled
   // mailbox (e.g. Stalwart's auto-created Scheduled folder, role === 'scheduled')
@@ -851,6 +924,13 @@ export function Sidebar({
   const mailboxTree = buildMailboxTree(mailboxes);
   const ownTree = mailboxTree.filter(n => !n.id.startsWith('shared-account-') && !isServerScheduledNode(n));
   const sharedAccounts = mailboxTree.filter(n => n.id.startsWith('shared-account-'));
+
+  // With nesting off every tag is its own root, so the same rows render through
+  // one path whether or not the ids describe a hierarchy.
+  const tagTree: KeywordNode[] = nestedTags
+    ? buildKeywordTree(emailKeywords)
+    : emailKeywords.map((kw) => ({ ...kw, children: [], depth: 0 }));
+
 
   // Multi-account mode (Pro shell): render every connected account as its
   // own collapsible group. The active account's tree comes from the
@@ -1265,15 +1345,16 @@ export function Sidebar({
             />
             {((tagsExpanded && !isCollapsed) || isCollapsed) && (
               <>
-                {emailKeywords.map((kw) => (
+                {tagTree.map((node) => (
                   <TagItem
-                    key={kw.id}
-                    kw={kw}
-                    isSelected={selectedKeyword === kw.id}
+                    key={node.id}
+                    node={node}
+                    selectedKeyword={selectedKeyword}
+                    expandedTags={expandedTags}
                     isCollapsed={isCollapsed}
                     onTagSelect={onTagSelect}
-                    totalCount={tagCounts[kw.id]?.total ?? 0}
-                    unreadCount={tagCounts[kw.id]?.unread ?? 0}
+                    onToggleExpand={handleToggleTagExpand}
+                    tagCounts={tagCounts}
                     colorful={colorfulSidebarIcons}
                   />
                 ))}

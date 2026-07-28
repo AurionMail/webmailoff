@@ -2,12 +2,30 @@
 
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useSettingsStore, KEYWORD_PALETTE, DEFAULT_KEYWORDS, type KeywordDefinition } from "@/stores/settings-store";
+import {
+  useSettingsStore,
+  KEYWORD_PALETTE,
+  DEFAULT_KEYWORDS,
+  type KeywordDefinition,
+} from "@/stores/settings-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
-import { SettingsSection } from "./settings-section";
+import { SettingsSection, SettingItem, ToggleSwitch, Select } from "./settings-section";
 import { Plus, Pencil, Trash2, GripVertical, Check, X, RotateCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { KEYWORD_PREFIX } from "@/lib/thread-utils";
+import {
+  buildKeywordTree,
+  composeKeywordId,
+  getParentKeywordId,
+  hasChildKeywords,
+  isKeywordDescendant,
+  keywordLevels,
+  type KeywordNode,
+  MAX_KEYWORD_ID_LENGTH,
+} from "@/lib/keyword-nesting";
+import { formatKeyword, formatKeywordLabels, keywordRenderings } from "@/lib/keyword-format";
+import { useShortenedText } from "@/hooks/use-shortened-text";
 
 const PALETTE_KEYS = Object.keys(KEYWORD_PALETTE);
 
@@ -39,6 +57,8 @@ function KeywordColorPicker({
 
 function KeywordRow({
   keyword,
+  keywords,
+  nestedTags,
   onEdit,
   onDelete,
   onDragStart,
@@ -49,6 +69,8 @@ function KeywordRow({
   isDragging,
 }: {
   keyword: KeywordDefinition;
+  keywords: KeywordDefinition[];
+  nestedTags: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onDragStart: () => void;
@@ -60,6 +82,13 @@ function KeywordRow({
 }) {
   const t = useTranslations("settings.keywords");
   const palette = KEYWORD_PALETTE[keyword.color];
+  const hasChildren = hasChildKeywords(keyword.id, keywords);
+  const nameCandidates = keywordRenderings(formatKeywordLabels(keyword.id, keywords, nestedTags));
+  const [nameRef, shortenedName] = useShortenedText(nameCandidates);
+  // Measured with the prefix attached, since that is what occupies the column.
+  const keywordCandidates = (nestedTags ? keywordRenderings(keywordLevels(keyword.id)) : [keyword.id])
+    .map((rendering) => KEYWORD_PREFIX + rendering);
+  const [keywordRef, shortenedKeyword] = useShortenedText(keywordCandidates);
 
   return (
     <div
@@ -76,8 +105,20 @@ function KeywordRow({
     >
       <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-50 cursor-grab" />
       <div className={cn("w-5 h-5 rounded-full shrink-0", palette?.dot || "bg-gray-500")} />
-      <span className="flex-1 text-sm font-medium truncate">{keyword.label}</span>
-      <span className="text-xs text-muted-foreground font-mono">{"$label:" + keyword.id}</span>
+      <span
+        ref={nameRef}
+        className="flex-1 min-w-0 text-sm font-medium truncate"
+        title={formatKeyword(keyword.id, keywords, nestedTags)}
+      >
+        {shortenedName}
+      </span>
+      <span
+        ref={keywordRef}
+        className="hidden md:block min-w-0 max-w-52 truncate text-xs text-muted-foreground font-mono"
+        title={KEYWORD_PREFIX + keyword.id}
+      >
+        {shortenedKeyword}
+      </span>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           type="button"
@@ -90,8 +131,9 @@ function KeywordRow({
         <button
           type="button"
           onClick={onDelete}
-          className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-          title={t("delete")}
+          disabled={hasChildren}
+          className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+          title={hasChildren ? t("has_children_delete") : t("delete")}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -102,37 +144,74 @@ function KeywordRow({
 
 function KeywordEditForm({
   initial,
+  keywords,
   existingIds,
+  nestedTags,
   onSave,
   onCancel,
 }: {
   initial?: KeywordDefinition;
+  keywords: KeywordDefinition[];
   existingIds: string[];
+  nestedTags: boolean;
   onSave: (keyword: KeywordDefinition) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations("settings.keywords");
   const [label, setLabel] = useState(initial?.label || "");
   const [color, setColor] = useState(initial?.color || "blue");
+  const [parentId, setParentId] = useState(initial ? getParentKeywordId(initial.id) ?? "" : "");
   const isEditing = !!initial;
 
-  const normalizedId = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+  // Renaming or re-parenting a tag rewrites the keyword on every message below
+  // it, and this client only knows about the tags in its own settings - the
+  // server may hold nested keywords created elsewhere. Freeze the identity of a
+  // tag that has children and allow the color to change.
+  const isLocked = !!initial && hasChildKeywords(initial.id, keywords);
 
+  const normalizedId = isLocked && initial ? initial.id : composeKeywordId(parentId || null, label);
   const isDuplicate = normalizedId.length > 0 && existingIds.includes(normalizedId);
-  const isValid = normalizedId.length > 0 && label.trim().length > 0 && !isDuplicate;
+  const isTooLong = normalizedId.length > MAX_KEYWORD_ID_LENGTH;
+  const isValid = normalizedId.length > 0 && label.trim().length > 0 && !isDuplicate && !isTooLong;
+
+  // Every tag is a candidate parent except the one being edited and anything
+  // already below it, which would detach the branch from its own root.
+  const parentOptions: { value: string; label: string }[] = [{ value: "", label: t("no_parent") }];
+  const collectParentOptions = (nodes: KeywordNode[]) => {
+    for (const node of nodes) {
+      if (initial && (node.id === initial.id || isKeywordDescendant(node.id, initial.id))) continue;
+      parentOptions.push({ value: node.id, label: formatKeyword(node.id, keywords, true) });
+      collectParentOptions(node.children);
+    }
+  };
+  collectParentOptions(buildKeywordTree(keywords));
 
   const handleSave = () => {
     if (!isValid) return;
+    if (isLocked && initial) {
+      onSave({ ...initial, color });
+      return;
+    }
     onSave({ id: normalizedId, label: label.trim(), color });
   };
 
   return (
     <div className="space-y-3 p-3 rounded-md border border-primary/30 bg-accent/30">
+      {nestedTags && (
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+            {t("parent_field")}
+          </label>
+          <Select
+            value={parentId}
+            onChange={setParentId}
+            options={parentOptions}
+            disabled={isLocked}
+            ariaLabel={t("parent_field")}
+            className="w-full"
+          />
+        </div>
+      )}
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-1 block">
           {t("label_field")}
@@ -141,14 +220,28 @@ function KeywordEditForm({
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          className="w-full px-2.5 py-1.5 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          disabled={isLocked}
+          className="w-full px-2.5 py-1.5 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           placeholder={t("label_placeholder")}
           autoFocus
           maxLength={30}
           onKeyDown={(e) => e.key === "Enter" && handleSave()}
         />
+        {nestedTags && normalizedId.length > 0 && (
+          <p className="text-xs text-muted-foreground font-mono mt-1 break-all">
+            {KEYWORD_PREFIX + normalizedId}
+          </p>
+        )}
+        {isLocked && (
+          <p className="text-xs text-muted-foreground mt-1">{t("has_children_locked")}</p>
+        )}
         {isDuplicate && (
           <p className="text-xs text-destructive mt-1">{t("id_exists")}</p>
+        )}
+        {isTooLong && (
+          <p className="text-xs text-destructive mt-1">
+            {t("too_long", { max: MAX_KEYWORD_ID_LENGTH })}
+          </p>
         )}
       </div>
       <div>
@@ -182,7 +275,7 @@ function KeywordEditForm({
 
 export function KeywordSettings() {
   const t = useTranslations("settings.keywords");
-  const { emailKeywords, addKeyword, updateKeyword, renameKeyword, removeKeyword, reorderKeywords } =
+  const { emailKeywords, nestedTags, addKeyword, updateKeyword, renameKeyword, removeKeyword, reorderKeywords, updateSetting } =
     useSettingsStore();
   const { client } = useAuthStore();
   const { fetchTagCounts } = useEmailStore();
@@ -266,6 +359,13 @@ export function KeywordSettings() {
 
   return (
     <SettingsSection title={t("title")} description={t("description")}>
+      <SettingItem label={t("nesting.label")} description={t("nesting.description")}>
+        <ToggleSwitch
+          checked={nestedTags}
+          onChange={(checked) => updateSetting("nestedTags", checked)}
+        />
+      </SettingItem>
+
       <div className="space-y-2">
         {isMigrating && (
           <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground bg-accent/50 rounded-md">
@@ -278,7 +378,9 @@ export function KeywordSettings() {
             <KeywordEditForm
               key={keyword.id}
               initial={keyword}
+              keywords={emailKeywords}
               existingIds={existingIds.filter((id) => id !== keyword.id)}
+              nestedTags={nestedTags}
               onSave={handleEdit}
               onCancel={() => setEditingId(null)}
             />
@@ -286,6 +388,8 @@ export function KeywordSettings() {
             <KeywordRow
               key={keyword.id}
               keyword={keyword}
+              keywords={emailKeywords}
+              nestedTags={nestedTags}
               onEdit={() => {
                 setEditingId(keyword.id);
                 setIsAdding(false);
@@ -303,7 +407,9 @@ export function KeywordSettings() {
 
         {isAdding ? (
           <KeywordEditForm
+            keywords={emailKeywords}
             existingIds={existingIds}
+            nestedTags={nestedTags}
             onSave={handleAdd}
             onCancel={() => setIsAdding(false)}
           />

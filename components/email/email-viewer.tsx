@@ -12,6 +12,8 @@ import { withBasePath } from "@/lib/browser-navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { formatFileSize, cn, buildMailboxTree, MailboxNode, formatDateTime, generateUUID } from "@/lib/utils";
+import { TagOptionLabel } from "./tag-option-label";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
 import { getSecurityStatus, extractListHeaders } from "@/lib/email-headers";
 import { emailToReadView } from "@/lib/plugin-projection";
 import { generateEmailSource } from "@/lib/email-source";
@@ -667,6 +669,7 @@ export function EmailViewer({
   const isTrustedAddressBookSender = useContactStore((state) => state.isTrustedAddressBookSender);
   const addToTrustedSendersBook = useContactStore((state) => state.addToTrustedSendersBook);
   const emailKeywords = useSettingsStore((state) => state.emailKeywords);
+  const { tagName, tagNameCandidates } = useKeywordFormat();
   const toolbarPosition = useSettingsStore((state) => state.toolbarPosition);
   const showToolbarLabels = useSettingsStore((state) => state.showToolbarLabels);
   const mailLayout = useSettingsStore((state) => state.mailLayout);
@@ -711,7 +714,7 @@ export function EmailViewer({
 
   // Color options for email tags (from user-defined keyword settings)
   const colorOptions = emailKeywords.map((kw) => ({
-    name: kw.label,
+    candidates: tagNameCandidates(kw.id),
     value: kw.id,
     color: KEYWORD_PALETTE[kw.color]?.dot || 'bg-gray-500',
   }));
@@ -3012,9 +3015,10 @@ export function EmailViewer({
                   })}
                 </span>
                 {showToolbarLabels && currentColors.length === 1 && (
-                  <span className="text-xs font-medium text-foreground">
-                    {emailKeywords.find(k => k.id === currentColors[0])?.label ?? currentColors[0]}
-                  </span>
+                  <TagOptionLabel
+                    candidates={tagNameCandidates(currentColors[0])}
+                    className="max-w-40 text-xs font-medium text-foreground"
+                  />
                 )}
               </>
             ) : (
@@ -3038,7 +3042,7 @@ export function EmailViewer({
                     )}
                   >
                     <span className={cn("w-3 h-3 rounded-full flex-shrink-0", option.color)} />
-                    <span className="truncate">{option.name}</span>
+                    <TagOptionLabel candidates={option.candidates} />
                     {isActive && <Check className="w-3 h-3 ms-auto flex-shrink-0 text-foreground" />}
                   </button>
                 );
@@ -3273,7 +3277,7 @@ export function EmailViewer({
                             )}
                           >
                             <span className={cn("w-3 h-3 rounded-full flex-shrink-0", option.color)} />
-                            <span className="truncate">{option.name}</span>
+                            <TagOptionLabel candidates={option.candidates} />
                             {isActive && <Check className="w-3 h-3 ms-auto flex-shrink-0 text-foreground" />}
                           </button>
                         );
@@ -3555,7 +3559,7 @@ export function EmailViewer({
                     )}
                   >
                     <span className={cn("w-3.5 h-3.5 rounded-full flex-shrink-0", option.color)} />
-                    <span className="truncate">{option.name}</span>
+                    <TagOptionLabel candidates={option.candidates} />
                     {isActive && <Check className="w-4 h-4 ms-auto flex-shrink-0 text-foreground" />}
                   </button>
                 );
@@ -3634,7 +3638,11 @@ export function EmailViewer({
                       const kw = emailKeywords.find(k => k.id === tagId) ?? { id: tagId, label: tagId, color: 'gray' };
                       const dotClass = KEYWORD_PALETTE[kw.color]?.dot || 'bg-gray-500';
                       return (
-                        <span key={tagId} className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", dotClass)} title={kw.label} />
+                        <span
+                          key={tagId}
+                          className={cn("w-2.5 h-2.5 rounded-full shrink-0", dotClass)}
+                          title={tagName(tagId)}
+                        />
                       );
                     })}
                   </span>

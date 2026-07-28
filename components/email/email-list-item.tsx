@@ -16,6 +16,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { EmailIdentityBadge } from "./email-identity-badge";
 import { EmailHoverActions } from "./email-hover-actions";
 import { getEmailColorTags } from "@/lib/thread-utils";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
 
 interface EmailListItemProps {
   email: Email;
@@ -40,6 +41,7 @@ export function EmailListItem({ email, selected, onClick, onDoubleClick, onConte
   const density = useSettingsStore((state) => state.density);
   const mailLayout = useSettingsStore((state) => state.mailLayout);
   const emailKeywords = useSettingsStore((state) => state.emailKeywords);
+  const { tagName } = useKeywordFormat();
   const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
   const showAvatarsInJunk = useSettingsStore((state) => state.showAvatarsInJunk);
   const { identities } = useAuthStore();
@@ -232,7 +234,11 @@ export function EmailListItem({ email, selected, onClick, onDoubleClick, onConte
                 )}
                 {email.hasAttachment && <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />}
                 {keywordDefs.map((kd) => (
-                  <span key={kd.id} className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[kd.color]?.dot || 'bg-gray-400')} />
+                  <span
+                    key={kd.id}
+                    className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[kd.color]?.dot || 'bg-gray-400')}
+                    title={tagName(kd.id)}
+                  />
                 ))}
                 <span className={cn(
                   'text-xs tabular-nums',
@@ -290,7 +296,7 @@ export function EmailListItem({ email, selected, onClick, onDoubleClick, onConte
                     <span key={kd.id} className={cn(
                       "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full",
                       KEYWORD_PALETTE[kd.color]?.bg || "bg-muted"
-                    )}>
+                    )} title={tagName(kd.id)}>
                       <span className={cn("w-1.5 h-1.5 rounded-full", KEYWORD_PALETTE[kd.color]?.dot || "bg-gray-400")} />
                       {kd.label}
                     </span>

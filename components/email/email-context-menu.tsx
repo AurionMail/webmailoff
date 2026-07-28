@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 import { cn, buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
+import { TagOptionLabel } from "./tag-option-label";
 import { useSettingsStore, KEYWORD_PALETTE } from "@/stores/settings-store";
 
 interface Position {
@@ -155,6 +157,7 @@ export function EmailContextMenu({
   const _tColor = useTranslations("email_viewer.color_tag");
   const tEmailViewer = useTranslations("email_viewer");
   const emailKeywords = useSettingsStore((state) => state.emailKeywords);
+  const { tagNameCandidates } = useKeywordFormat();
   const isUnread = !email.keywords?.$seen;
   const isStarred = email.keywords?.$flagged;
   const isPinned = email.keywords?.['$pinned'] === true;
@@ -170,7 +173,7 @@ export function EmailContextMenu({
 
   // Build color options from keyword definitions in settings
   const colorOptions = emailKeywords.map((kw) => ({
-    name: kw.label,
+    candidates: tagNameCandidates(kw.id),
     value: kw.id,
     color: KEYWORD_PALETTE[kw.color]?.dot || "bg-gray-500",
   }));
@@ -381,26 +384,28 @@ export function EmailContextMenu({
       {/* Set tag submenu - only for single email */}
       {!showBatchActions && (
         <ContextMenuSubMenu icon={Tag} label={t("color_tag")}>
-          {colorOptions.map((option) => {
-            const isActive = currentColors.includes(option.value);
-            return (
-              <button
-                key={option.value}
-                role="menuitem"
-                onClick={() => handleAction(() => onSetColorTag?.(option.value))}
-                className={cn(
-                  "w-full px-3 py-1.5 text-sm text-start flex items-center gap-2 hover:bg-muted cursor-pointer",
-                  isActive && "bg-accent font-medium"
-                )}
-              >
-                <span className={cn("w-3 h-3 rounded-full flex-shrink-0", option.color)} />
-                <span className="flex-1">{option.name}</span>
-                {isActive && (
-                  <Check className="w-3.5 h-3.5 flex-shrink-0 text-foreground" />
-                )}
-              </button>
-            );
-          })}
+          <div className="max-w-[18rem]">
+            {colorOptions.map((option) => {
+              const isActive = currentColors.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  role="menuitem"
+                  onClick={() => handleAction(() => onSetColorTag?.(option.value))}
+                  className={cn(
+                    "w-full px-3 py-1.5 text-sm text-start flex items-center gap-2 hover:bg-muted cursor-pointer",
+                    isActive && "bg-accent font-medium"
+                  )}
+                >
+                  <span className={cn("w-3 h-3 rounded-full flex-shrink-0", option.color)} />
+                  <TagOptionLabel candidates={option.candidates} />
+                  {isActive && (
+                    <Check className="w-3.5 h-3.5 flex-shrink-0 text-foreground" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
           {currentColors.length > 0 && (
             <>
               <ContextMenuSeparator />

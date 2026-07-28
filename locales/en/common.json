@@ -1032,7 +1032,16 @@
       "add": "Add",
       "cancel": "Cancel",
       "migrating": "Updating tag on existing emails…",
-      "migration_error": "Failed to update tag on existing emails"
+      "migration_error": "Failed to update tag on existing emails",
+      "nesting": {
+        "label": "Nested Tags",
+        "description": "Nest tags underneath other tags and show them as a tree in the sidebar."
+      },
+      "parent_field": "Parent Tag",
+      "no_parent": "No parent",
+      "too_long": "This tag path is too long (at most {max} characters)",
+      "has_children_locked": "Other tags are nested under this one, so its name and parent are locked. Move or remove them first.",
+      "has_children_delete": "Remove the tags nested under this one first"
     },
     "notifications": {
       "test_sound": "Test notification sound",

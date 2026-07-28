@@ -17,6 +17,7 @@
 - Multi-select for batch archive, delete, move, and tag
 - Archive directly, by year, or by month
 - Tags carry color labels, reorder by drag, and can be assigned by dropping a message onto them
+- Tags optionally nest: pick a parent when you create one and the sidebar turns them into a tree
 - Star or unstar, with a configurable mark-as-read delay
 - Large mailboxes scroll virtually, and the first page of mail prefetches at login
 - Quick reply, hover actions, favicon-based sender avatars, recipient popovers

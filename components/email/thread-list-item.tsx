@@ -11,6 +11,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useAccountStore } from "@/stores/account-store";
 import { getThreadColorTag, getEmailColorTags } from "@/lib/thread-utils";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
 import { useEmailDrag } from "@/hooks/use-email-drag";
 import { useLongPress } from "@/hooks/use-long-press";
 import { ThreadEmailItem } from "./thread-email-item";
@@ -90,7 +91,8 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
     const showRecipient = currentMailboxRole === 'sent' || currentMailboxRole === 'drafts';
     const sender = showRecipient ? (email.to?.[0] ?? email.from?.[0]) : email.from?.[0];
     const emailKeywords = useSettingsStore((state) => state.emailKeywords);
-    const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
+    const { tagName } = useKeywordFormat();
+      const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
     const density = useSettingsStore((state) => state.density);
     const mailLayout = useSettingsStore((state) => state.mailLayout);
     const timeFormat = useSettingsStore((state) => state.timeFormat);
@@ -282,7 +284,11 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                   )}
                   {email.hasAttachment && <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />}
                   {resolvedKeywordDefs.map((kd) => (
-                    <span key={kd.id} className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[kd.color]?.dot || 'bg-gray-400')} />
+                    <span
+                      key={kd.id}
+                      className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[kd.color]?.dot || 'bg-gray-400')}
+                      title={tagName(kd.id)}
+                    />
                   ))}
                   {showSourceFolder && <SourceFolderTag name={email.sourceFolder!} />}
                   {scheduledSendLabel ? (
@@ -351,7 +357,7 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                       <span key={kd.id} className={cn(
                         "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full",
                         KEYWORD_PALETTE[kd.color]?.bg || "bg-muted"
-                      )}>
+                      )} title={tagName(kd.id)}>
                         <span className={cn("w-1.5 h-1.5 rounded-full", KEYWORD_PALETTE[kd.color]?.dot || "bg-gray-400")} />
                         {kd.label}
                       </span>
@@ -499,7 +505,8 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
 
     const threadColor = getThreadColorTag(thread.emails);
     const emailKeywordDefs = useSettingsStore((state) => state.emailKeywords);
-    const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
+    const { tagName } = useKeywordFormat();
+      const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
     const keywordDef = threadColor ? (emailKeywordDefs.find(k => k.id === threadColor) ?? { id: threadColor, label: threadColor, color: 'gray' }) : null;
     const colorTag = (tintListRowsByTag && keywordDef) ? KEYWORD_PALETTE[keywordDef.color]?.bg ?? null : null;
 
@@ -746,7 +753,10 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                     )}
                     {hasAttachment && <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />}
                     {keywordDef && (
-                      <span className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[keywordDef.color]?.dot || 'bg-gray-400')} />
+                      <span
+                        className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[keywordDef.color]?.dot || 'bg-gray-400')}
+                        title={tagName(keywordDef.id)}
+                      />
                     )}
                     {showSourceFolder && <SourceFolderTag name={latestEmail.sourceFolder!} />}
                     {scheduledSendLabel ? (
@@ -827,7 +837,7 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                         <span className={cn(
                           "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full",
                           KEYWORD_PALETTE[keywordDef.color]?.bg || "bg-muted"
-                        )}>
+                        )} title={tagName(keywordDef.id)}>
                           <span className={cn("w-1.5 h-1.5 rounded-full", KEYWORD_PALETTE[keywordDef.color]?.dot || "bg-gray-400")} />
                           {keywordDef.label}
                         </span>

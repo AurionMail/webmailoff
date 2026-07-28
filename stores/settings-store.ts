@@ -287,6 +287,7 @@ interface SettingsState {
 
   // Keywords (labels/tags)
   emailKeywords: KeywordDefinition[];
+  nestedTags: boolean; // Treat "/" in a tag id as a parent/child separator
 
   // Attachment Reminder
   attachmentReminderEnabled: boolean;
@@ -485,6 +486,7 @@ const DEFAULT_SETTINGS = {
 
   // Keywords
   emailKeywords: DEFAULT_KEYWORDS,
+  nestedTags: false,
 
   // Attachment Reminder
   attachmentReminderEnabled: true,
@@ -661,6 +663,7 @@ export const useSettingsStore = create<SettingsState>()(
           showFolderTotalCount: state.showFolderTotalCount,
           folderIcons: state.folderIcons,
           emailKeywords: state.emailKeywords,
+          nestedTags: state.nestedTags,
           attachmentReminderEnabled: state.attachmentReminderEnabled,
           attachmentReminderKeywords: state.attachmentReminderKeywords,
           hideInlineImageAttachments: state.hideInlineImageAttachments,

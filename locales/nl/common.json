@@ -1029,7 +1029,16 @@
       "add": "Toevoegen",
       "cancel": "Annuleren",
       "migrating": "Label bijwerken op bestaande e-mails…",
-      "migration_error": "Label bijwerken op bestaande e-mails mislukt"
+      "migration_error": "Label bijwerken op bestaande e-mails mislukt",
+      "nesting": {
+        "label": "Geneste labels",
+        "description": "Nest labels onder andere labels en toon ze als een boomstructuur in de zijbalk."
+      },
+      "parent_field": "Bovenliggend label",
+      "no_parent": "Geen bovenliggend label",
+      "too_long": "Dit labelpad is te lang (maximaal {max} tekens)",
+      "has_children_locked": "Er vallen andere labels onder dit label, dus de naam en het bovenliggende label liggen vast. Verplaats of verwijder ze eerst.",
+      "has_children_delete": "Verwijder eerst de labels die hieronder vallen"
     },
     "notifications": {
       "test_sound": "Meldingsgeluid testen",

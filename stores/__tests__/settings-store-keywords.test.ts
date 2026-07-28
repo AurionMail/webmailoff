@@ -156,4 +156,19 @@ describe('settings-store keywords', () => {
       expect(kw?.label).toBe('Scarlet');
     });
   });
+
+  describe('nestedTags', () => {
+    it('is off by default', () => {
+      useSettingsStore.getState().resetToDefaults();
+      expect(useSettingsStore.getState().nestedTags).toBe(false);
+    });
+
+    it('is included in exported settings', () => {
+      useSettingsStore.getState().updateSetting('nestedTags', true);
+      const exported = JSON.parse(useSettingsStore.getState().exportSettings()) as {
+        nestedTags?: boolean;
+      };
+      expect(exported.nestedTags).toBe(true);
+    });
+  });
 });
