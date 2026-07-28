@@ -1,9 +1,17 @@
-// Pin TZ so the local-time date rendering in the filename test is deterministic.
-process.env.TZ = 'UTC';
-
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildForwardAsAttachmentPayload } from '@/lib/forward-as-attachment';
 import type { Email } from '@/lib/jmap/types';
+
+// Pin TZ so the local-time date rendering in the filename test is deterministic,
+// restoring it after so this doesn't leak into other test files in the same worker.
+let originalTZ: string | undefined;
+beforeAll(() => {
+  originalTZ = process.env.TZ;
+  process.env.TZ = 'UTC';
+});
+afterAll(() => {
+  process.env.TZ = originalTZ;
+});
 
 function makeEmail(overrides: Partial<Email> = {}): Email {
   return {
