@@ -1016,7 +1016,6 @@
       "title": "Étiquettes de messagerie",
       "description": "Définissez des étiquettes pour organiser vos e-mails avec des couleurs. Elles sont stockées sous forme de mots-clés JMAP sur le serveur.",
       "add_keyword": "Ajouter une étiquette",
-      "reset_defaults": "Réinitialiser par défaut",
       "label_field": "Nom d'affichage",
       "label_placeholder": "ex. Travail, Personnel, Urgent",
       "id_field": "ID d'étiquette",

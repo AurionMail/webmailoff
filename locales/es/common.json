@@ -1016,7 +1016,6 @@
       "title": "Etiquetas de correo",
       "description": "Define etiquetas para organizar tus correos con colores. Se almacenan como palabras clave JMAP en el servidor.",
       "add_keyword": "Añadir etiqueta",
-      "reset_defaults": "Restablecer valores predeterminados",
       "label_field": "Nombre para mostrar",
       "label_placeholder": "ej. Trabajo, Personal, Urgente",
       "id_field": "ID de etiqueta",

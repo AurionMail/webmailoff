@@ -1019,7 +1019,6 @@
       "title": "E-mail címkék",
       "description": "Címkék definiálása az e-mailek színekkel történő rendezéséhez. Ezek JMAP kulcsszavakként tárolódnak a szerveren.",
       "add_keyword": "Címke hozzáadása",
-      "reset_defaults": "Alapértelmezettek visszaállítása",
       "label_field": "Megjelenített név",
       "label_placeholder": "pl. Munka, Személyes, Sürgős",
       "id_field": "Címke azonosító",

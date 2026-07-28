@@ -1019,7 +1019,6 @@
       "title": "Etichete de e-mail",
       "description": "Definiți etichete pentru a vă organiza e-mailurile pe culori. Acestea sunt stocate pe server sub formă de cuvinte-cheie dJMAP.",
       "add_keyword": "Adăugați etichetă",
-      "reset_defaults": "Resezare la setările implicite",
       "label_field": "Nume afișat",
       "label_placeholder": "de ex. Serviciu, Personal, Urgent",
       "id_field": "EtichetăID",

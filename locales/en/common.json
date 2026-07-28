@@ -1021,7 +1021,6 @@
       "title": "Email Tags",
       "description": "Define tags to organize your emails with colors. These are stored as JMAP keywords on the server.",
       "add_keyword": "Add Tag",
-      "reset_defaults": "Reset to Defaults",
       "label_field": "Display Name",
       "label_placeholder": "e.g. Work, Personal, Urgent",
       "id_field": "Tag ID",

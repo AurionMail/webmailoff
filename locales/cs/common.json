@@ -1016,7 +1016,6 @@
       "title": "E-mailové štítky",
       "description": "Definujte štítky pro organizaci e-mailů pomocí barev. Ukládají se jako klíčová slova JMAP na serveru.",
       "add_keyword": "Přidat štítek",
-      "reset_defaults": "Obnovit výchozí",
       "label_field": "Zobrazovaný název",
       "label_placeholder": "např. Práce, Osobní, Naliehavé",
       "id_field": "ID štítku",

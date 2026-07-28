@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import {
   useSettingsStore,
   KEYWORD_PALETTE,
-  DEFAULT_KEYWORDS,
   getKeywordVisibility,
   type KeywordDefinition,
   type KeywordVisibility,
@@ -13,7 +12,7 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
 import { SettingsSection, SettingItem, ToggleSwitch, Select } from "./settings-section";
-import { Plus, Pencil, Trash2, GripVertical, Check, X, RotateCcw, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, Check, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KEYWORD_PREFIX } from "@/lib/thread-utils";
 import {
@@ -373,10 +372,6 @@ export function KeywordSettings() {
     updateKeyword(id, { visibility });
   };
 
-  const handleResetDefaults = () => {
-    reorderKeywords(DEFAULT_KEYWORDS);
-  };
-
   return (
     <SettingsSection title={t("title")} description={t("description")}>
       <SettingItem label={t("nesting.label")} description={t("nesting.description")}>
@@ -446,14 +441,6 @@ export function KeywordSettings() {
             >
               <Plus className="w-3.5 h-3.5" />
               {t("add_keyword")}
-            </button>
-            <button
-              type="button"
-              onClick={handleResetDefaults}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              {t("reset_defaults")}
             </button>
           </div>
         )}

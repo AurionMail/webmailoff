@@ -1016,7 +1016,6 @@
       "title": "E-posta Etiketleri",
       "description": "E-postalarınızı renklerle düzenlemek için etiketler tanımlayın. Bunlar sunucuda JMAP anahtar sözcükleri olarak saklanır.",
       "add_keyword": "Etiket Ekle",
-      "reset_defaults": "Varsayılanlara Sıfırla",
       "label_field": "Görünen Ad",
       "label_placeholder": "ör. İş, Kişisel, Acil",
       "id_field": "Etiket Kimliği",

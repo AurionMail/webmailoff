@@ -1016,7 +1016,6 @@
       "title": "Etichette e-mail",
       "description": "Definisci etichette per organizzare le tue e-mail con i colori. Vengono archiviate come parole chiave JMAP sul server.",
       "add_keyword": "Aggiungi etichetta",
-      "reset_defaults": "Ripristina predefiniti",
       "label_field": "Nome visualizzato",
       "label_placeholder": "es. Lavoro, Personale, Urgente",
       "id_field": "ID etichetta",

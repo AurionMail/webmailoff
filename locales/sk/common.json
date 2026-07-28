@@ -1019,7 +1019,6 @@
       "title": "E-mailové štítky",
       "description": "Definujte štítky na organizáciu e-mailov s farbami.",
       "add_keyword": "Pridať štítok",
-      "reset_defaults": "Obnoviť predvolené",
       "label_field": "Zobrazovaný názov",
       "label_placeholder": "napr. Práca, Osobné, Naliehavé",
       "id_field": "ID štítku",

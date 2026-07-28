@@ -1019,7 +1019,6 @@
       "title": "E-mail-tags",
       "description": "Definér tags til at organisere dine e-mails med farver. Disse gemmes som JMAP-nøgleord på serveren.",
       "add_keyword": "Tilføj tag",
-      "reset_defaults": "Nulstil til standard",
       "label_field": "Visningsnavn",
       "label_placeholder": "f.eks. Arbejde, Privat, Vigtigt",
       "id_field": "Tag-ID",

@@ -987,7 +987,6 @@
       "title": "Etiquetes de correu",
       "description": "Definiu etiquetes per organitzar els correus amb colors. Es desen com a paraules clau JMAP al servidor.",
       "add_keyword": "Afegeix una etiqueta",
-      "reset_defaults": "Restableix als valors per defecte",
       "label_field": "Nom mostrat",
       "label_placeholder": "p. ex. Feina, Personal, Urgent",
       "id_field": "ID de l'etiqueta",

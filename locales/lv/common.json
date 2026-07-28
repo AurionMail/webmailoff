@@ -1016,7 +1016,6 @@
       "title": "E-pasta tagi",
       "description": "Definējiet tagus, lai organizētu e-pastus ar krāsām. Tie tiek saglabāti kā JMAP atslēgvārdi serverī.",
       "add_keyword": "Pievienot tagu",
-      "reset_defaults": "Atiestatīt noklusējumu",
       "label_field": "Redzamais nosaukums",
       "label_placeholder": "piem., Darbs, Personīgi, Steidzami",
       "id_field": "Taga identifikators",

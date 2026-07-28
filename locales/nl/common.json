@@ -1018,7 +1018,6 @@
       "title": "E-maillabels",
       "description": "Definieer labels om uw e-mails met kleuren te organiseren. Deze worden opgeslagen als JMAP-trefwoorden op de server.",
       "add_keyword": "Label toevoegen",
-      "reset_defaults": "Standaardwaarden herstellen",
       "label_field": "Weergavenaam",
       "label_placeholder": "bijv. Werk, Persoonlijk, Urgent",
       "id_field": "Label-ID",

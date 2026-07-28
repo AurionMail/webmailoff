@@ -32,11 +32,6 @@ describe('KeywordSettings', () => {
     expect(screen.getByText('add_keyword')).toBeInTheDocument();
   });
 
-  it('renders reset defaults button', () => {
-    render(<KeywordSettings />);
-    expect(screen.getByText('reset_defaults')).toBeInTheDocument();
-  });
-
   it('shows add form when add button clicked', () => {
     render(<KeywordSettings />);
     fireEvent.click(screen.getByText('add_keyword'));
@@ -113,18 +108,6 @@ describe('KeywordSettings', () => {
 
     const kw = useSettingsStore.getState().emailKeywords.find((k) => k.id === 'red');
     expect(kw?.label).toBe('Crimson');
-  });
-
-  it('resets to defaults when reset button clicked', () => {
-    // Modify keywords first
-    useSettingsStore.getState().removeKeyword('red');
-    useSettingsStore.getState().removeKeyword('blue');
-    expect(useSettingsStore.getState().emailKeywords).toHaveLength(DEFAULT_KEYWORDS.length - 2);
-
-    render(<KeywordSettings />);
-    fireEvent.click(screen.getByText('reset_defaults'));
-
-    expect(useSettingsStore.getState().emailKeywords).toEqual(DEFAULT_KEYWORDS);
   });
 
   it('normalizes label to id correctly', () => {

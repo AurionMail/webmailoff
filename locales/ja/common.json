@@ -1016,7 +1016,6 @@
       "title": "メールラベル",
       "description": "メールをカラーで整理するためのラベルを定義します。サーバーにJMAPキーワードとして保存されます。",
       "add_keyword": "ラベルを追加",
-      "reset_defaults": "デフォルトに戻す",
       "label_field": "表示名",
       "label_placeholder": "例：仕事、個人、緊急",
       "id_field": "ラベルID",

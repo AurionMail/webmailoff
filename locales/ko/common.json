@@ -1016,7 +1016,6 @@
       "title": "이메일 태그",
       "description": "색상으로 이메일을 정리하기 위한 태그를 정의합니다. 서버에 JMAP 키워드로 저장됩니다.",
       "add_keyword": "태그 추가",
-      "reset_defaults": "기본값으로 초기화",
       "label_field": "표시 이름",
       "label_placeholder": "예: 업무, 개인, 긴급",
       "id_field": "태그 ID",
