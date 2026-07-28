@@ -24,12 +24,14 @@ export interface ForwardAsAttachmentPayload {
  * not per-email, so the same blobId a message already has can be attached
  * to a brand new outgoing email directly.
  *
- * `filenameOptions`, when passed, should be the same options the caller
- * uses for "Export as .eml" / drag-out (the user's configured filename
- * template, space/case/diacritics transforms - see
- * useSettingsStore's emailDownloadTemplate and friends), so the two
- * actions produce consistent filenames for the same message. Falls back
- * to emailExportFilename's own default template when omitted.
+ * `filenameOptions`, when passed, carries the user's configured space/case/
+ * diacritics transforms (see useSettingsStore's filenameSpaceReplacement
+ * and friends) for consistency with "Export as .eml" / drag-out. Its
+ * `template`, if any, is ignored: this attachment goes out to a possibly
+ * external recipient (spam gateway, another person), so the filename is
+ * always just "{date}-{subject}.eml" - never the user's own from/to naming
+ * template, which could otherwise leak sender/recipient names into an
+ * attachment filename visible to that recipient.
  *
  * Returns null when the email has no blobId (nothing to reference).
  */
@@ -48,7 +50,7 @@ export function buildForwardAsAttachmentPayload(
     subject: email.subject ? buildForwardSubject(email.subject, forwardPrefix) : "",
     attachment: {
       blobId: email.blobId,
-      name: emailExportFilename(email, filenameOptions),
+      name: emailExportFilename(email, { ...filenameOptions, template: "{date}-{subject}" }),
       type: "message/rfc822",
       size: email.size,
     },

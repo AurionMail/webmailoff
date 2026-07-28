@@ -1,3 +1,6 @@
+// Pin TZ so the local-time date rendering in the filename test is deterministic.
+process.env.TZ = 'UTC';
+
 import { describe, it, expect } from 'vitest';
 import { buildForwardAsAttachmentPayload } from '@/lib/forward-as-attachment';
 import type { Email } from '@/lib/jmap/types';
@@ -52,13 +55,30 @@ describe('buildForwardAsAttachmentPayload', () => {
     expect(payload?.subject).toBe('');
   });
 
-  it('honors a custom filename template, matching "Export as .eml" naming instead of always using the default', () => {
+  it('applies user space/case transforms but ignores a custom filename template, unlike "Export as .eml"', () => {
     const email = makeEmail({ subject: 'Missed spam example' });
     const payload = buildForwardAsAttachmentPayload(email, 'Fwd:', {
       template: 'custom-{subject}',
       lowercase: true,
       spaceReplacement: 'dash',
     });
-    expect(payload?.attachment.name).toBe('custom-missed-spam-example.eml');
+    expect(payload?.attachment.name).toBe('2026-07-26-22.25.22-missed-spam-example.eml');
+  });
+
+  it('uses a dash between date and subject by default', () => {
+    const email = makeEmail({ subject: 'Missed spam example' });
+    const payload = buildForwardAsAttachmentPayload(email, 'Fwd:');
+    expect(payload?.attachment.name).toBe('2026-07-26 22.25.22-Missed spam example.eml');
+  });
+
+  it('never includes from/to in the filename, even with the default template, to avoid leaking names to the recipient', () => {
+    const email = makeEmail({
+      subject: 'Missed spam example',
+      from: [{ name: 'Alice Sender', email: 'alice@example.com' }],
+      to: [{ name: "'Bobby'", email: 'bob@example.com' }],
+    });
+    const payload = buildForwardAsAttachmentPayload(email, 'Fwd:');
+    expect(payload?.attachment.name).not.toContain('Alice');
+    expect(payload?.attachment.name).not.toContain('Bobby');
   });
 });
