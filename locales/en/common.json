@@ -130,6 +130,8 @@
     "demo_reset": "Reset",
     "demo_tour": "Tour",
     "tags": "Tags",
+    "show_all_tags": "Show all ({count})",
+    "show_fewer_tags": "Show less",
     "folders": "Folders",
     "shared": "Shared",
     "mail": "Mail",
@@ -1041,7 +1043,13 @@
       "no_parent": "No parent",
       "too_long": "This tag path is too long (at most {max} characters)",
       "has_children_locked": "Other tags are nested under this one, so its name and parent are locked. Move or remove them first.",
-      "has_children_delete": "Remove the tags nested under this one first"
+      "has_children_delete": "Remove the tags nested under this one first",
+      "visibility_field": "Sidebar visibility",
+      "visibility": {
+        "show": "Show",
+        "unread": "Show if unread",
+        "hide": "Hide"
+      }
     },
     "notifications": {
       "test_sound": "Test notification sound",

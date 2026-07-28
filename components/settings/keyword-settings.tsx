@@ -6,7 +6,9 @@ import {
   useSettingsStore,
   KEYWORD_PALETTE,
   DEFAULT_KEYWORDS,
+  getKeywordVisibility,
   type KeywordDefinition,
+  type KeywordVisibility,
 } from "@/stores/settings-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
@@ -61,6 +63,7 @@ function KeywordRow({
   nestedTags,
   onEdit,
   onDelete,
+  onVisibilityChange,
   onDragStart,
   onDragOver,
   onDrop,
@@ -73,6 +76,7 @@ function KeywordRow({
   nestedTags: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onVisibilityChange: (visibility: KeywordVisibility) => void;
   onDragStart: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: () => void;
@@ -89,6 +93,11 @@ function KeywordRow({
   const keywordCandidates = (nestedTags ? keywordRenderings(keywordLevels(keyword.id)) : [keyword.id])
     .map((rendering) => KEYWORD_PREFIX + rendering);
   const [keywordRef, shortenedKeyword] = useShortenedText(keywordCandidates);
+  const visibilityOptions = [
+    { value: "show", label: t("visibility.show") },
+    { value: "unread", label: t("visibility.unread") },
+    { value: "hide", label: t("visibility.hide") },
+  ];
 
   return (
     <div
@@ -119,6 +128,13 @@ function KeywordRow({
       >
         {shortenedKeyword}
       </span>
+      <Select
+        value={getKeywordVisibility(keyword)}
+        onChange={(value) => onVisibilityChange(value as KeywordVisibility)}
+        options={visibilityOptions}
+        ariaLabel={t("visibility_field")}
+        className="text-xs py-1"
+      />
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           type="button"
@@ -353,6 +369,10 @@ export function KeywordSettings() {
     removeKeyword(id);
   };
 
+  const handleVisibilityChange = (id: string, visibility: KeywordVisibility) => {
+    updateKeyword(id, { visibility });
+  };
+
   const handleResetDefaults = () => {
     reorderKeywords(DEFAULT_KEYWORDS);
   };
@@ -395,6 +415,7 @@ export function KeywordSettings() {
                 setIsAdding(false);
               }}
               onDelete={() => handleDelete(keyword.id)}
+              onVisibilityChange={(visibility) => handleVisibilityChange(keyword.id, visibility)}
               onDragStart={() => handleDragStart(index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDrop={() => handleDrop(index)}

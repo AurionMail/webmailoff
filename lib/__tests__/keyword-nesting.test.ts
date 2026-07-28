@@ -3,6 +3,8 @@ import {
   MAX_KEYWORD_ID_LENGTH,
   buildKeywordTree,
   composeKeywordId,
+  countKeywordNodes,
+  filterKeywordTree,
   getParentKeywordId,
   hasChildKeywords,
   isKeywordDescendant,
@@ -134,5 +136,48 @@ describe("buildKeywordTree", () => {
 
     expect(flat.map((n) => n.id)).toEqual(["red", "blue"]);
     expect(flat.every((n) => n.depth === 0 && n.children.length === 0)).toBe(true);
+  });
+});
+
+describe("filterKeywordTree", () => {
+  const tree = buildKeywordTree(KEYWORDS);
+
+  it("drops the nodes the predicate rejects", () => {
+    const kept = filterKeywordTree(tree, (node) => node.id !== "work/personal");
+    const [work] = kept;
+
+    expect(work.children.map((c) => c.id)).toEqual(["work/clients"]);
+  });
+
+  it("keeps a rejected node when a descendant survives, so nothing is stranded", () => {
+    const kept = filterKeywordTree(tree, (node) => node.id === "work/clients/acme");
+    const [work] = kept;
+
+    expect(work.id).toBe("work");
+    expect(work.children.map((c) => c.id)).toEqual(["work/clients"]);
+    expect(work.children[0].children.map((c) => c.id)).toEqual(["work/clients/acme"]);
+  });
+
+  it("keeps the depth of a surviving node so its indentation does not shift", () => {
+    const kept = filterKeywordTree(tree, (node) => node.id === "work/clients/acme");
+
+    expect(kept[0].children[0].children[0].depth).toBe(2);
+  });
+
+  it("returns nothing when the predicate rejects everything", () => {
+    expect(filterKeywordTree(tree, () => false)).toEqual([]);
+  });
+
+  it("leaves the original tree untouched", () => {
+    filterKeywordTree(tree, (node) => node.id === "work");
+
+    expect(countKeywordNodes(tree)).toBe(4);
+  });
+});
+
+describe("countKeywordNodes", () => {
+  it("counts every level, not just the roots", () => {
+    expect(countKeywordNodes(buildKeywordTree(KEYWORDS))).toBe(4);
+    expect(countKeywordNodes([])).toBe(0);
   });
 });

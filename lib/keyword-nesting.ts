@@ -111,3 +111,29 @@ export function buildKeywordTree(keywords: KeywordDefinition[]): KeywordNode[] {
   return roots;
 }
 
+/**
+ * Prunes a tag tree down to the nodes worth showing.
+ *
+ * A node survives when the predicate accepts it or when any of its descendants
+ * survives, so hiding a parent never strands the children below it. Depths are
+ * left untouched: a kept node keeps the indentation of its original level even
+ * when the level above it is only there to carry it.
+ */
+export function filterKeywordTree(
+  nodes: KeywordNode[],
+  isVisible: (node: KeywordNode) => boolean,
+): KeywordNode[] {
+  const kept: KeywordNode[] = [];
+  for (const node of nodes) {
+    const children = filterKeywordTree(node.children, isVisible);
+    if (children.length > 0 || isVisible(node)) {
+      kept.push({ ...node, children });
+    }
+  }
+  return kept;
+}
+
+/** Total number of nodes in a tag tree, at every level. */
+export function countKeywordNodes(nodes: KeywordNode[]): number {
+  return nodes.reduce((total, node) => total + 1 + countKeywordNodes(node.children), 0);
+}

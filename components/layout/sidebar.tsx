@@ -35,10 +35,17 @@ import {
   BellOff,
   Mails,
   MailOpen,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn, buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
-import { buildKeywordTree, hasChildKeywords, type KeywordNode } from "@/lib/keyword-nesting";
+import {
+  buildKeywordTree,
+  countKeywordNodes,
+  filterKeywordTree,
+  hasChildKeywords,
+  type KeywordNode,
+} from "@/lib/keyword-nesting";
 import { useShortenedText } from "@/hooks/use-shortened-text";
 import { useKeywordFormat } from "@/hooks/use-keyword-format";
 import { isEditableEventTarget } from "@/lib/keyboard";
@@ -54,7 +61,7 @@ import { useTagDrop } from "@/hooks/use-tag-drop";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useVacationStore } from "@/stores/vacation-store";
-import { useSettingsStore, KEYWORD_PALETTE } from "@/stores/settings-store";
+import { useSettingsStore, KEYWORD_PALETTE, getKeywordVisibility } from "@/stores/settings-store";
 import { useEmailStore } from "@/stores/email-store";
 import { toast } from "@/stores/toast-store";
 import { debug } from "@/lib/debug";
@@ -566,6 +573,30 @@ const TAG_ICON_COLOR: Record<string, string> = {
   gray: "text-gray-500",
 };
 
+function ShowAllTagsRow({
+  hiddenCount,
+  showAll,
+  onToggle,
+  isCollapsed,
+}: {
+  hiddenCount: number;
+  showAll: boolean;
+  onToggle: () => void;
+  isCollapsed: boolean;
+}) {
+  const t = useTranslations('sidebar');
+
+  return (
+    <SidebarRow
+      icon={<MoreHorizontal className="w-4 h-4 text-muted-foreground" />}
+      label={showAll ? t('show_fewer_tags') : t('show_all_tags', { count: hiddenCount })}
+      depth={0}
+      onClick={onToggle}
+      isCollapsed={isCollapsed}
+    />
+  );
+}
+
 function TagItem({
   node,
   selectedKeyword,
@@ -778,6 +809,7 @@ export function Sidebar({
   const { primaryIdentity: _primaryIdentity, activeAccountId } = useAuthStore();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
+  const [showAllTags, setShowAllTags] = useState(false);
   const [foldersExpanded, setFoldersExpanded] = useState(() => {
     try {
       const stored = localStorage.getItem('sidebarFoldersExpanded');
@@ -931,6 +963,19 @@ export function Sidebar({
     ? buildKeywordTree(emailKeywords)
     : emailKeywords.map((kw) => ({ ...kw, children: [], depth: 0 }));
 
+  // Counts arrive from a separate JMAP round trip; until they land, treat every
+  // "show if unread" tag as visible rather than blanking the section and
+  // filling it back in.
+  const tagCountsLoaded = Object.keys(tagCounts).length > 0;
+  const isTagVisible = (node: KeywordNode) => {
+    if (showAllTags || node.id === selectedKeyword) return true;
+    const visibility = getKeywordVisibility(node);
+    if (visibility === 'hide') return false;
+    if (visibility === 'unread') return !tagCountsLoaded || (tagCounts[node.id]?.unread ?? 0) > 0;
+    return true;
+  };
+  const visibleTagTree = filterKeywordTree(tagTree, isTagVisible);
+  const hiddenTagCount = emailKeywords.length - countKeywordNodes(visibleTagTree);
 
   // Multi-account mode (Pro shell): render every connected account as its
   // own collapsible group. The active account's tree comes from the
@@ -1345,7 +1390,7 @@ export function Sidebar({
             />
             {((tagsExpanded && !isCollapsed) || isCollapsed) && (
               <>
-                {tagTree.map((node) => (
+                {visibleTagTree.map((node) => (
                   <TagItem
                     key={node.id}
                     node={node}
@@ -1358,6 +1403,14 @@ export function Sidebar({
                     colorful={colorfulSidebarIcons}
                   />
                 ))}
+                {(hiddenTagCount > 0 || showAllTags) && (
+                  <ShowAllTagsRow
+                    hiddenCount={hiddenTagCount}
+                    showAll={showAllTags}
+                    onToggle={() => setShowAllTags((prev) => !prev)}
+                    isCollapsed={isCollapsed}
+                  />
+                )}
               </>
             )}
           </div>

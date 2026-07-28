@@ -210,4 +210,20 @@ describe('KeywordSettings', () => {
     expect(screen.getByDisplayValue('Work')).toBeDisabled();
     expect(screen.getByText('has_children_locked')).toBeInTheDocument();
   });
+
+  it('defaults every tag to always visible in the sidebar', () => {
+    render(<KeywordSettings />);
+
+    const pickers = screen.getAllByLabelText('visibility_field');
+    expect(pickers).toHaveLength(DEFAULT_KEYWORDS.length);
+    pickers.forEach((picker) => expect(picker).toHaveValue('show'));
+  });
+
+  it('stores the visibility chosen for a tag', () => {
+    render(<KeywordSettings />);
+
+    fireEvent.change(screen.getAllByLabelText('visibility_field')[0], { target: { value: 'unread' } });
+
+    expect(useSettingsStore.getState().emailKeywords.find((k) => k.id === 'red')?.visibility).toBe('unread');
+  });
 });

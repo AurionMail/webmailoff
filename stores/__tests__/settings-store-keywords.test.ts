@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useSettingsStore, DEFAULT_KEYWORDS, KEYWORD_PALETTE } from '../settings-store';
+import { useSettingsStore, DEFAULT_KEYWORDS, KEYWORD_PALETTE, getKeywordVisibility } from '../settings-store';
 import type { KeywordDefinition } from '../settings-store';
 
 describe('settings-store keywords', () => {
@@ -154,6 +154,17 @@ describe('settings-store keywords', () => {
       useSettingsStore.getState().updateKeyword('red', { label: 'Scarlet' });
       const kw = useSettingsStore.getState().getKeywordById('red');
       expect(kw?.label).toBe('Scarlet');
+    });
+  });
+
+  describe('getKeywordVisibility', () => {
+    it('treats a tag stored before visibility was configurable as always shown', () => {
+      expect(getKeywordVisibility({ id: 'red', label: 'Red', color: 'red' })).toBe('show');
+    });
+
+    it('returns the stored choice when there is one', () => {
+      expect(getKeywordVisibility({ id: 'red', label: 'Red', color: 'red', visibility: 'unread' })).toBe('unread');
+      expect(getKeywordVisibility({ id: 'red', label: 'Red', color: 'red', visibility: 'hide' })).toBe('hide');
     });
   });
 

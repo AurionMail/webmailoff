@@ -101,10 +101,19 @@ export const ALL_DEBUG_CATEGORIES: { id: DebugCategory; labelKey: string }[] = [
   { id: 'contacts', labelKey: 'contacts' },
 ];
 
+/** Whether a tag shows in the sidebar always, only when it has unread mail, or never. */
+export type KeywordVisibility = 'show' | 'hide' | 'unread';
+
 export interface KeywordDefinition {
   id: string;     // Used as JMAP keyword suffix: $label:<id>
   label: string;  // Display name
   color: string;  // Key from KEYWORD_PALETTE
+  visibility?: KeywordVisibility; // Absent on tags stored before this was configurable
+}
+
+/** Resolves the sidebar visibility of a tag, defaulting to always shown. */
+export function getKeywordVisibility(keyword: KeywordDefinition): KeywordVisibility {
+  return keyword.visibility ?? 'show';
 }
 
 export interface SidebarApp {

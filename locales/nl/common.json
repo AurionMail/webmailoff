@@ -130,6 +130,8 @@
     "demo_reset": "Resetten",
     "demo_tour": "Rondleiding",
     "tags": "Labels",
+    "show_all_tags": "Alles tonen ({count})",
+    "show_fewer_tags": "Minder tonen",
     "folders": "Mappen",
     "mail": "E-mail",
     "nav_label": "Navigatie",
@@ -1038,7 +1040,13 @@
       "no_parent": "Geen bovenliggend label",
       "too_long": "Dit labelpad is te lang (maximaal {max} tekens)",
       "has_children_locked": "Er vallen andere labels onder dit label, dus de naam en het bovenliggende label liggen vast. Verplaats of verwijder ze eerst.",
-      "has_children_delete": "Verwijder eerst de labels die hieronder vallen"
+      "has_children_delete": "Verwijder eerst de labels die hieronder vallen",
+      "visibility_field": "Zichtbaarheid in de zijbalk",
+      "visibility": {
+        "show": "Tonen",
+        "unread": "Tonen bij ongelezen",
+        "hide": "Verbergen"
+      }
     },
     "notifications": {
       "test_sound": "Meldingsgeluid testen",
