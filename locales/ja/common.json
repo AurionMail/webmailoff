@@ -130,6 +130,8 @@
     "demo_reset": "リセット",
     "demo_tour": "ツアー",
     "tags": "タグ",
+    "show_all_tags": "すべて表示（{count}）",
+    "show_fewer_tags": "表示を減らす",
     "folders": "フォルダ",
     "mail": "メール",
     "nav_label": "ナビゲーション",
@@ -330,6 +332,8 @@
     "more_actions": "その他の操作",
     "move_to": "移動...",
     "remove_tag": "ラベルを削除",
+    "tag_filter_placeholder": "ラベルを絞り込む",
+    "tag_no_matches": "一致するラベルがありません",
     "more_count": "他{count}件",
     "characters_count": "{count}文字",
     "quick_reply_placeholder": "クイック返信を入力...",
@@ -1017,7 +1021,22 @@
       "add": "追加",
       "cancel": "キャンセル",
       "migrating": "既存のメールのラベルを更新中…",
-      "migration_error": "既存のメールのラベルの更新に失敗しました"
+      "migration_error": "既存のメールのラベルの更新に失敗しました",
+      "nesting": {
+        "label": "ネストされたラベル",
+        "description": "ラベルを他のラベルの下にネストし、サイドバーにツリーとして表示します。"
+      },
+      "parent_field": "親ラベル",
+      "no_parent": "親ラベルなし",
+      "too_long": "このラベルのパスが長すぎます（最大{max}文字）",
+      "has_children_locked": "このラベルの下に他のラベルがネストされているため、名前と親ラベルは変更できません。先に移動または削除してください。",
+      "has_children_delete": "先にこのラベルの下にネストされたラベルを削除してください",
+      "visibility_field": "サイドバーでの表示",
+      "visibility": {
+        "show": "表示する",
+        "unread": "未読がある場合に表示",
+        "hide": "表示しない"
+      }
     },
     "notifications": {
       "test_sound": "通知音をテスト",

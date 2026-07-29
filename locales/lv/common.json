@@ -130,6 +130,8 @@
     "demo_reset": "Atiestatīt",
     "demo_tour": "Ekskursija",
     "tags": "Tagi",
+    "show_all_tags": "Rādīt visus ({count})",
+    "show_fewer_tags": "Rādīt mazāk",
     "folders": "Mapes",
     "mail": "Pasts",
     "nav_label": "Navigācija",
@@ -332,6 +334,8 @@
     "next": "Nāk.",
     "move_to": "Pārvietot uz...",
     "remove_tag": "Noņemt tagu",
+    "tag_filter_placeholder": "Filtrēt tagus",
+    "tag_no_matches": "Nav atbilstošu tagu",
     "more_count": "+vairāk {count}",
     "characters_count": "{count} rakstzīmes",
     "quick_reply_placeholder": "Rakstīt ātru atbildi...",
@@ -1017,7 +1021,22 @@
       "add": "Pievienot",
       "cancel": "Atcelt",
       "migrating": "Taga atjaunināšana esošajos e-pastos…",
-      "migration_error": "Neizdevās atjaunināt tagu esošajos e-pastos"
+      "migration_error": "Neizdevās atjaunināt tagu esošajos e-pastos",
+      "nesting": {
+        "label": "Ligzdoti tagi",
+        "description": "Ligzdojiet tagus zem citiem tagiem un rādiet tos sānjoslā kā koku."
+      },
+      "parent_field": "Vecāktags",
+      "no_parent": "Nav vecāktaga",
+      "too_long": "Šis taga ceļš ir pārāk garš (ne vairāk kā {max} rakstzīmes)",
+      "has_children_locked": "Zem šī taga ir ligzdoti citi tagi, tāpēc tā nosaukums un vecāktags ir bloķēti. Vispirms pārvietojiet vai noņemiet tos.",
+      "has_children_delete": "Vispirms noņemiet zem šī ligzdotos tagus",
+      "visibility_field": "Redzamība sānjoslā",
+      "visibility": {
+        "show": "Rādīt",
+        "unread": "Rādīt, ja ir nelasīti",
+        "hide": "Slēpt"
+      }
     },
     "notifications": {
       "test_sound": "Pārbaudīt paziņojuma skaņu",

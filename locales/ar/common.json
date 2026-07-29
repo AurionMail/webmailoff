@@ -130,6 +130,8 @@
     "demo_reset": "إعادة تعيين",
     "demo_tour": "جولة",
     "tags": "الوسوم",
+    "show_all_tags": "إظهار الكل ({count})",
+    "show_fewer_tags": "إظهار أقل",
     "folders": "المجلدات",
     "shared": "مشترك",
     "mail": "البريد",
@@ -332,6 +334,8 @@
     "next": "التالي",
     "move_to": "نقل إلى...",
     "remove_tag": "إزالة الوسم",
+    "tag_filter_placeholder": "تصفية الوسوم",
+    "tag_no_matches": "لا توجد وسوم مطابقة",
     "more_count": "+{count} أخرى",
     "characters_count": "{count} حرفًا",
     "quick_reply_placeholder": "اكتب ردًا سريعًا...",
@@ -1020,7 +1024,22 @@
       "add": "إضافة",
       "cancel": "إلغاء",
       "migrating": "جارٍ تحديث الوسم على الرسائل الحالية…",
-      "migration_error": "فشل تحديث الوسم على الرسائل الحالية"
+      "migration_error": "فشل تحديث الوسم على الرسائل الحالية",
+      "nesting": {
+        "label": "وسوم متداخلة",
+        "description": "ضع الوسوم داخل وسوم أخرى واعرضها كشجرة في الشريط الجانبي."
+      },
+      "parent_field": "الوسم الأصل",
+      "no_parent": "بدون وسم أصل",
+      "too_long": "مسار الوسم طويل جدًا ({max} حرفًا على الأكثر)",
+      "has_children_locked": "توجد وسوم أخرى متداخلة تحت هذا الوسم، لذا فإن اسمه ووسمه الأصل مقفلان. انقلها أو احذفها أولًا.",
+      "has_children_delete": "احذف أولًا الوسوم المتداخلة تحت هذا الوسم",
+      "visibility_field": "الظهور في الشريط الجانبي",
+      "visibility": {
+        "show": "إظهار",
+        "unread": "إظهار عند وجود غير مقروء",
+        "hide": "إخفاء"
+      }
     },
     "notifications": {
       "test_sound": "اختبار صوت الإشعار",

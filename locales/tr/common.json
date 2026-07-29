@@ -130,6 +130,8 @@
     "demo_reset": "Sıfırla",
     "demo_tour": "Tur",
     "tags": "Etiketler",
+    "show_all_tags": "Tümünü göster ({count})",
+    "show_fewer_tags": "Daha az göster",
     "folders": "Klasörler",
     "shared": "Paylaşılan",
     "mail": "Posta",
@@ -332,6 +334,8 @@
     "next": "Sonraki",
     "move_to": "Şuraya taşı...",
     "remove_tag": "Etiketi kaldır",
+    "tag_filter_placeholder": "Etiketleri filtrele",
+    "tag_no_matches": "Eşleşen etiket yok",
     "more_count": "+{count} daha",
     "characters_count": "{count} karakter",
     "quick_reply_placeholder": "Hızlı yanıt yazın...",
@@ -1017,7 +1021,22 @@
       "add": "Ekle",
       "cancel": "İptal",
       "migrating": "Mevcut e-postalardaki etiket güncelleniyor…",
-      "migration_error": "Mevcut e-postalardaki etiket güncellenemedi"
+      "migration_error": "Mevcut e-postalardaki etiket güncellenemedi",
+      "nesting": {
+        "label": "İç içe etiketler",
+        "description": "Etiketleri başka etiketlerin altına yerleştirin ve kenar çubuğunda ağaç olarak gösterin."
+      },
+      "parent_field": "Üst etiket",
+      "no_parent": "Üst etiket yok",
+      "too_long": "Bu etiket yolu çok uzun (en fazla {max} karakter)",
+      "has_children_locked": "Bunun altında başka etiketler var, bu nedenle adı ve üst etiketi kilitli. Önce onları taşıyın veya kaldırın.",
+      "has_children_delete": "Önce bunun altındaki etiketleri kaldırın",
+      "visibility_field": "Kenar çubuğunda görünürlük",
+      "visibility": {
+        "show": "Göster",
+        "unread": "Okunmamış varsa göster",
+        "hide": "Gizle"
+      }
     },
     "notifications": {
       "test_sound": "Bildirim sesini test et",

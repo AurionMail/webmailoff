@@ -130,6 +130,8 @@
     "demo_reset": "Réinitialiser",
     "demo_tour": "Visite",
     "tags": "Étiquettes",
+    "show_all_tags": "Tout afficher ({count})",
+    "show_fewer_tags": "Afficher moins",
     "folders": "Dossiers",
     "mail": "Messagerie",
     "nav_label": "Navigation",
@@ -330,6 +332,8 @@
     "more_actions": "Plus d'actions",
     "move_to": "Déplacer vers...",
     "remove_tag": "Retirer l'étiquette",
+    "tag_filter_placeholder": "Filtrer les étiquettes",
+    "tag_no_matches": "Aucune étiquette correspondante",
     "more_count": "+{count} de plus",
     "characters_count": "{count} caractères",
     "quick_reply_placeholder": "Écrivez une réponse rapide...",
@@ -1017,7 +1021,22 @@
       "add": "Ajouter",
       "cancel": "Annuler",
       "migrating": "Mise à jour de l'étiquette sur les e-mails existants…",
-      "migration_error": "Impossible de mettre à jour l'étiquette sur les e-mails existants"
+      "migration_error": "Impossible de mettre à jour l'étiquette sur les e-mails existants",
+      "nesting": {
+        "label": "Étiquettes imbriquées",
+        "description": "Imbriquez des étiquettes sous d'autres étiquettes et affichez-les sous forme d'arborescence dans la barre latérale."
+      },
+      "parent_field": "Étiquette parente",
+      "no_parent": "Aucune étiquette parente",
+      "too_long": "Ce chemin d'étiquette est trop long ({max} caractères au maximum)",
+      "has_children_locked": "D'autres étiquettes sont imbriquées sous celle-ci, son nom et son étiquette parente sont donc verrouillés. Déplacez-les ou supprimez-les d'abord.",
+      "has_children_delete": "Retirez d'abord les étiquettes imbriquées sous celle-ci",
+      "visibility_field": "Visibilité dans la barre latérale",
+      "visibility": {
+        "show": "Afficher",
+        "unread": "Afficher si non lus",
+        "hide": "Masquer"
+      }
     },
     "notifications": {
       "test_sound": "Tester le son de notification",

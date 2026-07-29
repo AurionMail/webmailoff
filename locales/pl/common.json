@@ -130,6 +130,8 @@
     "demo_reset": "Resetuj",
     "demo_tour": "Przewodnik",
     "tags": "Etykiety",
+    "show_all_tags": "Pokaż wszystkie ({count})",
+    "show_fewer_tags": "Pokaż mniej",
     "folders": "Foldery",
     "mail": "Poczta",
     "nav_label": "Nawigacja",
@@ -332,6 +334,8 @@
     "next": "Nast.",
     "move_to": "Przenieś do...",
     "remove_tag": "Usuń etykietę",
+    "tag_filter_placeholder": "Filtruj etykiety",
+    "tag_no_matches": "Brak pasujących etykiet",
     "more_count": "+{count} więcej",
     "characters_count": "{count} znaków",
     "quick_reply_placeholder": "Napisz szybką odpowiedź...",
@@ -1017,7 +1021,22 @@
       "add": "Dodaj",
       "cancel": "Anuluj",
       "migrating": "Aktualizowanie etykiety w istniejących e-mailach…",
-      "migration_error": "Nie udało się zaktualizować etykiety w istniejących e-mailach"
+      "migration_error": "Nie udało się zaktualizować etykiety w istniejących e-mailach",
+      "nesting": {
+        "label": "Zagnieżdżone etykiety",
+        "description": "Zagnieżdżaj etykiety pod innymi etykietami i wyświetlaj je w panelu bocznym jako drzewo."
+      },
+      "parent_field": "Etykieta nadrzędna",
+      "no_parent": "Brak etykiety nadrzędnej",
+      "too_long": "Ta ścieżka etykiety jest za długa (maksymalnie {max} znaków)",
+      "has_children_locked": "Pod tą etykietą zagnieżdżone są inne etykiety, więc jej nazwa i etykieta nadrzędna są zablokowane. Najpierw je przenieś lub usuń.",
+      "has_children_delete": "Najpierw usuń etykiety zagnieżdżone pod tą",
+      "visibility_field": "Widoczność w panelu bocznym",
+      "visibility": {
+        "show": "Pokaż",
+        "unread": "Pokaż przy nieprzeczytanych",
+        "hide": "Ukryj"
+      }
     },
     "notifications": {
       "test_sound": "Przetestuj dźwięk powiadomienia",

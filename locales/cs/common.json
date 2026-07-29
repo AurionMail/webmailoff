@@ -130,6 +130,8 @@
     "demo_reset": "Resetovat",
     "demo_tour": "Průvodce",
     "tags": "Štítky",
+    "show_all_tags": "Zobrazit vše ({count})",
+    "show_fewer_tags": "Zobrazit méně",
     "folders": "Složky",
     "shared": "Sdílené",
     "mail": "Pošta",
@@ -332,6 +334,8 @@
     "next": "Další",
     "move_to": "Přesunout do...",
     "remove_tag": "Odebrat štítek",
+    "tag_filter_placeholder": "Filtrovat štítky",
+    "tag_no_matches": "Žádné odpovídající štítky",
     "more_count": "+{count} dalších",
     "characters_count": "{count} znaků",
     "quick_reply_placeholder": "Napsat rychlou odpověď...",
@@ -1017,7 +1021,22 @@
       "add": "Přidat",
       "cancel": "Zrušit",
       "migrating": "Aktualizace štítku v existujících e-mailech…",
-      "migration_error": "Nepodařilo se aktualizovat štítek v existujících e-mailech"
+      "migration_error": "Nepodařilo se aktualizovat štítek v existujících e-mailech",
+      "nesting": {
+        "label": "Vnořené štítky",
+        "description": "Vnořujte štítky pod jiné štítky a zobrazujte je v postranním panelu jako strom."
+      },
+      "parent_field": "Nadřazený štítek",
+      "no_parent": "Bez nadřazeného štítku",
+      "too_long": "Tato cesta štítku je příliš dlouhá (nejvýše {max} znaků)",
+      "has_children_locked": "Pod tímto štítkem jsou vnořeny další štítky, proto jsou jeho název a nadřazený štítek uzamčeny. Nejprve je přesuňte nebo odeberte.",
+      "has_children_delete": "Nejprve odeberte štítky vnořené pod tímto",
+      "visibility_field": "Viditelnost v postranním panelu",
+      "visibility": {
+        "show": "Zobrazit",
+        "unread": "Zobrazit při nepřečtených",
+        "hide": "Skrýt"
+      }
     },
     "notifications": {
       "test_sound": "Otestovat zvuk oznámení",

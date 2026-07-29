@@ -130,6 +130,8 @@
     "demo_reset": "Zurücksetzen",
     "demo_tour": "Tour",
     "tags": "Tags",
+    "show_all_tags": "Alle anzeigen ({count})",
+    "show_fewer_tags": "Weniger anzeigen",
     "folders": "Ordner",
     "mail": "E-Mail",
     "nav_label": "Navigation",
@@ -330,6 +332,8 @@
     "more_actions": "Weitere Aktionen",
     "move_to": "Verschieben nach...",
     "remove_tag": "Label entfernen",
+    "tag_filter_placeholder": "Labels filtern",
+    "tag_no_matches": "Keine passenden Labels",
     "more_count": "+{count} weitere",
     "characters_count": "{count} Zeichen",
     "quick_reply_placeholder": "Eine kurze Antwort schreiben...",
@@ -1017,7 +1021,22 @@
       "add": "Hinzufügen",
       "cancel": "Abbrechen",
       "migrating": "Label auf vorhandenen E-Mails aktualisieren…",
-      "migration_error": "Label auf vorhandenen E-Mails konnte nicht aktualisiert werden"
+      "migration_error": "Label auf vorhandenen E-Mails konnte nicht aktualisiert werden",
+      "nesting": {
+        "label": "Verschachtelte Labels",
+        "description": "Labels unter anderen Labels verschachteln und als Baum in der Seitenleiste anzeigen."
+      },
+      "parent_field": "Übergeordnetes Label",
+      "no_parent": "Kein übergeordnetes Label",
+      "too_long": "Dieser Label-Pfad ist zu lang (höchstens {max} Zeichen)",
+      "has_children_locked": "Unter diesem Label sind andere Labels verschachtelt, daher sind Name und übergeordnetes Label gesperrt. Verschieben oder entfernen Sie diese zuerst.",
+      "has_children_delete": "Entfernen Sie zuerst die Labels, die unter diesem verschachtelt sind",
+      "visibility_field": "Sichtbarkeit in der Seitenleiste",
+      "visibility": {
+        "show": "Anzeigen",
+        "unread": "Bei Ungelesenen anzeigen",
+        "hide": "Ausblenden"
+      }
     },
     "notifications": {
       "test_sound": "Benachrichtigungston testen",

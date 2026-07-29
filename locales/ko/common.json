@@ -130,6 +130,8 @@
     "demo_reset": "초기화",
     "demo_tour": "둘러보기",
     "tags": "태그",
+    "show_all_tags": "전체 보기({count})",
+    "show_fewer_tags": "간략히 보기",
     "folders": "폴더",
     "mail": "메일",
     "nav_label": "내비게이션",
@@ -332,6 +334,8 @@
     "next": "다음",
     "move_to": "이동...",
     "remove_tag": "태그 제거",
+    "tag_filter_placeholder": "태그 검색",
+    "tag_no_matches": "일치하는 태그 없음",
     "more_count": "+{count}개 더보기",
     "characters_count": "{count}자",
     "quick_reply_placeholder": "간단하게 답장을 작성해 보세요...",
@@ -1017,7 +1021,22 @@
       "add": "추가",
       "cancel": "취소",
       "migrating": "기존 이메일의 태그 업데이트 중…",
-      "migration_error": "기존 이메일의 태그 업데이트에 실패했습니다"
+      "migration_error": "기존 이메일의 태그 업데이트에 실패했습니다",
+      "nesting": {
+        "label": "중첩 태그",
+        "description": "태그를 다른 태그 아래에 중첩하고 사이드바에 트리로 표시합니다."
+      },
+      "parent_field": "상위 태그",
+      "no_parent": "상위 태그 없음",
+      "too_long": "이 태그 경로가 너무 깁니다(최대 {max}자)",
+      "has_children_locked": "이 태그 아래에 다른 태그가 중첩되어 있어 이름과 상위 태그가 잠겨 있습니다. 먼저 옮기거나 삭제하세요.",
+      "has_children_delete": "이 태그 아래에 중첩된 태그를 먼저 삭제하세요",
+      "visibility_field": "사이드바 표시",
+      "visibility": {
+        "show": "표시",
+        "unread": "읽지 않음이 있을 때 표시",
+        "hide": "숨기기"
+      }
     },
     "notifications": {
       "test_sound": "알림음 테스트",

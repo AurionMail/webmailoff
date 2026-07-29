@@ -130,6 +130,8 @@
     "demo_reset": "重置",
     "demo_tour": "引导",
     "tags": "标签",
+    "show_all_tags": "显示全部（{count}）",
+    "show_fewer_tags": "收起",
     "folders": "文件夹",
     "mail": "邮件",
     "nav_label": "导航",
@@ -332,6 +334,8 @@
     "next": "下一封",
     "move_to": "移动到…",
     "remove_tag": "删除标签",
+    "tag_filter_placeholder": "筛选标签",
+    "tag_no_matches": "没有匹配的标签",
     "more_count": "+{count} 更多",
     "characters_count": "{count} 个字符",
     "quick_reply_placeholder": "快速回复...",
@@ -1017,7 +1021,22 @@
       "add": "添加",
       "cancel": "取消",
       "migrating": "正在更新现有邮件的标签…",
-      "migration_error": "更新现有邮件的标签失败"
+      "migration_error": "更新现有邮件的标签失败",
+      "nesting": {
+        "label": "嵌套标签",
+        "description": "将标签嵌套在其他标签之下，并在侧边栏中以树形显示。"
+      },
+      "parent_field": "上级标签",
+      "no_parent": "无上级标签",
+      "too_long": "此标签路径过长（最多 {max} 个字符）",
+      "has_children_locked": "此标签下嵌套了其他标签，因此其名称和上级标签已锁定。请先移动或删除它们。",
+      "has_children_delete": "请先删除嵌套在此标签下的标签",
+      "visibility_field": "侧边栏显示",
+      "visibility": {
+        "show": "显示",
+        "unread": "有未读时显示",
+        "hide": "隐藏"
+      }
     },
     "notifications": {
       "test_sound": "测试通知声音",

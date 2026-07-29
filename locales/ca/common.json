@@ -130,6 +130,8 @@
     "demo_reset": "Reinicia",
     "demo_tour": "Visita guiada",
     "tags": "Etiquetes",
+    "show_all_tags": "Mostra-ho tot ({count})",
+    "show_fewer_tags": "Mostra'n menys",
     "folders": "Carpetes",
     "shared": "Compartit",
     "mail": "Correu",
@@ -332,6 +334,8 @@
     "next": "Següent",
     "move_to": "Mou a...",
     "remove_tag": "Elimina l'etiqueta",
+    "tag_filter_placeholder": "Filtra les etiquetes",
+    "tag_no_matches": "Cap etiqueta coincident",
     "more_count": "+{count} més",
     "characters_count": "{count} caràcters",
     "quick_reply_placeholder": "Escriviu una resposta ràpida...",
@@ -988,7 +992,22 @@
       "add": "Afegeix",
       "cancel": "Cancel·la",
       "migrating": "Actualitzant l'etiqueta als correus existents…",
-      "migration_error": "No s'ha pogut actualitzar l'etiqueta als correus existents"
+      "migration_error": "No s'ha pogut actualitzar l'etiqueta als correus existents",
+      "nesting": {
+        "label": "Etiquetes imbricades",
+        "description": "Imbrica etiquetes sota altres etiquetes i mostra-les com un arbre a la barra lateral."
+      },
+      "parent_field": "Etiqueta principal",
+      "no_parent": "Sense etiqueta principal",
+      "too_long": "Aquest camí d'etiqueta és massa llarg (com a màxim {max} caràcters)",
+      "has_children_locked": "Hi ha altres etiquetes imbricades sota aquesta, per això el seu nom i la seva etiqueta principal estan bloquejats. Mou-les o elimina-les primer.",
+      "has_children_delete": "Elimina primer les etiquetes imbricades sota aquesta",
+      "visibility_field": "Visibilitat a la barra lateral",
+      "visibility": {
+        "show": "Mostra",
+        "unread": "Mostra si hi ha no llegits",
+        "hide": "Amaga"
+      }
     },
     "notifications": {
       "test_sound": "Prova el so de notificació",
