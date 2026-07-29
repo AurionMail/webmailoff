@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useSettingsStore, DEFAULT_KEYWORDS, KEYWORD_PALETTE, KEYWORD_PALETTE_ROWS, getKeywordVisibility } from '../settings-store';
+import { useSettingsStore, DEFAULT_KEYWORDS, DEV_KEYWORDS, KEYWORD_PALETTE, KEYWORD_PALETTE_ROWS, getKeywordVisibility } from '../settings-store';
 import type { KeywordDefinition } from '../settings-store';
 
 describe('settings-store keywords', () => {
@@ -23,6 +23,31 @@ describe('settings-store keywords', () => {
     it('all default keyword ids are unique', () => {
       const ids = DEFAULT_KEYWORDS.map((k) => k.id);
       expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('ships no nested tag, which is opt-in', () => {
+      DEFAULT_KEYWORDS.forEach((kw) => expect(kw.id).not.toContain('/'));
+    });
+  });
+
+  describe('DEV_KEYWORDS', () => {
+    it('every nested tag has its parent defined, so the tree has no gaps', () => {
+      const ids = new Set(DEV_KEYWORDS.map((k) => k.id));
+      DEV_KEYWORDS.forEach((kw) => {
+        const cut = kw.id.lastIndexOf('/');
+        if (cut > 0) expect(ids, `orphan: ${kw.id}`).toContain(kw.id.slice(0, cut));
+      });
+    });
+
+    it('nests deeply enough to exercise the tree', () => {
+      const depths = DEV_KEYWORDS.map((k) => k.id.split('/').length);
+      expect(Math.max(...depths)).toBeGreaterThanOrEqual(3);
+    });
+
+    it('each dev keyword has a valid palette color and a unique id', () => {
+      const ids = DEV_KEYWORDS.map((k) => k.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      DEV_KEYWORDS.forEach((kw) => expect(KEYWORD_PALETTE[kw.color]).toBeDefined());
     });
   });
 

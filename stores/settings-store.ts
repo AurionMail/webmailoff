@@ -215,6 +215,17 @@ export const DEFAULT_KEYWORDS: KeywordDefinition[] = [
   { id: 'pink', label: 'Pink', color: 'pink' },
 ];
 
+export const DEV_KEYWORDS: KeywordDefinition[] = [
+  { id: 'work', label: 'Work', color: 'blue' },
+  { id: 'work/clients', label: 'Clients', color: 'teal' },
+  { id: 'work/clients/acme', label: 'Acme', color: 'green' },
+  { id: 'personal', label: 'Personal', color: 'purple' },
+  { id: 'personal/finance', label: 'Finance', color: 'amber' },
+  { id: 'receipts', label: 'Receipts', color: 'gray' },
+];
+
+const USING_MOCK_SERVER = process.env.NEXT_PUBLIC_DEV_MOCK_JMAP === 'true';
+
 interface SettingsState {
   // Appearance
   fontSize: FontSize;
@@ -557,8 +568,8 @@ const DEFAULT_SETTINGS = {
   folderIcons: {} as Record<string, string>,
 
   // Keywords
-  emailKeywords: DEFAULT_KEYWORDS,
-  nestedTags: false,
+  emailKeywords: USING_MOCK_SERVER ? DEV_KEYWORDS : DEFAULT_KEYWORDS,
+  nestedTags: USING_MOCK_SERVER,
 
   // Attachment Reminder
   attachmentReminderEnabled: true,
