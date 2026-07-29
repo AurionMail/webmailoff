@@ -243,3 +243,48 @@ describe('ThreadListItem shift-range checkbox', () => {
     expect(selected.has('e3')).toBe(true);
   });
 });
+
+describe('ThreadListItem row tint', () => {
+  const rowClasses = (container: HTMLElement) =>
+    container.querySelector('[data-email-id="email-1"]')!.className.split(' ');
+
+  beforeEach(() => {
+    useSettingsStore.setState({
+      emailKeywords: [...DEFAULT_KEYWORDS],
+      showPreview: false,
+      mailLayout: 'split',
+      tintListRowsByTag: true,
+    });
+    useEmailStore.setState({
+      selectedEmailIds: new Set(['email-1']),
+      selectedMailbox: 'inbox',
+    });
+  });
+
+  it('keeps a checked row tinted, and says so to either theme', () => {
+    const { container } = renderRow(makeEmail({ keywords: { $seen: true, '$label:red': true } }));
+    const classes = rowClasses(container);
+
+    expect(classes).toContain('bg-red-50');
+    expect(classes).toContain('dark:bg-red-950/30');
+    expect(classes).not.toContain('bg-accent/40');
+    expect(classes).toContain('ring-primary/20');
+  });
+
+  it('washes a checked row that has no tint to keep', () => {
+    const { container } = renderRow(makeEmail({ keywords: { $seen: true } }));
+    const classes = rowClasses(container);
+
+    expect(classes).toContain('bg-accent/40');
+    expect(classes).toContain('ring-primary/20');
+  });
+
+  it('leaves the tint alone when the setting is off', () => {
+    useSettingsStore.setState({ tintListRowsByTag: false });
+    const { container } = renderRow(makeEmail({ keywords: { $seen: true, '$label:red': true } }));
+    const classes = rowClasses(container);
+
+    expect(classes).not.toContain('bg-red-50');
+    expect(classes).toContain('bg-accent/40');
+  });
+});

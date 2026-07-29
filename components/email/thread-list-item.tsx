@@ -202,9 +202,11 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
           !resolvedRowTint && (selected || isChecked) && "hover:bg-accent hover:shadow-sm",
           resolvedRowTint && "hover:brightness-95 dark:hover:brightness-110",
           isUnread && !resolvedRowTint && "bg-accent/30",
-          isChecked && "ring-2 ring-primary/20 bg-accent/40",
+          isChecked && "ring-2 ring-primary/20",
+          isChecked && !resolvedRowTint && "bg-accent/40",
           isDragging && "opacity-50 scale-[0.98] ring-2 ring-primary/30",
-          isPressed && "bg-muted scale-[0.98] ring-2 ring-primary/30"
+          isPressed && "scale-[0.98] ring-2 ring-primary/30",
+          isPressed && !resolvedRowTint && "bg-muted"
         )}
         onClick={handleClick}
         onDoubleClick={(e) => {
@@ -640,8 +642,10 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
             rowTint && "hover:brightness-95 dark:hover:brightness-110",
             hasUnread && !rowTint && !isSelected && "bg-accent/30",
             isExpanded && "border-b border-border/50",
-            isChecked && "ring-2 ring-primary/20 bg-accent/40",
-            isThreadPressed && "bg-muted scale-[0.98] ring-2 ring-primary/30"
+            isChecked && "ring-2 ring-primary/20",
+            isChecked && !rowTint && "bg-accent/40",
+            isThreadPressed && "scale-[0.98] ring-2 ring-primary/30",
+            isThreadPressed && !rowTint && "bg-muted"
           )}
           onClick={handleHeaderClick}
           onDoubleClick={(e) => {
