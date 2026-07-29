@@ -5,6 +5,7 @@ import {
   getThreadParticipants,
   mergeThreadEmails,
   getEmailTagId,
+  getEmailTagIds,
   getThreadTagId,
   getThreadTagIds,
 } from '../thread-utils';
@@ -243,6 +244,30 @@ describe('mergeThreadEmails', () => {
     expect(merged.hasStarred).toBe(true);
     expect(merged.hasAttachment).toBe(true);
     expect(merged.participantNames).toContain('Bob');
+  });
+});
+
+describe('getEmailTagIds', () => {
+  it('gathers every tag set on the message', () => {
+    expect(getEmailTagIds({ '$label:red': true, '$label:work': true, $seen: true }))
+      .toEqual(['red', 'work']);
+  });
+
+  it('reads the legacy prefix alongside the current one', () => {
+    expect(getEmailTagIds({ '$label:red': true, '$color:blue': true })).toEqual(['red', 'blue']);
+  });
+
+  it('reports a tag written under both prefixes once', () => {
+    expect(getEmailTagIds({ '$label:red': true, '$color:red': true })).toEqual(['red']);
+  });
+
+  it('ignores keywords set to false', () => {
+    expect(getEmailTagIds({ '$label:red': false, '$label:work': true })).toEqual(['work']);
+  });
+
+  it('is empty for an untagged message or none at all', () => {
+    expect(getEmailTagIds({ $seen: true })).toEqual([]);
+    expect(getEmailTagIds(undefined)).toEqual([]);
   });
 });
 

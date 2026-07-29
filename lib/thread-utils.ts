@@ -170,20 +170,21 @@ export const KEYWORD_PREFIX_LEGACY = "$color:";
 /**
  * Gets every tag id set on a message.
  * Reads both the current $label: prefix and the legacy $color: prefix.
+ * A tag written under both spellings is one tag, so it is returned once.
  */
 export function getEmailTagIds(keywords: Record<string, boolean> | undefined): string[] {
   if (!keywords) return [];
-  const tags: string[] = [];
+  const tags = new Set<string>();
   for (const key of Object.keys(keywords)) {
     if ((key.startsWith(KEYWORD_PREFIX) || key.startsWith(KEYWORD_PREFIX_LEGACY)) && keywords[key] === true) {
-      tags.push(
+      tags.add(
         key.startsWith(KEYWORD_PREFIX)
           ? key.slice(KEYWORD_PREFIX.length)
           : key.slice(KEYWORD_PREFIX_LEGACY.length)
       );
     }
   }
-  return tags;
+  return [...tags];
 }
 
 /**

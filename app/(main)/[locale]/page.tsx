@@ -34,6 +34,7 @@ import { debug } from "@/lib/debug";
 import { playNotificationSound } from "@/lib/notification-sound";
 import { cn } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
+import { KEYWORD_PREFIX, KEYWORD_PREFIX_LEGACY } from "@/lib/thread-utils";
 import {
   ErrorBoundary,
   SidebarErrorFallback,
@@ -1870,18 +1871,22 @@ export default function Home() {
       if (tagId === null) {
         // Remove all tag keywords
         Object.keys(keywords).forEach(key => {
-          if (key.startsWith("$label:") || key.startsWith("$color:")) {
+          if (key.startsWith(KEYWORD_PREFIX) || key.startsWith(KEYWORD_PREFIX_LEGACY)) {
             keywords[key] = false;
           }
         });
       } else {
-        const jmapKey = `$label:${tagId}`;
-        if (keywords[jmapKey]) {
-          // Toggle off if already active
-          keywords[jmapKey] = false;
+        // Both prefixes name the same tag when read, so taking one off has to
+        // clear whichever spellings are actually set.
+        const activeKeys = [KEYWORD_PREFIX + tagId, KEYWORD_PREFIX_LEGACY + tagId]
+          .filter(key => keywords[key]);
+        if (activeKeys.length > 0) {
+          activeKeys.forEach(key => {
+            keywords[key] = false;
+          });
         } else {
           // Add the tag without disturbing others
-          keywords[jmapKey] = true;
+          keywords[KEYWORD_PREFIX + tagId] = true;
         }
       }
 

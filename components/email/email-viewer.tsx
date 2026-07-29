@@ -16,6 +16,7 @@ import { TagBadge } from "./tag-badge";
 import { TagPicker } from "./tag-picker";
 import { useMeasuredTagDisplay } from "@/hooks/use-tag-display";
 import { useKeywordFormat } from "@/hooks/use-keyword-format";
+import { getEmailTagIds } from "@/lib/thread-utils";
 import { getSecurityStatus, extractListHeaders } from "@/lib/email-headers";
 import { emailToReadView } from "@/lib/plugin-projection";
 import { generateEmailSource } from "@/lib/email-source";
@@ -202,19 +203,6 @@ const getAttachmentDisplayName = (name: string | null | undefined, mimeType?: st
     }
   }
   return 'Attachment';
-};
-
-const getCurrentTagIds = (keywords: Record<string, boolean> | undefined): string[] => {
-  if (!keywords) return [];
-  const tags: string[] = [];
-  for (const key of Object.keys(keywords)) {
-    if ((key.startsWith("$label:") || key.startsWith("$color:")) && keywords[key] === true) {
-      tags.push(
-        key.startsWith("$label:") ? key.slice("$label:".length) : key.slice("$color:".length)
-      );
-    }
-  }
-  return tags;
 };
 
 // Helper function to format recipients with contextual display
@@ -818,7 +806,7 @@ export function EmailViewer({
   const moveMenuRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [hiddenPriorities, setHiddenPriorities] = useState<Set<number>>(new Set());
-  const currentTagIds = getCurrentTagIds(email?.keywords);
+  const currentTagIds = getEmailTagIds(email?.keywords);
   const sortedTagIds = sortTagIds(currentTagIds);
   // The header spans the reading pane, so it measures its own width rather than
   // inheriting the message list's answer.
@@ -3011,8 +2999,7 @@ export function EmailViewer({
             <div className="absolute end-0 top-full mt-1 py-1 w-56 bg-background rounded-md shadow-lg border border-border z-10">
               <TagPicker
                 selectedIds={currentTagIds}
-                onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); setTagMenuOpen(false); }}
-                onClearAll={() => { if (email) onSetTag?.(email.id, null); setTagMenuOpen(false); }}
+                onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
               />
             </div>
           )}
@@ -3205,7 +3192,7 @@ export function EmailViewer({
                 </div>
               )}
               {/* Overflow: tag - submenu */}
-              {emailKeywords.length > 0 && (
+              {(emailKeywords.length > 0 || currentTagIds.length > 0) && (
                 <div className={cn("relative", hiddenPriorities.has(6) ? "" : "sm:hidden")}
                   onMouseEnter={() => setMoreMenuSub('tag')}
                   onMouseLeave={() => setMoreMenuSub(null)}
@@ -3222,8 +3209,7 @@ export function EmailViewer({
                     <div className="absolute end-full top-0 me-1 py-1 w-56 bg-background rounded-md shadow-lg border border-border z-10">
                       <TagPicker
                         selectedIds={currentTagIds}
-                        onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); setMoreMenuOpen(false); setMoreMenuSub(null); }}
-                        onClearAll={() => { if (email) onSetTag?.(email.id, null); setMoreMenuOpen(false); setMoreMenuSub(null); }}
+                        onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
                       />
                     </div>
                   )}
@@ -3368,7 +3354,7 @@ export function EmailViewer({
                 {isStarred ? t('tooltips.unstar') : t('tooltips.star')}
               </button>
               {/* Tag (opens sub-view) */}
-              {emailKeywords.length > 0 && (
+              {(emailKeywords.length > 0 || currentTagIds.length > 0) && (
                 <button
                   onClick={() => setMoreMenuSub('tag')}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
@@ -3482,8 +3468,7 @@ export function EmailViewer({
             <TagPicker
               touch
               selectedIds={currentTagIds}
-              onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); setMoreMenuOpen(false); setMoreMenuSub(null); }}
-              onClearAll={() => { if (email) onSetTag?.(email.id, null); setMoreMenuOpen(false); setMoreMenuSub(null); }}
+              onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
             />
           )}
         </div>
@@ -3551,7 +3536,12 @@ export function EmailViewer({
               {sortedTagIds.length > 0 && (
                 <div ref={headerTagsRef} className="mt-1.5 flex flex-wrap items-center gap-1">
                   {sortedTagIds.map((tagId) => (
-                    <TagBadge key={tagId} tagId={tagId} variant={headerTagVariant} />
+                    <TagBadge
+                      key={tagId}
+                      tagId={tagId}
+                      variant={headerTagVariant}
+                      onRemove={onSetTag && email ? () => onSetTag(email.id, tagId) : undefined}
+                    />
                   ))}
                 </div>
               )}

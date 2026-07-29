@@ -53,12 +53,28 @@ describe('TagPicker', () => {
     expect(onToggle).toHaveBeenCalledWith('work/clients');
   });
 
-  it('offers the clear-all row only while something is applied', () => {
-    const { rerender } = render(<TagPicker selectedIds={[]} onToggle={() => {}} onClearAll={() => {}} />);
-    expect(screen.queryByText('remove_tag')).not.toBeInTheDocument();
+  it('lists a tag it has no definition for, so it can be taken off', () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(<TagPicker selectedIds={['from-elsewhere']} onToggle={onToggle} />);
 
-    rerender(<TagPicker selectedIds={['work']} onToggle={() => {}} onClearAll={() => {}} />);
-    expect(screen.getByText('remove_tag')).toBeInTheDocument();
+    const row = screen.getByText('from-elsewhere').closest('button')!;
+    expect(row).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(row);
+    expect(onToggle).toHaveBeenCalledWith('from-elsewhere');
+
+    // Nothing but the message says it exists, so deselecting is the last of it.
+    rerender(<TagPicker selectedIds={[]} onToggle={onToggle} />);
+    expect(screen.queryByText('from-elsewhere')).not.toBeInTheDocument();
+  });
+
+  it('counts undefined tags towards the filter box, and matches them', () => {
+    const strays = Array.from({ length: 8 }, (_, i) => `stray-${i}`);
+    const { container } = render(<TagPicker selectedIds={strays} onToggle={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText('tag_filter_placeholder'), { target: { value: 'stray-3' } });
+    expect(within(container).getByText('stray-3')).toBeInTheDocument();
+    expect(within(container).queryByText('Work')).not.toBeInTheDocument();
   });
 
   it('hides the filter box until the list is long enough to need one', () => {

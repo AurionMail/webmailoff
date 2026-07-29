@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useKeywordFormat } from "@/hooks/use-keyword-format";
 import { useShortenedText } from "@/hooks/use-shortened-text";
@@ -38,12 +40,19 @@ export const TAG_GROUP_CLASS = "flex shrink-0 items-center gap-1";
 export function TagBadge({
   tagId,
   variant,
+  onRemove,
   className,
 }: {
   tagId: string;
   variant: TagBadgeVariant;
+  /**
+   * Takes the tag off the message. Only the named form offers it - a dot is the
+   * size of the control it would have to hold.
+   */
+  onRemove?: () => void;
   className?: string;
 }) {
+  const t = useTranslations("email_viewer");
   const { tagName, tagNameCandidates, tagColor } = useKeywordFormat();
   const [labelRef, shortenedName] = useShortenedText(tagNameCandidates(tagId));
   const color = tagColor(tagId);
@@ -61,10 +70,9 @@ export function TagBadge({
 
   return (
     <span
-      ref={labelRef}
       className={cn(
         TAG_LOZENGE_CLASS,
-        "max-w-[12rem] truncate border",
+        "max-w-[12rem] border",
         color.fill,
         color.border,
         color.text,
@@ -72,7 +80,20 @@ export function TagBadge({
       )}
       title={name}
     >
-      {shortenedName}
+      <span ref={labelRef} className="min-w-0 truncate">
+        {shortenedName}
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="ms-0.5 shrink-0 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+          title={t("remove_tag")}
+          aria-label={t("remove_tag")}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </span>
   );
 }

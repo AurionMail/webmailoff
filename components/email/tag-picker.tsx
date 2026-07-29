@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, Search, X } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import { buildKeywordTree, type KeywordNode } from "@/lib/keyword-nesting";
@@ -26,12 +26,10 @@ const SEARCH_THRESHOLD = 10;
 export function TagPicker({
   selectedIds,
   onToggle,
-  onClearAll,
   touch = false,
 }: {
   selectedIds: string[];
   onToggle: (tagId: string) => void;
-  onClearAll?: () => void;
   /** Larger hit areas for the mobile sheet. */
   touch?: boolean;
 }) {
@@ -42,15 +40,32 @@ export function TagPicker({
   const [query, setQuery] = useState("");
 
   const trimmedQuery = query.trim().toLowerCase();
-  const showSearch = keywords.length >= SEARCH_THRESHOLD;
+
+  /**
+   * Tags on the message this client has no definition for - set from another
+   * client, or outliving the tag they were made with. Listing them is the only
+   * way to take one off, and they leave the list as they are deselected because
+   * nothing but the message itself records that they exist.
+   */
+  const unknownIds = useMemo(
+    () =>
+      selectedIds
+        .filter((id) => !keywords.some((keyword) => keyword.id === id))
+        .sort((a, b) => tagName(a).localeCompare(tagName(b))),
+    // `tagName` is rebuilt whenever the definitions or the nesting setting change.
+    [selectedIds, keywords, tagName],
+  );
+
+  const showSearch = keywords.length + unknownIds.length >= SEARCH_THRESHOLD;
 
   const matches = useMemo(
     () =>
       trimmedQuery
-        ? keywords.filter((keyword) => tagName(keyword.id).toLowerCase().includes(trimmedQuery))
+        ? [...keywords.map((keyword) => keyword.id), ...unknownIds].filter((id) =>
+            tagName(id).toLowerCase().includes(trimmedQuery),
+          )
         : [],
-    // `tagName` is rebuilt whenever the definitions or the nesting setting change.
-    [keywords, trimmedQuery, tagName],
+    [keywords, unknownIds, trimmedQuery, tagName],
   );
 
   const tree = useMemo(
@@ -111,28 +126,22 @@ export function TagPicker({
       <div className="max-h-[min(20rem,60vh)] overflow-y-auto">
         {trimmedQuery ? (
           matches.length > 0 ? (
-            matches.map((keyword) => renderRow(keyword.id, tagName(keyword.id)))
+            matches.map((id) => renderRow(id, tagName(id)))
           ) : (
             <p className="px-3 py-2 text-sm text-muted-foreground">{t("tag_no_matches")}</p>
           )
         ) : (
-          renderBranch(tree)
+          <>
+            {renderBranch(tree)}
+            {unknownIds.length > 0 && (
+              <>
+                {keywords.length > 0 && <div className="h-px bg-border my-1" />}
+                {unknownIds.map((id) => renderRow(id, tagName(id)))}
+              </>
+            )}
+          </>
         )}
       </div>
-
-      {onClearAll && selectedIds.length > 0 && (
-        <>
-          <div className="h-px bg-border my-1" />
-          <button
-            type="button"
-            onClick={onClearAll}
-            className={cn(rowClass, "text-muted-foreground")}
-          >
-            <X className={cn("flex-shrink-0", touch ? "w-4 h-4" : "w-3 h-3")} />
-            <span>{t("remove_tag")}</span>
-          </button>
-        </>
-      )}
     </>
   );
 }

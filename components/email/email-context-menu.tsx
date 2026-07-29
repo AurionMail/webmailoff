@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
+import { getEmailTagIds } from "@/lib/thread-utils";
 import { TagPicker } from "./tag-picker";
 
 interface Position {
@@ -99,20 +100,6 @@ const getMailboxIcon = (role?: string) => {
   }
 };
 
-/** Every tag id set on a message, reading the current prefix and the legacy one. */
-const getCurrentTagIds = (keywords: Record<string, boolean> | undefined): string[] => {
-  if (!keywords) return [];
-  const tags: string[] = [];
-  for (const key of Object.keys(keywords)) {
-    if ((key.startsWith("$label:") || key.startsWith("$color:")) && keywords[key] === true) {
-      tags.push(
-        key.startsWith("$label:") ? key.slice("$label:".length) : key.slice("$color:".length)
-      );
-    }
-  }
-  return tags;
-};
-
 export function EmailContextMenu({
   email,
   position,
@@ -155,7 +142,7 @@ export function EmailContextMenu({
   const isStarred = email.keywords?.$flagged;
   const isPinned = email.keywords?.['$pinned'] === true;
   const isDraft = email.keywords?.['$draft'] === true;
-  const currentTagIds = getCurrentTagIds(email.keywords);
+  const currentTagIds = getEmailTagIds(email.keywords);
   const showBatchActions = isMultiSelect && selectedCount > 1;
   const isInJunkFolder = currentMailboxRole === 'junk';
   // Marking your own outgoing mail as spam makes no sense - hide the action
@@ -373,8 +360,7 @@ export function EmailContextMenu({
           <div className="w-56 max-w-[18rem]">
             <TagPicker
               selectedIds={currentTagIds}
-              onToggle={(tagId) => handleAction(() => onSetTag?.(tagId))}
-              onClearAll={() => handleAction(() => onSetTag?.(null))}
+              onToggle={(tagId) => onSetTag?.(tagId)}
             />
           </div>
         </ContextMenuSubMenu>

@@ -133,6 +133,14 @@ export function EmailList({
   }, [emails, disableThreading, isScheduledView, threadEmailCounts]);
 
   const { contextMenu, openContextMenu, closeContextMenu, menuRef } = useContextMenu<Email>();
+  /**
+   * The row the menu was opened on, as the list currently has it. The menu holds
+   * the message it was handed when it opened, but tags can be applied from
+   * inside it without dismissing it, so what it draws has to keep up.
+   */
+  const contextMenuEmail = contextMenu.data
+    ? emails.find((email) => email.id === contextMenu.data!.id) ?? contextMenu.data
+    : null;
   const { dialogProps: confirmDialogProps, confirm: confirmDialog } = useConfirmDialog();
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -574,9 +582,9 @@ export function EmailList({
       </div>
 
       {/* Context Menu */}
-      {contextMenu.data && (
+      {contextMenuEmail && (
         <EmailContextMenu
-          email={contextMenu.data}
+          email={contextMenuEmail}
           position={contextMenu.position}
           isOpen={contextMenu.isOpen}
           onClose={closeContextMenu}
@@ -584,25 +592,25 @@ export function EmailList({
           mailboxes={mailboxes}
           selectedMailbox={selectedMailbox}
           currentMailboxRole={effectiveMailboxRole}
-          isMultiSelect={selectedEmailIds.has(contextMenu.data.id)}
+          isMultiSelect={selectedEmailIds.has(contextMenuEmail.id)}
           selectedCount={selectedEmailIds.size}
-          onReply={() => onReply?.(contextMenu.data!)}
-          onReplyAll={() => onReplyAll?.(contextMenu.data!)}
-          onForward={() => onForward?.(contextMenu.data!)}
-          onForwardAsAttachment={() => onForwardAsAttachment?.(contextMenu.data!)}
+          onReply={() => onReply?.(contextMenuEmail!)}
+          onReplyAll={() => onReplyAll?.(contextMenuEmail!)}
+          onForward={() => onForward?.(contextMenuEmail!)}
+          onForwardAsAttachment={() => onForwardAsAttachment?.(contextMenuEmail!)}
           onMarkAsRead={(read) => onMarkAsRead?.(contextMenu.data!, read)}
-          onToggleStar={() => onToggleStar?.(contextMenu.data!)}
-          onTogglePinned={onTogglePinned ? () => onTogglePinned(contextMenu.data!) : undefined}
-          onDelete={() => onDelete?.(contextMenu.data!)}
-          onArchive={() => onArchive?.(contextMenu.data!)}
-          onSetTag={(color) => onSetTag?.(contextMenu.data!.id, color)}
-          onMoveToMailbox={(mailboxId) => onMoveToMailbox?.(contextMenu.data!.id, mailboxId)}
-          onMarkAsSpam={() => onMarkAsSpam?.(contextMenu.data!)}
-          onUndoSpam={() => onUndoSpam?.(contextMenu.data!)}
-          onEditDraft={() => onEditDraft?.(contextMenu.data!)}
-          onCancelScheduled={onCancelScheduled ? () => onCancelScheduled(contextMenu.data!) : undefined}
-          onCancelScheduledForEdit={onCancelScheduledForEdit ? () => onCancelScheduledForEdit(contextMenu.data!) : undefined}
-          onRescheduleScheduled={onRescheduleScheduled ? () => onRescheduleScheduled(contextMenu.data!) : undefined}
+          onToggleStar={() => onToggleStar?.(contextMenuEmail!)}
+          onTogglePinned={onTogglePinned ? () => onTogglePinned(contextMenuEmail!) : undefined}
+          onDelete={() => onDelete?.(contextMenuEmail!)}
+          onArchive={() => onArchive?.(contextMenuEmail!)}
+          onSetTag={(color) => onSetTag?.(contextMenuEmail!.id, color)}
+          onMoveToMailbox={(mailboxId) => onMoveToMailbox?.(contextMenuEmail!.id, mailboxId)}
+          onMarkAsSpam={() => onMarkAsSpam?.(contextMenuEmail!)}
+          onUndoSpam={() => onUndoSpam?.(contextMenuEmail!)}
+          onEditDraft={() => onEditDraft?.(contextMenuEmail!)}
+          onCancelScheduled={onCancelScheduled ? () => onCancelScheduled(contextMenuEmail!) : undefined}
+          onCancelScheduledForEdit={onCancelScheduledForEdit ? () => onCancelScheduledForEdit(contextMenuEmail!) : undefined}
+          onRescheduleScheduled={onRescheduleScheduled ? () => onRescheduleScheduled(contextMenuEmail!) : undefined}
           onBatchMarkAsRead={(read) => client && batchMarkAsRead(client, read)}
           onBatchDelete={() => client && batchDelete(client)}
           onBatchArchive={async () => {
