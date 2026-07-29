@@ -17,6 +17,7 @@ import { useContextMenu } from "@/hooks/use-context-menu";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useTranslations } from "next-intl";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { TagDisplayContext, useMeasuredTagDisplay } from "@/hooks/use-tag-display";
 import { SearchChips } from "@/components/search/search-chips";
 import { isFilterEmpty, DEFAULT_SEARCH_FILTERS } from "@/lib/jmap/search-utils";
 
@@ -39,7 +40,7 @@ interface EmailListProps {
   onTogglePinned?: (email: Email) => void;
   onDelete?: (email: Email) => void;
   onArchive?: (email: Email) => void;
-  onSetColorTag?: (emailId: string, color: string | null) => void;
+  onSetTag?: (emailId: string, tagId: string | null) => void;
   onMoveToMailbox?: (emailId: string, mailboxId: string) => void;
   onMarkAsSpam?: (email: Email) => void;
   onUndoSpam?: (email: Email) => void;
@@ -70,7 +71,7 @@ export function EmailList({
   onTogglePinned,
   onDelete,
   onArchive,
-  onSetColorTag,
+  onSetTag,
   onMarkAsSpam,
   onUndoSpam,
   onMoveToMailbox,
@@ -136,6 +137,8 @@ export function EmailList({
 
   const [isProcessing, setIsProcessing] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
+  // One tag treatment for the whole list, measured from the scroll container.
+  const tagDisplay = useMeasuredTagDisplay(parentRef);
   const density = useSettingsStore((state) => state.density);
   const showPreview = useSettingsStore((state) => state.showPreview);
   const mailLayout = useSettingsStore((state) => state.mailLayout);
@@ -332,6 +335,7 @@ export function EmailList({
   }, [density, isFocusedMailLayout, showPreview]);
 
   return (
+    <TagDisplayContext.Provider value={tagDisplay}>
     <div className={cn("flex flex-col min-h-0", className)}>
       {/* Batch Actions Toolbar */}
       <div
@@ -543,7 +547,7 @@ export function EmailList({
                       onMarkAsRead={onMarkAsRead ? (email, read) => onMarkAsRead(email, read) : undefined}
                       onDelete={onDelete ? (email) => onDelete(email) : undefined}
                       onArchive={onArchive ? (email) => onArchive(email) : undefined}
-                      onSetColorTag={onSetColorTag}
+                      onSetTag={onSetTag}
                       onMarkAsSpam={onMarkAsSpam ? (email) => onMarkAsSpam(email) : undefined}
                       onUndoSpam={onUndoSpam ? (email) => onUndoSpam(email) : undefined}
                     />
@@ -591,7 +595,7 @@ export function EmailList({
           onTogglePinned={onTogglePinned ? () => onTogglePinned(contextMenu.data!) : undefined}
           onDelete={() => onDelete?.(contextMenu.data!)}
           onArchive={() => onArchive?.(contextMenu.data!)}
-          onSetColorTag={(color) => onSetColorTag?.(contextMenu.data!.id, color)}
+          onSetTag={(color) => onSetTag?.(contextMenu.data!.id, color)}
           onMoveToMailbox={(mailboxId) => onMoveToMailbox?.(contextMenu.data!.id, mailboxId)}
           onMarkAsSpam={() => onMarkAsSpam?.(contextMenu.data!)}
           onUndoSpam={() => onUndoSpam?.(contextMenu.data!)}
@@ -645,5 +649,6 @@ export function EmailList({
 
       <ConfirmDialog {...confirmDialogProps} />
     </div>
+    </TagDisplayContext.Provider>
   );
 }

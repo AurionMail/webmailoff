@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import {
   useSettingsStore,
   KEYWORD_PALETTE,
+  KEYWORD_PALETTE_ROWS,
   getKeywordVisibility,
   type KeywordDefinition,
   type KeywordVisibility,
@@ -25,11 +26,11 @@ import {
   type KeywordNode,
   MAX_KEYWORD_ID_LENGTH,
 } from "@/lib/keyword-nesting";
-import { formatKeyword, formatKeywordLabels, keywordRenderings } from "@/lib/keyword-format";
+import { formatKeyword, keywordRenderings } from "@/lib/keyword-format";
 import { useShortenedText } from "@/hooks/use-shortened-text";
+import { TagBadge } from "@/components/email/tag-badge";
 
-const PALETTE_KEYS = Object.keys(KEYWORD_PALETTE);
-
+/** Lighter, base and darker shade of each hue, one row per shade. */
 function KeywordColorPicker({
   value,
   onChange,
@@ -38,19 +39,23 @@ function KeywordColorPicker({
   onChange: (color: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {PALETTE_KEYS.map((colorKey) => (
-        <button
-          key={colorKey}
-          type="button"
-          onClick={() => onChange(colorKey)}
-          className={cn(
-            "w-6 h-6 rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            KEYWORD_PALETTE[colorKey].dot,
-            value === colorKey && "ring-2 ring-offset-2 ring-offset-background ring-foreground"
-          )}
-          aria-label={colorKey}
-        />
+    <div className="space-y-1.5">
+      {KEYWORD_PALETTE_ROWS.map((row, index) => (
+        <div key={index} className="flex flex-wrap gap-1.5">
+          {row.map((colorKey) => (
+            <button
+              key={colorKey}
+              type="button"
+              onClick={() => onChange(colorKey)}
+              className={cn(
+                "w-6 h-6 rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                KEYWORD_PALETTE[colorKey].dot,
+                value === colorKey && "ring-2 ring-offset-2 ring-offset-background ring-foreground"
+              )}
+              aria-label={colorKey}
+            />
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -84,10 +89,7 @@ function KeywordRow({
   isDragging: boolean;
 }) {
   const t = useTranslations("settings.keywords");
-  const palette = KEYWORD_PALETTE[keyword.color];
   const hasChildren = hasChildKeywords(keyword.id, keywords);
-  const nameCandidates = keywordRenderings(formatKeywordLabels(keyword.id, keywords, nestedTags));
-  const [nameRef, shortenedName] = useShortenedText(nameCandidates);
   // Measured with the prefix attached, since that is what occupies the column.
   const keywordCandidates = (nestedTags ? keywordRenderings(keywordLevels(keyword.id)) : [keyword.id])
     .map((rendering) => KEYWORD_PREFIX + rendering);
@@ -112,14 +114,9 @@ function KeywordRow({
       )}
     >
       <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-50 cursor-grab" />
-      <div className={cn("w-5 h-5 rounded-full shrink-0", palette?.dot || "bg-gray-500")} />
-      <span
-        ref={nameRef}
-        className="flex-1 min-w-0 text-sm font-medium truncate"
-        title={formatKeyword(keyword.id, keywords, nestedTags)}
-      >
-        {shortenedName}
-      </span>
+      <div className="flex min-w-0 flex-1">
+        <TagBadge tagId={keyword.id} variant="badge" className="text-xs" />
+      </div>
       <span
         ref={keywordRef}
         className="hidden md:block min-w-0 max-w-52 truncate text-xs text-muted-foreground font-mono"

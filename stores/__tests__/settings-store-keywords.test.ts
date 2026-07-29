@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useSettingsStore, DEFAULT_KEYWORDS, KEYWORD_PALETTE, getKeywordVisibility } from '../settings-store';
+import { useSettingsStore, DEFAULT_KEYWORDS, KEYWORD_PALETTE, KEYWORD_PALETTE_ROWS, getKeywordVisibility } from '../settings-store';
 import type { KeywordDefinition } from '../settings-store';
 
 describe('settings-store keywords', () => {
@@ -16,7 +16,7 @@ describe('settings-store keywords', () => {
       DEFAULT_KEYWORDS.forEach((kw) => {
         expect(KEYWORD_PALETTE[kw.color]).toBeDefined();
         expect(KEYWORD_PALETTE[kw.color].dot).toBeTruthy();
-        expect(KEYWORD_PALETTE[kw.color].bg).toBeTruthy();
+        expect(KEYWORD_PALETTE[kw.color].fill).toBeTruthy();
       });
     });
 
@@ -27,14 +27,39 @@ describe('settings-store keywords', () => {
   });
 
   describe('KEYWORD_PALETTE', () => {
-    it('has 13 colors', () => {
-      expect(Object.keys(KEYWORD_PALETTE)).toHaveLength(13);
+    it('has a lighter, base and darker shade of every hue', () => {
+      expect(KEYWORD_PALETTE_ROWS).toHaveLength(3);
+      KEYWORD_PALETTE_ROWS.forEach((row) => expect(row).toHaveLength(13));
+      expect(Object.keys(KEYWORD_PALETTE)).toHaveLength(39);
     });
 
-    it('each color has dot and bg classes', () => {
+    it('lays every row out in the same hue order', () => {
+      const [light, base, dark] = KEYWORD_PALETTE_ROWS;
+      expect(light).toEqual(base.map((key) => `${key}-light`));
+      expect(dark).toEqual(base.map((key) => `${key}-dark`));
+    });
+
+    it('keeps the bare hue name on the base row, so saved tags still resolve', () => {
+      // A tag stored as `red` predates the lighter and darker rows.
+      expect(KEYWORD_PALETTE_ROWS[1]).toContain('red');
+      expect(KEYWORD_PALETTE.red).toBeDefined();
+    });
+
+    it('spells every class out so Tailwind can find it', () => {
+      // A composed class name would compile to nothing, so none may be built
+      // at runtime and each has to carry its own utility prefix.
       Object.values(KEYWORD_PALETTE).forEach((entry) => {
         expect(entry.dot).toMatch(/^bg-/);
-        expect(entry.bg).toMatch(/^bg-/);
+        expect(entry.fill).toMatch(/^bg-/);
+        expect(entry.border).toMatch(/^border-/);
+        expect(entry.text).toMatch(/^text-.* dark:text-/);
+        expect(entry.rowTint).toMatch(/^bg-.* dark:bg-/);
+      });
+    });
+
+    it('resolves every row key', () => {
+      KEYWORD_PALETTE_ROWS.flat().forEach((key) => {
+        expect(KEYWORD_PALETTE[key]).toBeDefined();
       });
     });
   });

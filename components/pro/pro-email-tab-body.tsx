@@ -236,7 +236,7 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     }
   }, [client, markAsRead]);
 
-  const handleSetColorTag = useCallback((emailId: string, color: string | null) => {
+  const handleSetTag = useCallback((emailId: string, tagId: string | null) => {
     if (!email || email.id !== emailId) return;
     // Drop existing color keywords, optionally add the new one. Matches the
     // mail page's local optimistic update.
@@ -244,9 +244,8 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     for (const kw of settingsKeywords) {
       delete keywords[`$label:${kw.id}`];
     }
-    if (color) {
-      const def = settingsKeywords.find((k) => k.color === color);
-      if (def) keywords[`$label:${def.id}`] = true;
+    if (tagId) {
+      keywords[`$label:${tagId}`] = true;
     }
     setEmailKeywordsLocal(emailId, keywords);
     setEmail({ ...email, keywords });
@@ -333,7 +332,7 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
           onArchive={handleArchive}
           onToggleStar={handleToggleStar}
           onMarkAsRead={handleMarkAsRead}
-          onSetColorTag={handleSetColorTag}
+          onSetTag={handleSetTag}
           onDownloadAttachment={handleDownloadAttachment}
           onQuickReply={handleQuickReply}
           onEditDraft={handleEditDraft}

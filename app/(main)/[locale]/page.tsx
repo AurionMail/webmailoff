@@ -1833,7 +1833,7 @@ export default function Home() {
         keywords['$pinned'] = true;
       }
 
-      // Same unified-view routing as color tags: write to the email's own
+      // Same unified-view routing as tags: write to the email's own
       // account via the login it is reachable through. (#281)
       const pinClientId = isUnifiedView ? email.sourceClientAccountId : undefined;
       const pinAccountId = isUnifiedView ? email.sourceAccountId : undefined;
@@ -1857,25 +1857,25 @@ export default function Home() {
     }
   };
 
-  const handleSetColorTag = async (emailId: string, color: string | null) => {
+  const handleSetTag = async (emailId: string, tagId: string | null) => {
     if (!client) return;
 
     try {
-      // Remove any existing label/color tags
+      // Remove any existing tag keywords
       const email = emails.find(e => e.id === emailId);
       if (!email) return;
 
       const keywords = { ...email.keywords };
 
-      if (color === null) {
-        // Remove all label/color tags
+      if (tagId === null) {
+        // Remove all tag keywords
         Object.keys(keywords).forEach(key => {
           if (key.startsWith("$label:") || key.startsWith("$color:")) {
             keywords[key] = false;
           }
         });
       } else {
-        const jmapKey = `$label:${color}`;
+        const jmapKey = `$label:${tagId}`;
         if (keywords[jmapKey]) {
           // Toggle off if already active
           keywords[jmapKey] = false;
@@ -1907,7 +1907,7 @@ export default function Home() {
       // Refresh tag counts
       fetchTagCounts(client);
     } catch (error) {
-      console.error("Failed to set color tag:", error);
+      console.error("Failed to set tag:", error);
     }
   };
 
@@ -3309,8 +3309,8 @@ export default function Home() {
                 onArchive={async (email) => {
                   await handleArchive(email);
                 }}
-                onSetColorTag={(emailId, color) => {
-                  handleSetColorTag(emailId, color);
+                onSetTag={(emailId, color) => {
+                  handleSetTag(emailId, color);
                 }}
                 onMoveToMailbox={async (emailId, mailboxId) => {
                   if (client) {
@@ -3534,7 +3534,7 @@ export default function Home() {
                     }}
                     onArchive={() => handleArchive()}
                     onToggleStar={handleToggleStar}
-                    onSetColorTag={handleSetColorTag}
+                    onSetTag={handleSetTag}
                     onMarkAsSpam={() => handleMarkAsSpam()}
                     onUndoSpam={() => handleUndoSpam()}
                     onMarkAsRead={async (emailId, read) => {

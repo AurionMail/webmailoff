@@ -61,7 +61,7 @@ import { useTagDrop } from "@/hooks/use-tag-drop";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useVacationStore } from "@/stores/vacation-store";
-import { useSettingsStore, KEYWORD_PALETTE, getKeywordVisibility } from "@/stores/settings-store";
+import { useSettingsStore, getKeywordVisibility } from "@/stores/settings-store";
 import { useEmailStore } from "@/stores/email-store";
 import { toast } from "@/stores/toast-store";
 import { debug } from "@/lib/debug";
@@ -557,22 +557,6 @@ function MailboxTreeItem({
   );
 }
 
-const TAG_ICON_COLOR: Record<string, string> = {
-  red: "text-red-600/75 dark:text-red-400/75",
-  orange: "text-orange-600/75 dark:text-orange-400/75",
-  yellow: "text-yellow-600/75 dark:text-yellow-400/75",
-  green: "text-green-600/75 dark:text-green-400/75",
-  blue: "text-blue-600/75 dark:text-blue-400/75",
-  purple: "text-purple-600/75 dark:text-purple-400/75",
-  pink: "text-pink-600/75 dark:text-pink-400/75",
-  teal: "text-teal-600/75 dark:text-teal-400/75",
-  cyan: "text-cyan-600/75 dark:text-cyan-400/75",
-  indigo: "text-indigo-600/75 dark:text-indigo-400/75",
-  amber: "text-amber-600/75 dark:text-amber-400/75",
-  lime: "text-lime-600/75 dark:text-lime-400/75",
-  gray: "text-gray-500",
-};
-
 function ShowAllTagsRow({
   hiddenCount,
   showAll,
@@ -617,8 +601,8 @@ function TagItem({
   colorful: boolean;
 }) {
   const t = useTranslations('notifications');
-  const { tagNameCandidates } = useKeywordFormat();
-  const palette = KEYWORD_PALETTE[node.color];
+  const { tagNameCandidates, tagColor } = useKeywordFormat();
+  const palette = tagColor(node.id);
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedTags.has(node.id);
   const isSelected = selectedKeyword === node.id;
@@ -644,12 +628,9 @@ function TagItem({
   });
 
   const tagIcon = colorful ? (
-    <Tag
-      className={cn("w-4 h-4 flex-shrink-0", TAG_ICON_COLOR[node.color] || "text-muted-foreground")}
-      fill="currentColor"
-    />
+    <Tag className={cn("w-4 h-4 flex-shrink-0", palette.icon)} fill="currentColor" />
   ) : (
-    <span className={cn("w-3 h-3 rounded-full", palette?.dot || "bg-gray-400")} />
+    <span className={cn("w-3 h-3 rounded-full", palette.dot)} />
   );
 
   return (

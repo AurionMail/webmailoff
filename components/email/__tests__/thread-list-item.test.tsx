@@ -118,6 +118,67 @@ describe('ThreadListItem tag badge', () => {
   });
 });
 
+describe('ThreadListItem multi-message thread', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({
+      emailKeywords: [...DEFAULT_KEYWORDS],
+      showPreview: false,
+      mailLayout: 'split',
+    });
+    useEmailStore.setState({
+      selectedEmailIds: new Set<string>(),
+      selectedMailbox: 'inbox',
+    });
+  });
+
+  function renderThread(emails: Email[], expanded = false) {
+    const [thread] = groupEmailsByThread(emails);
+    return render(
+      <ThreadListItem
+        thread={thread}
+        isExpanded={expanded}
+        expandedEmails={expanded ? emails : undefined}
+        onToggleExpand={() => {}}
+        onEmailSelect={() => {}}
+      />,
+    );
+  }
+
+  it('carries the tags of every message, not just the first', () => {
+    // A collapsed row stands in for the whole thread, so a tag applied only to
+    // a later message still has to surface.
+    renderThread([
+      makeEmail({ id: 'e1', threadId: 't1', keywords: { '$label:red': true } }),
+      makeEmail({ id: 'e2', threadId: 't1', keywords: { '$label:blue': true } }),
+    ]);
+
+    expect(screen.getByText('Red')).toBeInTheDocument();
+    expect(screen.getByText('Blue')).toBeInTheDocument();
+  });
+
+  it('names a tag shared by several messages once', () => {
+    renderThread([
+      makeEmail({ id: 'e1', threadId: 't1', keywords: { '$label:red': true } }),
+      makeEmail({ id: 'e2', threadId: 't1', keywords: { '$label:red': true } }),
+    ]);
+
+    expect(screen.getAllByText('Red')).toHaveLength(1);
+  });
+
+  it('shows each message its own tags once the thread is expanded', () => {
+    renderThread(
+      [
+        makeEmail({ id: 'e1', threadId: 't1', keywords: { '$label:red': true } }),
+        makeEmail({ id: 'e2', threadId: 't1', keywords: { '$label:blue': true } }),
+      ],
+      true,
+    );
+
+    // Once on the header and once on the message that carries it.
+    expect(screen.getAllByText('Red').length).toBeGreaterThan(1);
+  });
+});
+
 describe('ThreadListItem row content', () => {
   beforeEach(() => {
     useSettingsStore.setState({
