@@ -10,7 +10,10 @@ beforeAll(() => {
   process.env.TZ = 'UTC';
 });
 afterAll(() => {
-  process.env.TZ = originalTZ;
+  // process.env coerces to strings, so `= undefined` would leave the literal
+  // string "undefined" behind when TZ was originally unset - delete instead.
+  if (originalTZ === undefined) delete process.env.TZ;
+  else process.env.TZ = originalTZ;
 });
 
 function makeEmail(overrides: Partial<Email> = {}): Email {
