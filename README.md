@@ -8,7 +8,7 @@
 
 # Bulwark Webmail
 
-A modern, self-hosted webmail client for [Stalwart Mail Server](https://stalw.art/), built with Next.js and the JMAP protocol.
+A self-hosted webmail client for [Stalwart Mail Server](https://stalw.art/), built with Next.js and the JMAP protocol.
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL%20v3-blue.svg?logo=gnu&logoColor=white)](LICENSE)
 [![Discord](https://img.shields.io/discord/1482128142939455674?color=7289da&label=discord&logo=discord&logoColor=white)](https://discord.gg/tYCujymGrT)
@@ -20,12 +20,7 @@ A modern, self-hosted webmail client for [Stalwart Mail Server](https://stalw.ar
 
 ## Installer
 
-New in **1.6.4**: a web-based setup wizard runs on first launch – no `.env.local` editing, no shelling into the container.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/installer-dark.png" />
-  <img src="screenshots/installer.png" alt="Setup wizard" width="100%" />
-</picture>
+Since **1.6.4**, a web-based setup wizard runs on first launch – no `.env.local` editing, no shelling into the container.
 
 Point a browser at the running container and the wizard guides you through:
 
@@ -70,27 +65,27 @@ The wizard writes to `ADMIN_CONFIG_DIR` (`./data/admin` by default). Setting `JM
 <td><img src="screenshots/settings.png" alt="Settings" /></td>
 </tr>
 <tr>
-<td><sub><b>Light mode</b> – full theme support with intelligent color transformation for HTML emails.</sub></td>
+<td><sub><b>Light mode</b> – full theme support, remapping HTML email colors by luminance so dark-on-dark text stays readable.</sub></td>
 <td><sub><b>Settings</b> – appearance, identities, filters, templates, security, and more.</sub></td>
 </tr>
 </table>
 
-## Overview
+## What Bulwark includes
 
-Bulwark is a full webmail suite, not just an inbox. It bundles the four apps most self-hosters end up wanting on the same login:
+Bulwark is a full webmail suite. It bundles the four apps most self-hosters end up wanting:
 
 - **Mail** – threading, unified inbox, cross-account "All accounts" views, full-text search, Sieve filters, S/MIME, templates
 - **Calendar** – month/week/day/agenda, recurring events, iMIP invitations, CalDAV subscriptions
 - **Contacts** – multiple address books, groups, vCard import/export
 - **Files** – Stalwart's JMAP FileNode storage with previews and folder upload
 
-Plus the infrastructure around them: a web setup wizard, OAuth2 / OIDC SSO, TOTP 2FA, multi-account with HTTP/2 connection pooling, 18 languages, PWA install, dark/light themes, a plugin system with an extension marketplace, and an admin dashboard.
+They share one login, one settings store, and one admin dashboard. SSO, 2FA, multi-account, 24 languages, PWA install, themes, and plugins apply across all four.
 
 Full feature list: **[FEATURES.md](FEATURES.md)**.
 
 ---
 
-## Quick Start
+## Quick start
 
 ### Docker
 
@@ -104,9 +99,9 @@ Or with Docker Compose:
 docker compose up -d
 ```
 
-On first launch, open `http://localhost:3000` – the **web setup wizard** walks you through JMAP server, OAuth, branding, and the admin password. No `.env.local` editing required. Existing installs that already define `JMAP_SERVER_URL` in their environment skip the wizard and keep the env-managed flow described under [Configuration](#configuration).
+On first launch, open `http://localhost:3000` and the setup wizard takes over. Installs that already define `JMAP_SERVER_URL` skip it and keep the env-managed flow under [Configuration](#configuration).
 
-### From Source
+### From source
 
 ```bash
 git clone https://github.com/bulwarkmail/webmail.git
@@ -119,16 +114,20 @@ npm run build && npm start
 ### Development
 
 ```bash
-npm run dev        # Dev server with a mock JMAP server
+cp .env.dev.example .env.local   # Built-in mock JMAP server, no mail server needed
+
+npm run dev                # Dev server
 npm run typecheck
 npm run lint
+npx vitest run             # Unit tests
+npm run test:integration   # Dockerized Stalwart + Playwright suite (see integration/README.md)
 ```
 
 ## Configuration
 
-Most deployments are configured through the **setup wizard** (on first launch) and the **admin dashboard** thereafter; values are written to the admin config directory rather than `.env.local`. Environment variables remain supported for operators who prefer file-driven configuration or read-only / immutable infrastructure. When an environment variable is set, it takes precedence over the corresponding admin-managed value, so setting `JMAP_SERVER_URL` will hide that field from the wizard and lock it in the admin UI.
+Most deployments are configured through the setup wizard on first launch, then the admin dashboard; those values live in the admin config directory rather than `.env.local`. Environment variables still work, and they suit read-only or immutable infrastructure better. An environment variable always wins over the admin-managed value, so setting `JMAP_SERVER_URL` hides that field from the wizard and locks it in the admin UI.
 
-All variables are evaluated at runtime, so Docker deployments can be reconfigured without rebuilding. Edit `.env.local`:
+Nearly all variables are evaluated at runtime, so Docker deployments can be reconfigured without rebuilding. The exceptions are the `NEXT_PUBLIC_*` ones noted below, which Next.js bakes in at build time. Edit `.env.local`:
 
 ```env
 # Optional – overrides whatever the wizard writes
@@ -151,13 +150,28 @@ PORT=3000
 
 ```env
 OAUTH_ENABLED=true
+OAUTH_ONLY=true                   # hide the username/password form entirely
 OAUTH_CLIENT_ID=webmail
 OAUTH_CLIENT_SECRET=              # optional, for confidential clients
 OAUTH_CLIENT_SECRET_FILE=         # path to a file containing the secret
 OAUTH_ISSUER_URL=                 # optional, for external IdPs
+OAUTH_AUTHORIZE_URL=              # override only the user-facing authorize endpoint
+OAUTH_ALLOW_PRIVATE_ENDPOINTS=    # allow discovery to resolve to RFC-1918 addresses
 ```
 
-Endpoints are auto-discovered via `.well-known/oauth-authorization-server` or `.well-known/openid-configuration`.
+Endpoints are auto-discovered via `.well-known/oauth-authorization-server` or `.well-known/openid-configuration`. `OAUTH_ALLOW_PRIVATE_ENDPOINTS` is off by default as an SSRF guard. Enable it only for split-DNS deployments where the issuer's public hostname resolves to an internal IP.
+
+</details>
+
+<details>
+<summary>Anonymous telemetry</summary>
+
+```env
+BULWARK_TELEMETRY=on                 # opt-in; off by default
+TELEMETRY_DATA_DIR=./data/telemetry  # instance id and consent; mount a volume
+```
+
+Off unless you turn it on, in the admin UI, the installer, or here. Heartbeats carry version, platform, bucketed account counts, and feature toggles. No email addresses, hostnames, or IPs. Setting the variable (to either value) locks the choice and disables the admin toggle.
 
 </details>
 
@@ -256,6 +270,25 @@ The split lets you mount the config volume read-only after the setup wizard comp
 </details>
 
 <details>
+<summary>Default UI locale</summary>
+
+The UI language follows each visitor's `Accept-Language` header and their stored preference. `NEXT_PUBLIC_DEFAULT_LOCALE` sets the fallback used when neither matches a supported locale (default `en`):
+
+```env
+NEXT_PUBLIC_DEFAULT_LOCALE=de
+```
+
+Supported: `ar`, `ca`, `cs`, `da`, `de`, `en`, `es`, `fa`, `fr`, `he`, `hu`, `it`, `ja`, `ko`, `lv`, `nl`, `pl`, `pt`, `ro`, `ru`, `sk`, `tr`, `uk`, `zh`. An unsupported value falls back to `en`.
+
+Like `NEXT_PUBLIC_BASE_PATH`, this is read at **build time**. To use it with the published Docker image, build your own:
+
+```bash
+docker build --build-arg NEXT_PUBLIC_DEFAULT_LOCALE=de -t bulwark-webmail .
+```
+
+</details>
+
+<details>
 <summary>Subpath / reverse proxy mount</summary>
 
 To serve the webmail at a subpath (e.g. `https://example.com/webmail`):
@@ -271,37 +304,46 @@ Unlike most other variables, `NEXT_PUBLIC_BASE_PATH` is read at **build time** b
 docker build --build-arg NEXT_PUBLIC_BASE_PATH=/webmail -t bulwark-webmail .
 ```
 
-Then point your reverse proxy at the container without stripping the prefix - the app expects to receive requests under `/webmail/...` and serves all routes (`/webmail/api/...`, `/webmail/_next/static/...`, `/webmail/sw.js`, etc.) accordingly.
+Then point your reverse proxy at the container without stripping the prefix. The app expects requests under `/webmail/...` and serves every route (`/webmail/api/...`, `/webmail/_next/static/...`, `/webmail/sw.js`, and so on) accordingly.
 
 </details>
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
-| Key           | Action                  |
-| ------------- | ----------------------- |
-| `j` / `k`     | Navigate between emails |
-| `Enter` / `o` | Open email              |
-| `Esc`         | Close / deselect        |
-| `c`           | Compose                 |
-| `r` / `R`     | Reply / Reply all       |
-| `f`           | Forward                 |
-| `s`           | Star                    |
-| `e`           | Archive                 |
-| `#`           | Delete                  |
-| `/`           | Search                  |
-| `?`           | Show all shortcuts      |
+| Key                  | Action                  |
+| -------------------- | ----------------------- |
+| `j` `↓` / `k` `↑`    | Navigate between emails |
+| `Enter` / `o`        | Open email              |
+| `Esc`                | Close / deselect        |
+| `x`                  | Expand / collapse thread |
+| `c`                  | Compose                 |
+| `r` / `R` `a`        | Reply / Reply all       |
+| `f`                  | Forward                 |
+| `s`                  | Star                    |
+| `e`                  | Archive                 |
+| `#` / `Del`          | Delete                  |
+| `u` / `Shift`+`I`    | Mark unread / read      |
+| `!`                  | Toggle spam             |
+| `Ctrl`+`A`           | Select all              |
+| `Shift`+`G`          | Refresh                 |
+| `/`                  | Search                  |
+| `?`                  | Show all shortcuts      |
 
-## Tech Stack
+In the composer: `Ctrl/Cmd`+`Enter` sends, `Ctrl/Cmd`+`Shift`+`Enter` opens scheduled send, and `t` opens the template picker.
+
+## Tech stack
 
 |               |                                                   |
 | ------------- | ------------------------------------------------- |
-| **Framework** | [Next.js 16](https://nextjs.org/) with App Router |
+| **Framework** | [Next.js 16](https://nextjs.org/) with App Router, React 19 |
 | **Language**  | TypeScript                                        |
 | **Styling**   | [Tailwind CSS v4](https://tailwindcss.com/)       |
 | **State**     | [Zustand](https://zustand-demo.pmnd.rs/)          |
 | **Protocol**  | Custom JMAP client (RFC 8620)                     |
+| **Editor**    | [Tiptap](https://tiptap.dev/)                     |
 | **i18n**      | [next-intl](https://next-intl-docs.vercel.app/)   |
 | **Icons**     | [Lucide React](https://lucide.dev/)               |
+| **Testing**   | [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) |
 
 ## Why Stalwart?
 

@@ -39,7 +39,8 @@ function impersonationCookieOptions() {
  * Master-user impersonation via signed JWT. The token carries the target
  * mailbox; Bulwark verifies the signature, resolves the configured Stalwart
  * master credentials from env, then mints the same session cookies the
- * password-login path produces. The browser is redirected to "/" and the
+ * password-login path produces. The browser is redirected to "/?impersonated=1" (see
+ * ImpersonationReconciler, GH #646) and the
  * SPA hydrates as if the user had just logged in with master@target%master.
  *
  * Returns 404 when the feature is not configured so an unconfigured
@@ -136,6 +137,6 @@ export async function GET(request: NextRequest) {
   // when running behind a reverse proxy that doesn't set X-Forwarded-Host.
   return new NextResponse(null, {
     status: 303,
-    headers: { Location: '/' },
+    headers: { Location: '/?impersonated=1' },
   });
 }

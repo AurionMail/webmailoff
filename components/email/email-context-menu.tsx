@@ -34,6 +34,7 @@ import {
   EditIcon,
   CalendarClock,
   XCircle,
+  Paperclip,
 } from "lucide-react";
 import { cn, buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
@@ -59,6 +60,7 @@ interface EmailContextMenuProps {
   onReply?: () => void;
   onReplyAll?: () => void;
   onForward?: () => void;
+  onForwardAsAttachment?: () => void;
   onMarkAsRead?: (read: boolean) => void;
   onToggleStar?: () => void;
   onTogglePinned?: () => void;
@@ -127,6 +129,7 @@ export function EmailContextMenu({
   onReply,
   onReplyAll,
   onForward,
+  onForwardAsAttachment,
   onMarkAsRead,
   onToggleStar,
   onTogglePinned,
@@ -150,6 +153,7 @@ export function EmailContextMenu({
   const t = useTranslations("context_menu");
   const tSidebar = useTranslations("sidebar");
   const _tColor = useTranslations("email_viewer.color_tag");
+  const tEmailViewer = useTranslations("email_viewer");
   const emailKeywords = useSettingsStore((state) => state.emailKeywords);
   const isUnread = !email.keywords?.$seen;
   const isStarred = email.keywords?.$flagged;
@@ -276,6 +280,12 @@ export function EmailContextMenu({
             label={t("forward")}
             onClick={() => handleAction(onForward!)}
             disabled={!onForward}
+          />
+          <ContextMenuItem
+            icon={Paperclip}
+            label={tEmailViewer("forward_as_attachment")}
+            onClick={() => handleAction(onForwardAsAttachment!)}
+            disabled={!onForwardAsAttachment || !email.blobId}
           />
           <ContextMenuSeparator />
         </>

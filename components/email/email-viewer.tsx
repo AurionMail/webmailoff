@@ -19,6 +19,7 @@ import {
   Reply,
   ReplyAll,
   Forward,
+  Paperclip,
   Trash2,
   Archive,
   Star,
@@ -109,6 +110,7 @@ interface EmailViewerProps {
   onReply?: (draftText?: string) => void;
   onReplyAll?: () => void;
   onForward?: () => void;
+  onForwardAsAttachment?: () => void;
   onDelete?: () => void;
   onArchive?: () => void;
   onToggleStar?: () => void;
@@ -621,6 +623,7 @@ export function EmailViewer({
   onReply,
   onReplyAll,
   onForward,
+  onForwardAsAttachment,
   onDelete,
   onArchive,
   onToggleStar,
@@ -3340,6 +3343,16 @@ export function EmailViewer({
                 </button>
               )}
               <div className="h-px bg-border my-1" />
+              {/* Forward as attachment */}
+              {onForwardAsAttachment && email?.blobId && (
+                <button
+                  onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
+                  className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  {t('forward_as_attachment')}
+                </button>
+              )}
               {/* Export email */}
               <button
                 onClick={() => { handleExportEmail(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
@@ -3462,6 +3475,15 @@ export function EmailViewer({
                 </button>
               )}
               <div className="h-px bg-border my-1" />
+              {onForwardAsAttachment && email?.blobId && (
+                <button
+                  onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); }}
+                  className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
+                >
+                  <Paperclip className="w-5 h-5" />
+                  {t('forward_as_attachment')}
+                </button>
+              )}
               <button
                 onClick={() => { handleExportEmail(); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"

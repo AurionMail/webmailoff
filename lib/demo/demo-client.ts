@@ -1094,6 +1094,7 @@ export class DemoJMAPClient implements IJMAPClient {
   // ── S/MIME raw-email helpers ──────────────────────────────────
 
   async importRawEmail(): Promise<string> { return generateDemoId('email'); }
+  async copyEmailAcrossAccounts(): Promise<string> { return generateDemoId('email'); }
   async submitEmail(): Promise<void> { /* no-op */ }
   async submitRawEmail(blob: Blob,
     identityId: string,

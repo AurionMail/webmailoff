@@ -77,6 +77,7 @@ import { appLifecycleHooks, uiHooks, routerHooks, toastHooks, emailHooks } from 
 import { emailToReadView } from "@/lib/plugin-projection";
 import { buildQuoteHeader } from "@/lib/quote-header";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
+import { buildForwardAsAttachmentPayload } from "@/lib/forward-as-attachment";
 import { getEffectiveLocale } from '@/i18n/detect-locale';
 import type { QuoteHeader } from "@/lib/plugin-types";
 
@@ -282,6 +283,7 @@ export default function Home() {
     toggleStar,
     setEmailKeywordsLocal,
     moveToMailbox,
+    moveToMailboxCrossAware,
     moveThreadToMailbox,
     searchEmails,
     searchQuery,
@@ -783,7 +785,15 @@ export default function Home() {
   // This makes the Pro composer behave like Thunderbird's pop-out window.
   useEffect(() => {
     if (!isEmbedded || !showComposer) return;
-    const replyTo = selectedEmail ? {
+    // pendingDraft.replyTo, when set, was built by the opener (e.g.
+    // handleForwardAsAttachment) with intent that must survive the hop into
+    // the Pro tab - mirrors the same precedence the non-embedded render path
+    // uses just below (`replyTo={pendingDraft !== null ? pendingDraft.replyTo
+    // : ...}`). Building fresh from selectedEmail unconditionally here would
+    // silently drop that intent (e.g. the synthetic message/rfc822
+    // attachment "Forward as attachment" stages), falling back to a normal
+    // quoted forward instead.
+    const replyTo = pendingDraft?.replyTo ?? (selectedEmail ? {
       from: selectedEmail.from,
       replyToAddresses: selectedEmail.replyTo,
       to: selectedEmail.to,
@@ -799,7 +809,7 @@ export default function Home() {
       quoteHeaderHtml: composerQuoteHeader?.html,
       quoteHeaderText: composerQuoteHeader?.text,
       quoteWrapInBlockquote: composerQuoteHeader?.wrapInBlockquote,
-    } : undefined;
+    } : undefined);
 
     const effectiveMode = pendingDraft?.mode ?? composerMode;
     const baseSubject = (pendingDraft?.subject?.trim() || selectedEmail?.subject?.trim()) ?? '';
@@ -1533,6 +1543,77 @@ export default function Home() {
       setComposerQuoteHeader(null);
     }
     startFreshComposerSession();
+    setComposerMode('forward');
+    setShowComposer(true);
+    if (isMobile) setActiveView('viewer');
+  };
+
+  // Forward the original message as a message/rfc822 attachment instead of
+  // inline-quoted text - e.g. for reporting spam to an upstream gateway
+  // that expects the raw original as an attachment, or preserving exact
+  // formatting/headers the recipient needs to see untouched. Reuses the
+  // same attachment-carry-forward mechanism native Forward already uses
+  // for a forwarded message's own attachments (see the `attachments`
+  // useState initializer in email-composer.tsx) - we just add one more
+  // synthetic entry representing the whole original message, referenced
+  // by its existing blobId (no re-fetch/re-upload needed - JMAP blobs are
+  // account-scoped, not per-email). Skips prepareComposerQuoteHeader
+  // entirely, so the body starts blank instead of quoting the original.
+  // Takes an explicit `email` (defaulting to selectedEmail), same pattern
+  // handleDelete uses just below, rather than always reading selectedEmail
+  // from this closure - callers that just called selectEmail(email) and
+  // invoke this synchronously in the same tick would otherwise see the
+  // PRE-update value (the Zustand store updates immediately, but this
+  // render's selectedEmail closure doesn't until the next render),
+  // forwarding the previously selected message or no-op'ing on an
+  // unselected row. See the list context-menu wiring below.
+  const handleForwardAsAttachment = async (email: Email | null = selectedEmail) => {
+    if (!email) return;
+    // Same filename options "Export as .eml" uses (see emailFilenameOptions
+    // in email-viewer.tsx), so the two actions produce consistent filenames
+    // for the same message rather than the synthetic attachment silently
+    // ignoring the user's configured naming template.
+    const {
+      emailDownloadTemplate,
+      filenameSpaceReplacement,
+      filenameLowercase,
+      filenameStripDiacritics,
+      filenameCollapseSeparators,
+    } = useSettingsStore.getState();
+    const payload = buildForwardAsAttachmentPayload(email, t('email_composer.prefix.forward'), {
+      template: emailDownloadTemplate,
+      spaceReplacement: filenameSpaceReplacement,
+      lowercase: filenameLowercase,
+      stripDiacritics: filenameStripDiacritics,
+      collapseSeparators: filenameCollapseSeparators,
+    });
+    if (!payload) return;
+
+    const ok = await emailHooks.onBeforeForward.intercept({
+      originalEmailId: email.id,
+      originalEmail: emailToReadView(email),
+      mode: 'forward' as const,
+    });
+    if (!ok) return;
+
+    startFreshComposerSession();
+    setPendingDraft({
+      to: "",
+      cc: "",
+      bcc: "",
+      subject: payload.subject,
+      body: "",
+      showCc: false,
+      showBcc: false,
+      selectedIdentityId: null,
+      subAddressTag: "",
+      mode: "forward",
+      draftId: null,
+      replyTo: {
+        subject: email.subject,
+        attachments: [payload.attachment],
+      },
+    });
     setComposerMode('forward');
     setShowComposer(true);
     if (isMobile) setActiveView('viewer');
@@ -3205,6 +3286,10 @@ export default function Home() {
                   selectEmail(email);
                   handleForward();
                 }}
+                onForwardAsAttachment={(email) => {
+                  selectEmail(email);
+                  handleForwardAsAttachment(email);
+                }}
                 onMarkAsRead={async (email, read) => {
                   if (client) {
                     await markAsRead(client, email.id, read);
@@ -3229,7 +3314,7 @@ export default function Home() {
                 }}
                 onMoveToMailbox={async (emailId, mailboxId) => {
                   if (client) {
-                    await moveToMailbox(client, emailId, mailboxId);
+                    await moveToMailboxCrossAware(client, emailId, mailboxId);
                   }
                 }}
                 onMarkAsSpam={async (email) => {
@@ -3435,6 +3520,7 @@ export default function Home() {
                     onReply={handleReply}
                     onReplyAll={handleReplyAll}
                     onForward={handleForward}
+                    onForwardAsAttachment={handleForwardAsAttachment}
                     onDelete={() => {
                       // Deleting the open message returns to the list (Gmail-style),
                       // not the next email — unless the user turned the setting off.
@@ -3499,7 +3585,7 @@ export default function Home() {
                     selectedMailbox={selectedMailbox}
                     onMoveToMailbox={async (mailboxId) => {
                       if (client && selectedEmail) {
-                        await moveToMailbox(client, selectedEmail.id, mailboxId);
+                        await moveToMailboxCrossAware(client, selectedEmail.id, mailboxId);
                       }
                     }}
                     className={isMobile ? "flex-1" : undefined}

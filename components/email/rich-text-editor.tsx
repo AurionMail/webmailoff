@@ -21,6 +21,7 @@ import { QuotedHtml, serializeEditorContent } from "@/components/email/quoted-ht
 import { SignatureBlock } from "@/components/email/signature-block";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useTranslations } from "next-intl";
 import {
   Bold,
   Italic,
@@ -153,6 +154,7 @@ const TEXT_COLORS = [
 ];
 
 function TableSizePicker({ onPick }: { onPick: (rows: number, cols: number) => void }) {
+  const t = useTranslations("email_composer.toolbar");
   const [hover, setHover] = useState<{ r: number; c: number } | null>(null);
   return (
     <div>
@@ -180,7 +182,7 @@ function TableSizePicker({ onPick }: { onPick: (rows: number, cols: number) => v
         })}
       </div>
       <div className="text-xs text-muted-foreground mt-1.5 text-center">
-        {hover ? `${hover.r + 1} × ${hover.c + 1}` : "Pick size"}
+        {hover ? `${hover.r + 1} × ${hover.c + 1}` : t("pick_size")}
       </div>
     </div>
   );
@@ -343,6 +345,7 @@ export function RichTextEditor({
       .run();
   }, [editor]);
 
+  const tToolbar = useTranslations("email_composer.toolbar");
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
   const [colorMenuOpen, setColorMenuOpen] = useState(false);
@@ -383,28 +386,28 @@ export function RichTextEditor({
         <ToolbarButton
           active={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
-          title="Bold"
+          title={tToolbar("bold")}
         >
           <Bold className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          title="Italic"
+          title={tToolbar("italic")}
         >
           <Italic className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("underline")}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          title="Underline"
+          title={tToolbar("underline")}
         >
           <UnderlineIcon className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("strike")}
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          title="Strikethrough"
+          title={tToolbar("strikethrough")}
         >
           <Strikethrough className="w-4 h-4" />
         </ToolbarButton>
@@ -412,7 +415,7 @@ export function RichTextEditor({
           <ToolbarButton
             active={!!editor.getAttributes("textStyle").color}
             onClick={() => setColorMenuOpen((v) => !v)}
-            title="Text color"
+            title={tToolbar("text_color")}
           >
             {/* The icon itself previews the active colour - no layout shift. */}
             <Baseline className="w-4 h-4" style={{ color: editor.getAttributes("textStyle").color || undefined }} />
@@ -446,7 +449,7 @@ export function RichTextEditor({
                   setColorMenuOpen(false);
                 }}
               >
-                <RemoveFormatting className="w-4 h-4" /> Remove color
+                <RemoveFormatting className="w-4 h-4" /> {tToolbar("remove_color")}
               </button>
             </div>
           )}
@@ -457,14 +460,14 @@ export function RichTextEditor({
         <ToolbarButton
           active={editor.isActive("heading", { level: 1 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          title="Heading 1"
+          title={tToolbar("heading_1")}
         >
           <Heading1 className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("heading", { level: 2 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          title="Heading 2"
+          title={tToolbar("heading_2")}
         >
           <Heading2 className="w-4 h-4" />
         </ToolbarButton>
@@ -474,28 +477,28 @@ export function RichTextEditor({
         <ToolbarButton
           active={editor.isActive("bulletList")}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          title="Bullet List"
+          title={tToolbar("bullet_list")}
         >
           <List className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("orderedList")}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          title="Ordered List"
+          title={tToolbar("ordered_list")}
         >
           <ListOrdered className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("blockquote")}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          title="Quote"
+          title={tToolbar("quote")}
         >
           <Quote className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("codeBlock")}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          title="Code Block"
+          title={tToolbar("code_block")}
         >
           <Code className="w-4 h-4" />
         </ToolbarButton>
@@ -505,21 +508,21 @@ export function RichTextEditor({
         <ToolbarButton
           active={editor.isActive({ textAlign: "left" })}
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
-          title="Align Left"
+          title={tToolbar("align_left")}
         >
           <AlignLeft className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive({ textAlign: "center" })}
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
-          title="Align Center"
+          title={tToolbar("align_center")}
         >
           <AlignCenter className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive({ textAlign: "right" })}
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
-          title="Align Right"
+          title={tToolbar("align_right")}
         >
           <AlignRight className="w-4 h-4" />
         </ToolbarButton>
@@ -534,7 +537,7 @@ export function RichTextEditor({
                 editor.getAttributes("paragraph").dir || editor.getAttributes("heading").dir;
               editor.chain().focus().setTextDirection(cur === "rtl" ? "ltr" : "rtl").run();
             }}
-            title="Text direction (RTL/LTR)"
+            title={tToolbar("text_direction")}
           >
             <ArrowLeftRight className="w-4 h-4" />
           </ToolbarButton>
@@ -545,7 +548,7 @@ export function RichTextEditor({
         <ToolbarButton
           active={editor.isActive("link")}
           onClick={addLink}
-          title="Link"
+          title={tToolbar("link")}
         >
           <LinkIcon className="w-4 h-4" />
         </ToolbarButton>
@@ -554,7 +557,7 @@ export function RichTextEditor({
           <ToolbarButton
             active={editor.isActive("table")}
             onClick={() => setTableMenuOpen((v) => !v)}
-            title="Table"
+            title={tToolbar("table")}
           >
             <TableIcon className="w-4 h-4" />
           </ToolbarButton>
@@ -567,28 +570,28 @@ export function RichTextEditor({
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().addRowBefore().run(); setTableMenuOpen(false); }}
                   >
-                    <Rows3 className="w-4 h-4" /> Add row above
+                    <Rows3 className="w-4 h-4" /> {tToolbar("add_row_above")}
                   </button>
                   <button
                     type="button"
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().addRowAfter().run(); setTableMenuOpen(false); }}
                   >
-                    <Rows3 className="w-4 h-4" /> Add row below
+                    <Rows3 className="w-4 h-4" /> {tToolbar("add_row_below")}
                   </button>
                   <button
                     type="button"
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().addColumnBefore().run(); setTableMenuOpen(false); }}
                   >
-                    <Columns3 className="w-4 h-4" /> Add column before
+                    <Columns3 className="w-4 h-4" /> {tToolbar("add_column_before")}
                   </button>
                   <button
                     type="button"
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().addColumnAfter().run(); setTableMenuOpen(false); }}
                   >
-                    <Columns3 className="w-4 h-4" /> Add column after
+                    <Columns3 className="w-4 h-4" /> {tToolbar("add_column_after")}
                   </button>
                   <div className="h-px bg-border my-1" />
                   <button
@@ -596,21 +599,21 @@ export function RichTextEditor({
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().deleteRow().run(); setTableMenuOpen(false); }}
                   >
-                    <Trash2 className="w-4 h-4" /> Delete row
+                    <Trash2 className="w-4 h-4" /> {tToolbar("delete_row")}
                   </button>
                   <button
                     type="button"
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().deleteColumn().run(); setTableMenuOpen(false); }}
                   >
-                    <Trash2 className="w-4 h-4" /> Delete column
+                    <Trash2 className="w-4 h-4" /> {tToolbar("delete_column")}
                   </button>
                   <button
                     type="button"
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start"
                     onClick={() => { editor.chain().focus().toggleHeaderRow().run(); setTableMenuOpen(false); }}
                   >
-                    <Rows3 className="w-4 h-4" /> Toggle header row
+                    <Rows3 className="w-4 h-4" /> {tToolbar("toggle_header_row")}
                   </button>
                   <div className="h-px bg-border my-1" />
                   <button
@@ -618,7 +621,7 @@ export function RichTextEditor({
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-start text-red-600 dark:text-red-400"
                     onClick={() => { editor.chain().focus().deleteTable().run(); setTableMenuOpen(false); }}
                   >
-                    <Trash2 className="w-4 h-4" /> Delete table
+                    <Trash2 className="w-4 h-4" /> {tToolbar("delete_table")}
                   </button>
                 </div>
               ) : (
@@ -637,7 +640,7 @@ export function RichTextEditor({
 
         <ToolbarButton
           onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-          title="Clear Formatting"
+          title={tToolbar("clear_formatting")}
         >
           <RemoveFormatting className="w-4 h-4" />
         </ToolbarButton>
@@ -647,14 +650,14 @@ export function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
-          title="Undo"
+          title={tToolbar("undo")}
         >
           <Undo className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
-          title="Redo"
+          title={tToolbar("redo")}
         >
           <Redo className="w-4 h-4" />
         </ToolbarButton>

@@ -2,145 +2,147 @@
 
 ## Mail
 
-- Read, compose, reply, reply-all, and forward with a Tiptap rich text editor (inline images, drag-and-drop embedding, tables)
-- Gmail-style threading with inline expansion and an optional conversation toggle
-- Unified Mailbox – combined Inbox, Sent, Drafts, Junk, Archive, and Trash, scoped by default to the active account and its shared/group folders, with an optional admin-gated cross-account mode that spans every connected account
-- Aggregated All mail / Unread / Starred entries in the Unified Mailbox – scoped by the same account boundary (or all accounts in cross-account mode) and narrowed by a per-account folder selection; each list labels the source folder of every message
-- Search inside the Unified Mailbox – text search across every unified view (the per-role mailboxes and the folder-selected All mail / Unread / Starred lists); advanced filters are additionally available in the per-role unified mailboxes
-- Three selectable mail layouts: split (three-pane), focused list, and reading pane at bottom
-- Draft auto-save with identity preservation, persisted HTML body, and proper `In-Reply-To` / `References` headers on replies
-- Attachment upload, download, drag-out to local file system, and inline preview – images, inline PDF on desktop and mobile, composer attachments (click to open), and `.eml` (`message/rfc822`) attachments rendered like an email; image thumbnails and forgotten-attachment warning
-- Scheduled send and configurable send delay
+- Read, compose, reply, reply-all, and forward in a Tiptap rich-text editor that handles inline images, drag-and-drop embedding, and tables
+- Gmail-style threading, expanded inline, with a conversation toggle you can switch off
+- The Unified Mailbox combines Inbox, Sent, Drafts, Junk, Archive, and Trash. By default it stays inside the active account and its shared/group folders; an admin can unlock a cross-account mode that spans every connected account.
+- All mail, Unread, and Starred obey that same account boundary and can be narrowed to a per-account folder selection. Every row names the folder its message came from.
+- Search runs across all unified views; the per-role mailboxes add the full filter panel on top
+- Three mail layouts: split three-pane, focused list, or reading pane at the bottom
+- Drafts auto-save, keeping the chosen identity, the HTML body, and correct `In-Reply-To` / `References` headers on replies
+- Attachments upload, download, drag out to the file system, and preview inline. Images and PDFs render on desktop and mobile, composer attachments open on click, and `.eml` (`message/rfc822`) parts display as a nested email. There are list thumbnails, and a warning when you mention an attachment and forget it.
+- Scheduled send, plus a configurable delay before anything leaves the outbox
 - Read receipts (MDN, RFC 8098)
-- Editable, layout-preserving quote island when replying
-- Full-text search with JMAP filter panel, search chips, wildcards, OR conditions, and cross-mailbox queries
-- Batch operations – multi-select, archive, delete, move, tag
-- Archive modes – direct, by year, or by month
-- Multi-tag support with color labels, reordering, and drag-and-drop assignment
-- Star/unstar with configurable mark-as-read delay
-- Virtual scrolling for large mailboxes plus prefetching of initial email data on login
-- Quick reply, hover actions, sender avatars (favicon-based), and recipient popovers
-- Plain-text composer mode and Reply-To support
-- Configurable signature position (above or below quoted text) per identity
-- From-header override in the composer with optional catch-all auto-reply: replies to an alias on a domain you own auto-fill the alias as the sender even when it isn't a configured identity
-- `.eml` file import via folder right-click menu
+- Quoted text lands in an editable island that keeps the original layout
+- Full-text search with a JMAP filter panel, search chips, wildcards, OR conditions, and cross-mailbox queries
+- Multi-select for batch archive, delete, move, and tag
+- Archive directly, by year, or by month
+- Tags carry color labels, reorder by drag, and can be assigned by dropping a message onto them
+- Star or unstar, with a configurable mark-as-read delay
+- Large mailboxes scroll virtually, and the first page of mail prefetches at login
+- Quick reply, hover actions, favicon-based sender avatars, recipient popovers
+- Plain-text composer mode and Reply-To
+- The signature sits above or below the quoted text, per identity
+- Override the From header in the composer. Reply to an alias on a domain you own and it auto-fills as the sender, even when no identity exists for it.
+- Import `.eml` files from the folder right-click menu
 - TNEF (`winmail.dat`) extraction and `message/rfc822` unwrapping
-- Folder management with icon picker, subfolders, and sidebar counts
-- Print directly from the viewer
-- Browser history sync for back/forward navigation
+- Folders take an icon, nest, and show counts in the sidebar
+- Print from the viewer
+- Browser back and forward move through mail history
 
 ## Calendar
 
-- Month, week, day, and agenda views with a mini-calendar sidebar and task list
-- Drag-to-reschedule, click-drag creation, and edge-resize with 15-minute snap
-- Recurring events with scoped edit/delete (this / this and following / all)
-- iMIP invitations on create and update (RFC 5545 / 6047), organizer/attendee UI, and RSVP with trust assessment
-- Inline calendar invitations in the email viewer – auto-detect `.ics`, RSVP, import
-- iCalendar import with preview, bulk create, and UID deduplication
-- iCal / webcal subscriptions with editing and batch import
-- Auto-generated birthday calendar from contacts
-- Virtual locations (video conference URLs) as first-class event fields
-- Task management with due dates, priority, and completion status
-- Shared calendars with CalDAV discovery, multi-account home resolution, and per-viewer colors
-- Week numbers, event hover preview, notifications with sound picker
-- Real-time sync via JMAP push
+- Month, week, day, and agenda views, with a mini-calendar and task list in the sidebar
+- Drag an event to reschedule it, click-drag to create one, pull an edge to resize. Everything snaps to 15 minutes.
+- Recurring events edit and delete by scope: this occurrence, this and following, or all
+- iMIP invitations on create and update (RFC 5545 / 6047), an organizer/attendee panel, and RSVP with trust assessment
+- `.ics` attachments are detected in the email viewer, so you can RSVP or import without leaving the message
+- iCalendar import previews first, then bulk-creates, deduplicating on UID
+- iCal / webcal subscriptions, editable, with batch import
+- A birthday calendar generated from your contacts
+- Virtual locations (video-conference URLs) are first-class event fields
+- Tasks with due dates, priority, and completion status
+- Shared calendars through CalDAV discovery, resolving homes across accounts, colored per viewer
+- Week numbers, hover preview, notifications with a sound picker
+- JMAP push keeps everything in sync
 
 ## Contacts
 
-- JMAP sync (RFC 9553 / 9610) with local fallback
-- Multiple address books with drag-and-drop between books
-- Contact groups with member management
-- vCard import/export (RFC 6350) with duplicate detection
-- Trusted senders stored in a dedicated JMAP address book
-- Autocomplete in the composer (To / Cc / Bcc)
+- JMAP sync (RFC 9553 / 9610), falling back to local storage
+- Several address books, with drag-and-drop between them
+- Groups with member management
+- vCard import/export (RFC 6350) that flags duplicates
+- Trusted senders live in their own JMAP address book
+- Autocomplete on To, Cc, and Bcc
 
-## Filters & Templates
+## Filters & templates
 
-- Server-side filters via JMAP Sieve Scripts (RFC 9661)
-- Visual rule builder with expanded view; conditions (From, To, Subject, Size, Body, Attachment…) with multi-value matching and actions (Move, Forward, Star, Discard…)
-- Preserves rules authored in other clients
+- Server-side filters as JMAP Sieve Scripts (RFC 9661)
+- A visual rule builder: conditions on From, To, Subject, Size, Body, Attachment and more, each matching multiple values, with actions to move, forward, star, or discard
+- Rules written in other clients survive the round-trip
 - Raw Sieve editor with syntax validation
-- Vacation responder with date range scheduling
-- Reusable email templates with placeholder auto-fill (`{{recipientName}}`, `{{date}}`, …)
+- A vacation responder you can schedule to a date range
+- Templates with placeholder auto-fill (`{{recipientName}}`, `{{date}}`, …)
 
 ## Files
 
-- JMAP FileNode browser (Stalwart native cloud storage) with a real folder hierarchy; legacy flat-named files are migrated into nested `FileNode` folders automatically on load
-- Streamed WebDAV PUT upload and folder upload with progress tracking
-- Dynamic upload limits based on server configuration
-- Grid and list views with sorting by name, size, or date
-- Previews for images, text, audio, and video
-- Clipboard operations (cut, copy, paste, duplicate), favorites, and recent files
-- JMAP sharing (RFC 9670) for files and folders – share with users or groups at read, read/write, or manager levels via a principal picker, with share indicators and a "Shared with me" sidebar section for folders other principals have shared with you
+- Browse Stalwart's native JMAP FileNode storage as a real folder tree. Legacy flat-named files migrate into nested `FileNode` folders on first load.
+- Streamed WebDAV PUT upload, whole folders included, with progress
+- Upload limits follow the server's own configuration
+- Grid or list, sorted by name, size, or date
+- Preview images, text, audio, and video
+- Cut, copy, paste, duplicate; favorites; recent files
+- JMAP sharing (RFC 9670) for files and folders. Pick a user or group from the principal picker and grant read, read/write, or manager. Shared items get an indicator, and anything other principals share with you appears under "Shared with me".
 
-## Security & Privacy
+## Security & privacy
 
-- External content blocked by default, with a trusted senders list
-- HTML sanitization via DOMPurify
-- S/MIME – manage certificates, sign, encrypt, decrypt, and verify; legacy 3DES / PBE support; per-account key isolation
-- SPF / DKIM / DMARC status indicators – surfaces the most severe SPF result and hides the "via" badge on spoofed mail
-- OAuth2 / OIDC with PKCE (Keycloak, Authentik, or built-in), OAuth-only mode, OAuth app passwords, and non-interactive SSO for embedded deployments
+- External content stays blocked until you say otherwise, and trusted senders are remembered
+- HTML sanitized through DOMPurify
+- S/MIME: manage certificates, then sign, encrypt, decrypt, and verify. Legacy 3DES / PBE is supported, and keys stay isolated per account.
+- SPF / DKIM / DMARC indicators surface the most severe SPF result and drop the "via" badge on spoofed mail
+- OAuth2 / OIDC with PKCE against Keycloak, Authentik, or the built-in provider, plus OAuth-only mode, OAuth app passwords, and non-interactive SSO for embedded deployments
 - TOTP two-factor authentication
-- Account security panel for password and 2FA management via the Stalwart admin API
-- Optional "Remember me" via AES-256-GCM encrypted httpOnly cookie
-- Enforced CSP with per-request nonce, SSRF redirect validation, PDF iframe sandbox, and IP spoofing prevention
-- Plugin hardening with dangerous-pattern detection and admin approval
+- Password and 2FA management through the Stalwart admin API
+- "Remember me" is optional and rides an AES-256-GCM encrypted httpOnly cookie
+- CSP is enforced with a per-request nonce, alongside SSRF redirect validation, a sandboxed PDF iframe, and IP spoofing prevention
+- Plugins are scanned for dangerous patterns and need admin approval
 - Newsletter unsubscribe (RFC 2369)
 
 ## Interface
 
-- Selectable mail layouts (split three-pane, focused list, reading pane at bottom) with resizable columns
-- Dark and light themes with intelligent email color transformation
-- Bundled color themes including Aurora Glass and Elastic; theme cards render as a mini mailbox mockup built from the theme's own colors, with light/dark variant chips
-- Responsive desktop, tablet, and mobile layouts
+- Split three-pane, focused list, or bottom reading pane, columns resizable
+- Dark and light themes. Email colors are remapped by luminance, so a mail hard-coded to dark-on-white stays readable on a dark background.
+- Bundled themes such as Aurora Glass and Elastic. Each theme card renders as a miniature mailbox built from that theme's own colors, with chips for the light and dark variants.
+- Layouts for desktop, tablet, and mobile
 - Full keyboard navigation
-- Drag-and-drop email organization and tag assignment
-- Interactive guided tour for new users
-- Right-click context menus, toast notifications with undo
-- Customizable toolbar position, favicon, and login branding
-- Pinnable sidebar apps with drag-and-drop reordering
-- Encrypted settings sync across devices
+- Drag and drop to organize mail and assign tags
+- A guided tour for first-time users
+- Right-click menus, and toasts that offer an undo
+- Toolbar position, favicon, and login branding are configurable
+- Sidebar apps pin and reorder by drag
+- Settings sync between devices, encrypted
 - Storage quota display
-- WCAG AA contrast, reduced-motion support, focus trap, and screen reader live regions
+- WCAG AA contrast, reduced-motion support, focus traps, and screen-reader live regions
 
 ## Internationalization
 
-19 languages: Česky · Dansk · Deutsch · English · Español · Français · Italiano · Latviešu · Magyar · Nederlands · Polski · Português · Română · Türkçe · Русский · Українська · 한국어 · 日本語 · 简体中文
+24 languages: Català · Česky · Dansk · Deutsch · English · Español · Français · Italiano · Latviešu · Magyar · Nederlands · Polski · Português · Română · Slovenčina · Türkçe · Русский · Українська · עברית · العربية · فارسی · 한국어 · 日本語 · 简体中文
 
-Automatic browser detection with persistent preference. Configurable locale URL prefix via `NEXT_PUBLIC_LOCALE_PREFIX`.
+- Arabic, Hebrew, and Persian render right-to-left; document direction and logical layout flip automatically
+- The browser's `Accept-Language` picks the first language, and the choice persists per user
+- `NEXT_PUBLIC_DEFAULT_LOCALE` sets the fallback, `NEXT_PUBLIC_LOCALE_PREFIX` the URL prefix
 
-## Identity & Multi-Account
+## Identity & multi-account
 
-- Multiple simultaneous accounts with instant switching and per-account session persistence; the 5-account cap is lifted on HTTP/2 servers (limited by browser connection pooling on HTTP/1.1)
-- Account switcher with connection status and default account selection
-- Multiple sender identities with per-identity signatures, automatic sync, and badges in viewer/list
-- Configurable signature position (above or below quoted text)
-- Sub-addressing (`user+tag@domain.com`) with configurable delimiter and contextual tag suggestions
+- Run several accounts at once and switch instantly, each keeping its own session. The 5-account cap lifts on HTTP/2 servers; on HTTP/1.1, browser connection pooling still sets the limit.
+- An account switcher showing connection status, and a default account
+- Multiple sender identities, each with its own signature, synced automatically and badged in the viewer and list
+- Signature above or below the quoted text
+- Sub-addressing (`user+tag@domain.com`), delimiter configurable, with tag suggestions drawn from context
 - Shared folders across accounts
-- Shared / group (delegated) accounts: their folders appear alongside your own and can be merged into the Unified Mailbox ("Include group inboxes"); their messages are fully actionable there – open, mark read, spam / not-spam, move, delete, and archive – with folder unread counts kept in sync
-- Multiple JMAP servers per deployment with optional auto-pick by email domain
-- Optional custom JMAP endpoints on the login form (`ALLOW_CUSTOM_JMAP_ENDPOINT`)
+- Shared and group (delegated) accounts put their folders next to your own, and "Include group inboxes" merges them into the Unified Mailbox. You can open, mark read, flag as spam or not-spam, move, delete, and archive their messages from there, and folder unread counts stay in step.
+- Several JMAP servers per deployment, optionally auto-picked by email domain
+- Custom JMAP endpoints on the login form, when `ALLOW_CUSTOM_JMAP_ENDPOINT` permits it
 
-## Admin & Extensibility
+## Admin & extensibility
 
-- Web setup wizard for first launch – guides through JMAP server(s), OAuth/OIDC, session secret, logging, branding (with file upload), and admin password; persists to the admin config dir, no `.env.local` editing required
-- Stalwart admin dashboard with dedicated policy sections, collapsed into a single tabbed page
-- Admin policy gates for the Unified Mailbox – enable or disable the All mail / Unread / Starred entries org-wide, plus a cross-account capability gate (off by default; auto-enabled on upgrade for instances that already used the cross-account views); each gated view still respects the user's own toggle
-- Split admin storage: `ADMIN_CONFIG_DIR` (operator-authored, mountable read-only after setup) and `ADMIN_STATE_DIR` (runtime audit log and login timestamps)
-- File-based secrets for JSON config: `passwordHashFile` (admin password), `sessionSecretFile`, and `oauthClientSecretFile` for Docker/Kubernetes secret mounts
-- Admin toggle for search-engine indexing (`robots.txt` / `noindex`)
-- Plugin system – schema-driven config UI, render and intercept hooks, `onAvatarResolve`, `onBeforeEmailSend`, composer-sidebar and email-banner slots, calendar event slots, i18n APIs (localizable sandboxed plugins via manifest locales and `api.i18n.t`), an `/api/translate` proxy, email-body access, and managed policy enforcement
-- Plugin hot-reload and dev-folder loading, on-demand `src/` bundling via esbuild, and `http:fetch` permission with `httpOrigins`
-- Themes – upload, enforce, and manage admin-controlled themes as ZIP bundles
-- Extension marketplace – browse and install plugins and themes from a configurable directory (`EXTENSION_DIRECTORY_URL`); install/uninstall restricted to the admin dashboard
-- Bundled plugins including Jitsi Meet calendar integration
+- A setup wizard runs on first launch and walks through JMAP servers, OAuth/OIDC, the session secret, logging, branding (uploads included), and the admin password. It writes to the admin config dir, so `.env.local` stays untouched.
+- The Stalwart admin dashboard, its policy sections collapsed into one tabbed page
+- Admin policy gates for the Unified Mailbox: turn All mail / Unread / Starred on or off org-wide, and gate cross-account capability separately (off by default, auto-enabled on upgrade for instances already using it). A gated view still respects the user's own toggle.
+- Admin storage splits in two. `ADMIN_CONFIG_DIR` is operator-authored and can be mounted read-only once setup finishes; `ADMIN_STATE_DIR` holds the runtime audit log and login timestamps.
+- JSON config can read secrets from files (`passwordHashFile`, `sessionSecretFile`, `oauthClientSecretFile`) for Docker and Kubernetes secret mounts
+- An admin toggle controls search-engine indexing (`robots.txt` / `noindex`)
+- Plugin system: a schema-driven config UI, render and intercept hooks, `onAvatarResolve`, `onBeforeEmailSend`, composer-sidebar and email-banner slots, calendar event slots, i18n APIs (sandboxed plugins localize through manifest locales and `api.i18n.t`), an `/api/translate` proxy, email-body access, and managed policy enforcement
+- Plugins hot-reload, load from a dev folder, bundle `src/` on demand through esbuild, and can request `http:fetch` scoped by `httpOrigins`
+- Themes upload as ZIP bundles, and admins can enforce one
+- An extension marketplace browses and installs plugins and themes from a configurable directory (`EXTENSION_DIRECTORY_URL`). Installing and uninstalling stay in the admin dashboard.
+- Bundled plugins, including Jitsi Meet for the calendar
 
 ## Operations
 
-- Progressive Web App with service worker, install prompt, web push notifications for inbox mail, dynamic manifest, and configurable (per-domain) install screenshots
-- Automatic update check with server-side logging of new releases and a non-dismissible update notice
-- Structured logging (`text` or `json`) with category-based levels
-- Anonymous instance telemetry (opt-in via admin UI, the installer, or `BULWARK_TELEMETRY=on`; off by default) – version, platform, bucketed account counts, feature toggles only
-- Release (`main`) and development (`dev`) Docker images on GHCR
-- Subpath deployment via `NEXT_PUBLIC_BASE_PATH` for mounting behind a reverse proxy
-- Demo mode with fixture data – no mail server required
+- Progressive Web App: service worker, install prompt, web push for new inbox mail, a dynamic manifest, and install screenshots configurable per domain
+- Update checks run on their own, log new releases server-side, and raise a notice that can't be dismissed
+- Structured logging (`text` or `json`) with per-category levels
+- Anonymous instance telemetry, off unless you enable it through the admin UI, the installer, or `BULWARK_TELEMETRY=on`. It reports version, platform, bucketed account counts, and feature toggles.
+- Docker images on GHCR, for release (`main`) and development (`dev`)
+- `NEXT_PUBLIC_BASE_PATH` mounts the app at a subpath behind a reverse proxy
+- Demo mode runs on fixture data, no mail server required

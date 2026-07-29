@@ -76,6 +76,19 @@ export function FlagES(props: FlagProps) {
   );
 }
 
+/** Catalonia – Senyera: four red horizontal bars on a yellow field */
+export function FlagCAT(props: FlagProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 27 18" width={W} height={H} className={flagClass} {...props}>
+      <rect width="27" height="18" fill="#FCDD09" />
+      <rect y="2" width="27" height="2" fill="#DA121A" />
+      <rect y="6" width="27" height="2" fill="#DA121A" />
+      <rect y="10" width="27" height="2" fill="#DA121A" />
+      <rect y="14" width="27" height="2" fill="#DA121A" />
+    </svg>
+  );
+}
+
 /** Italy – Green, White, Red vertical */
 export function FlagIT(props: FlagProps) {
   return (
@@ -309,6 +322,7 @@ export function FlagSK(props: FlagProps) {
 
 /** Map locale codes to flag components */
 export const flagComponents: Record<string, (props: FlagProps) => ReactElement> = {
+  ca: FlagCAT,
   cs: FlagCS,
   sk: FlagSK,
   da: FlagDK,

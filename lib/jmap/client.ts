@@ -6394,6 +6394,43 @@ export class JMAPClient implements IJMAPClient {
    * a shared mailbox owned by another user). When omitted, falls back to the
    * client's own primary account.
    */
+  async copyEmailAcrossAccounts(
+    emailId: string,
+    fromAccountId: string,
+    toAccountId: string,
+    destMailboxId: string,
+  ): Promise<string> {
+    // Email/copy drops keywords unless the create sets them, so carry the
+    // source's over — otherwise the moved message shows up as unread.
+    const srcResp = await this.request([
+      ["Email/get", { accountId: fromAccountId, ids: [emailId], properties: ["keywords"] }, "0"],
+    ]);
+    const keywords = srcResp.methodResponses?.[0]?.[1]?.list?.[0]?.keywords ?? {};
+
+    // onSuccessDestroyOriginal is the spec-correct way to remove the source, but
+    // Stalwart currently destroys the copy's create-id instead of the source id,
+    // so the original is left behind — a duplicate on every cross-account move.
+    // Reported upstream (support.stalw.art #1150); this self-heals once fixed.
+    const response = await this.request([
+      ["Email/copy", {
+        fromAccountId,
+        accountId: toAccountId,
+        create: { c: { id: emailId, mailboxIds: { [destMailboxId]: true }, keywords } },
+        onSuccessDestroyOriginal: true,
+      }, "0"],
+    ]);
+    const res = response.methodResponses?.[0]?.[1];
+    const err = res?.notCreated?.c;
+    if (err) {
+      throw new Error(err.description || err.type || "Failed to copy email across accounts");
+    }
+    const id = res?.created?.c?.id;
+    if (!id) {
+      throw new Error("Email/copy succeeded but no ID returned");
+    }
+    return id;
+  }
+
   async importRawEmail(
     blob: Blob,
     mailboxIds: Record<string, boolean>,

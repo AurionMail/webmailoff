@@ -9,6 +9,7 @@ import { flagComponents } from './flag-icons';
 const languages = [
   { value: 'auto', label: 'Auto' },
   { value: 'ar', label: 'العربية' },
+  { value: 'ca', label: 'Català' },
   { value: 'cs', label: 'Česky' },
   { value: 'sk', label: 'Slovenčina' },
   { value: 'da', label: 'Dansk' },
