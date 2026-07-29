@@ -48,22 +48,39 @@ describe('JMAPClient contact methods', () => {
   });
 
   describe('supportsContacts', () => {
-    it('should return true when contacts capability exists', () => {
+    function withAccountCapabilities(
+      client: JMAPClient,
+      accountCapabilities: Record<string, unknown>,
+      isPersonal = true,
+    ) {
+      Object.assign(client, {
+        capabilities: { 'urn:ietf:params:jmap:contacts': {} },
+        accounts: { 'account-1': { name: 'test', isPersonal, accountCapabilities } },
+      });
+    }
+
+    it('should return true when the account advertises the contacts capability', () => {
       const client = createClient();
-      Object.assign(client, { capabilities: { 'urn:ietf:params:jmap:contacts': {} } });
+      withAccountCapabilities(client, { 'urn:ietf:params:jmap:contacts': {} });
       expect(client.supportsContacts()).toBe(true);
     });
 
-    it('should return false when contacts capability is missing', () => {
+    it('should return false when the server advertises contacts but the account does not', () => {
       const client = createClient();
-      Object.assign(client, { capabilities: {} });
+      withAccountCapabilities(client, { 'urn:ietf:params:jmap:mail': {} });
       expect(client.supportsContacts()).toBe(false);
     });
 
-    it('should throw when capabilities is undefined', () => {
+    it('should treat non-personal (shared/group) accounts as capable', () => {
       const client = createClient();
-      Object.assign(client, { capabilities: undefined });
-      expect(() => client.supportsContacts()).toThrow();
+      withAccountCapabilities(client, {}, /* isPersonal */ false);
+      expect(client.supportsContacts()).toBe(true);
+    });
+
+    it('should return false when no session has been loaded', () => {
+      const client = createClient();
+      Object.assign(client, { capabilities: undefined, accounts: {} });
+      expect(client.supportsContacts()).toBe(false);
     });
   });
 

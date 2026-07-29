@@ -3720,12 +3720,28 @@ export class JMAPClient implements IJMAPClient {
     return this.hasCapability("urn:ietf:params:jmap:vacationresponse");
   }
 
-  supportsContacts(): boolean {
-    return this.hasCapability("urn:ietf:params:jmap:contacts");
+  supportsContacts(accountId?: string): boolean {
+    // Gate on the ACCOUNT capability: a server can advertise contacts while an
+    // account has its jmap-contact-* / dav-card-* permissions revoked. Shared accounts
+    // aren't always advertised per-account, so fall back to the server-wide
+    // capability - accountCapabilities is a subset of it (RFC 8620 s2).
+    const id = accountId || this.accountId;
+    const account = this.accounts[id];
+    if (!account) return false;
+    if (account.accountCapabilities?.["urn:ietf:params:jmap:contacts"]) return true;
+    return !account.isPersonal && !!this.capabilities?.["urn:ietf:params:jmap:contacts"];
   }
 
-  supportsCalendars(): boolean {
-    return this.hasCapability("urn:ietf:params:jmap:calendars");
+  supportsCalendars(accountId?: string): boolean {
+    // Gate on the ACCOUNT capability: a server can advertise calendars while an
+    // account has its jmap-calendar-* / dav-cal-* permissions revoked. Shared accounts
+    // aren't always advertised per-account, so fall back to the server-wide
+    // capability - accountCapabilities is a subset of it (RFC 8620 s2).
+    const id = accountId || this.accountId;
+    const account = this.accounts[id];
+    if (!account) return false;
+    if (account.accountCapabilities?.["urn:ietf:params:jmap:calendars"]) return true;
+    return !account.isPersonal && !!this.capabilities?.["urn:ietf:params:jmap:calendars"];
   }
 
   supportsSieve(): boolean {
