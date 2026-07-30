@@ -609,21 +609,26 @@ function TagItem({
   // Nested rows are placed by their indentation, so they show their own name.
   // A root spells out its path, which matters when an intermediate tag is
   // missing from this client's settings and the row would otherwise read as a
-  // bare leaf name. Toasts have the room for the whole thing.
+  // bare leaf name.
   const labelCandidates = node.depth === 0 ? tagNameCandidates(node.id) : [node.label];
   const label = labelCandidates[0];
+  // Toasts have the room for the whole thing, and no indentation to lean on,
+  // so they always spell out the full path - otherwise two leaves with the
+  // same name in different branches (e.g. "Personal/Receipts" and
+  // "Work/Receipts") would read as the same tag.
+  const fullLabel = tagNameCandidates(node.id)[0];
   const { isDragging: globalDragging } = useDragDropContext();
   const { dropHandlers, isValidDropTarget } = useTagDrop({
     tagId: node.id,
     onSuccess: (count) => {
       if (count === 1) {
-        toast.success(t('email_tagged'), label);
+        toast.success(t('email_tagged'), fullLabel);
       } else {
-        toast.success(t('emails_tagged', { count }), label);
+        toast.success(t('emails_tagged', { count }), fullLabel);
       }
     },
     onError: () => {
-      toast.error(t('tag_failed'), label);
+      toast.error(t('tag_failed'), fullLabel);
     },
   });
 

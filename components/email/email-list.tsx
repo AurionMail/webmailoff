@@ -598,7 +598,7 @@ export function EmailList({
           onReplyAll={() => onReplyAll?.(contextMenuEmail!)}
           onForward={() => onForward?.(contextMenuEmail!)}
           onForwardAsAttachment={() => onForwardAsAttachment?.(contextMenuEmail!)}
-          onMarkAsRead={(read) => onMarkAsRead?.(contextMenu.data!, read)}
+          onMarkAsRead={(read) => onMarkAsRead?.(contextMenuEmail!, read)}
           onToggleStar={() => onToggleStar?.(contextMenuEmail!)}
           onTogglePinned={onTogglePinned ? () => onTogglePinned(contextMenuEmail!) : undefined}
           onDelete={() => onDelete?.(contextMenuEmail!)}
