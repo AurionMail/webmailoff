@@ -12,6 +12,11 @@ import { withBasePath } from "@/lib/browser-navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { formatFileSize, cn, buildMailboxTree, MailboxNode, formatDateTime, generateUUID } from "@/lib/utils";
+import { TagBadge } from "./tag-badge";
+import { TagPicker } from "./tag-picker";
+import { useMeasuredTagDisplay } from "@/hooks/use-tag-display";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
+import { getEmailTagIds } from "@/lib/thread-utils";
 import { getSecurityStatus, extractListHeaders } from "@/lib/email-headers";
 import { emailToReadView } from "@/lib/plugin-projection";
 import { generateEmailSource } from "@/lib/email-source";
@@ -19,6 +24,7 @@ import {
   Reply,
   ReplyAll,
   Forward,
+  Paperclip,
   Trash2,
   Archive,
   Star,
@@ -73,7 +79,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import type { Attachment as PostalMimeAttachment } from 'postal-mime';
-import { useSettingsStore, KEYWORD_PALETTE } from "@/stores/settings-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "@/stores/contact-store";
 import { toast } from "@/stores/toast-store";
@@ -109,11 +115,12 @@ interface EmailViewerProps {
   onReply?: (draftText?: string) => void;
   onReplyAll?: () => void;
   onForward?: () => void;
+  onForwardAsAttachment?: () => void;
   onDelete?: () => void;
   onArchive?: () => void;
   onToggleStar?: () => void;
   onMarkAsRead?: (emailId: string, read: boolean) => void;
-  onSetColorTag?: (emailId: string, color: string | null) => void;
+  onSetTag?: (emailId: string, tagId: string | null) => void;
   onDownloadAttachment?: (blobId: string, name: string, type?: string, forceDownload?: boolean) => void;
   onQuickReply?: (body: string) => Promise<void>;
   onMarkAsSpam?: () => void;
@@ -196,19 +203,6 @@ const getAttachmentDisplayName = (name: string | null | undefined, mimeType?: st
     }
   }
   return 'Attachment';
-};
-
-const getCurrentColors = (keywords: Record<string, boolean> | undefined): string[] => {
-  if (!keywords) return [];
-  const tags: string[] = [];
-  for (const key of Object.keys(keywords)) {
-    if ((key.startsWith("$label:") || key.startsWith("$color:")) && keywords[key] === true) {
-      tags.push(
-        key.startsWith("$label:") ? key.slice("$label:".length) : key.slice("$color:".length)
-      );
-    }
-  }
-  return tags;
 };
 
 // Helper function to format recipients with contextual display
@@ -621,11 +615,12 @@ export function EmailViewer({
   onReply,
   onReplyAll,
   onForward,
+  onForwardAsAttachment,
   onDelete,
   onArchive,
   onToggleStar,
   onMarkAsRead,
-  onSetColorTag,
+  onSetTag,
   onDownloadAttachment,
   onQuickReply,
   onMarkAsSpam,
@@ -664,6 +659,7 @@ export function EmailViewer({
   const isTrustedAddressBookSender = useContactStore((state) => state.isTrustedAddressBookSender);
   const addToTrustedSendersBook = useContactStore((state) => state.addToTrustedSendersBook);
   const emailKeywords = useSettingsStore((state) => state.emailKeywords);
+  const { sortTagIds, tagColor } = useKeywordFormat();
   const toolbarPosition = useSettingsStore((state) => state.toolbarPosition);
   const showToolbarLabels = useSettingsStore((state) => state.showToolbarLabels);
   const mailLayout = useSettingsStore((state) => state.mailLayout);
@@ -706,12 +702,6 @@ export function EmailViewer({
   const isScheduled = email?.isScheduled === true;
   const canCancelScheduled = isScheduled && email?.scheduledUndoStatus === 'pending';
 
-  // Color options for email tags (from user-defined keyword settings)
-  const colorOptions = emailKeywords.map((kw) => ({
-    name: kw.label,
-    value: kw.id,
-    color: KEYWORD_PALETTE[kw.color]?.dot || 'bg-gray-500',
-  }));
 
   // Tablet list visibility
   const { isTablet, isMobile } = useDeviceDetection();
@@ -816,8 +806,13 @@ export function EmailViewer({
   const moveMenuRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [hiddenPriorities, setHiddenPriorities] = useState<Set<number>>(new Set());
-  const currentColors = getCurrentColors(email?.keywords);
-  const currentColor = currentColors[0] ?? null;
+  const currentTagIds = getEmailTagIds(email?.keywords);
+  const sortedTagIds = sortTagIds(currentTagIds);
+  // The header spans the reading pane, so it measures its own width rather than
+  // inheriting the message list's answer.
+  const headerTagsRef = useRef<HTMLDivElement>(null);
+  const { variant: headerTagVariant } = useMeasuredTagDisplay(headerTagsRef);
+  const currentColor = currentTagIds[0] ?? null;
 
   // Crypto-plugin rendered body (S/MIME, PGP, …) — populated by the generic
   // onRenderEmailBody hook. Verification/decryption status UI is provided by the
@@ -1015,7 +1010,7 @@ export function EmailViewer({
     showToolbarLabels,
     isLoading,
     moveTree.length,
-    colorOptions.length,
+    emailKeywords.length,
     currentColor,
     isInJunkFolder,
     isTablet,
@@ -2994,64 +2989,18 @@ export function EmailViewer({
         <div ref={tagMenuRef} className="relative">
           <button
             onClick={() => { setTagMenuOpen(!tagMenuOpen); setMoreMenuOpen(false); setMoveMenuOpen(false); }}
-            className={cn(
-              "h-8 rounded hover:bg-muted flex items-center gap-1.5 px-2",
-              currentColors.length > 0 && "bg-muted/50"
-            )}
-            title={t('set_color')}
+            className="h-8 rounded hover:bg-muted flex items-center gap-1.5 px-2"
+            title={t('set_tag')}
           >
-            {currentColors.length > 0 ? (
-              <>
-                <span className="flex items-center gap-0.5">
-                  {currentColors.slice(0, 3).map((tagId) => {
-                    const kw = emailKeywords.find(k => k.id === tagId) ?? { id: tagId, label: tagId, color: 'gray' };
-                    return <span key={tagId} className={cn("w-3 h-3 rounded-full", KEYWORD_PALETTE[kw.color]?.dot || 'bg-gray-500')} />;
-                  })}
-                </span>
-                {showToolbarLabels && currentColors.length === 1 && (
-                  <span className="text-xs font-medium text-foreground">
-                    {emailKeywords.find(k => k.id === currentColors[0])?.label ?? currentColors[0]}
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                <Tag className="w-4 h-4 text-muted-foreground" />
-                {showToolbarLabels && <span className="text-xs text-muted-foreground">{t('tag')}</span>}
-              </>
-            )}
+            <Tag className="w-4 h-4" />
+            {showToolbarLabels && <span className="text-[10px] leading-tight sm:text-sm">{t('tag')}</span>}
           </button>
           {tagMenuOpen && (
-            <div className="absolute end-0 top-full mt-1 py-1 w-40 bg-background rounded-lg shadow-lg border border-border z-10">
-              {colorOptions.map((option) => {
-                const isActive = currentColors.includes(option.value);
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => { if (email) onSetColorTag?.(email.id, option.value); setTagMenuOpen(false); }}
-                    className={cn(
-                      "w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2",
-                      isActive && "bg-accent font-medium"
-                    )}
-                  >
-                    <span className={cn("w-3 h-3 rounded-full flex-shrink-0", option.color)} />
-                    <span className="truncate">{option.name}</span>
-                    {isActive && <Check className="w-3 h-3 ms-auto flex-shrink-0 text-foreground" />}
-                  </button>
-                );
-              })}
-              {currentColors.length > 0 && (
-                <>
-                  <div className="h-px bg-border my-1" />
-                  <button
-                    onClick={() => { if (email) onSetColorTag?.(email.id, null); setTagMenuOpen(false); }}
-                    className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2 text-muted-foreground"
-                  >
-                    <X className="w-3 h-3 flex-shrink-0" />
-                    <span>{t('remove_color')}</span>
-                  </button>
-                </>
-              )}
+            <div className="absolute end-0 top-full mt-1 py-1 w-56 bg-background rounded-md shadow-lg border border-border z-10">
+              <TagPicker
+                selectedIds={currentTagIds}
+                onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
+              />
             </div>
           )}
         </div>
@@ -3243,7 +3192,7 @@ export function EmailViewer({
                 </div>
               )}
               {/* Overflow: tag - submenu */}
-              {colorOptions.length > 0 && (
+              {(emailKeywords.length > 0 || currentTagIds.length > 0) && (
                 <div className={cn("relative", hiddenPriorities.has(6) ? "" : "sm:hidden")}
                   onMouseEnter={() => setMoreMenuSub('tag')}
                   onMouseLeave={() => setMoreMenuSub(null)}
@@ -3257,36 +3206,11 @@ export function EmailViewer({
                     <ChevronRight className="w-3 h-3 text-muted-foreground" />
                   </button>
                   {moreMenuSub === 'tag' && (
-                    <div className="absolute end-full top-0 me-1 py-1 w-40 bg-background rounded-md shadow-lg border border-border z-10">
-                      {colorOptions.map((option) => {
-                        const isActive = currentColors.includes(option.value);
-                        return (
-                          <button
-                            key={option.value}
-                            onClick={() => { if (email) onSetColorTag?.(email.id, option.value); setMoreMenuOpen(false); setMoreMenuSub(null); }}
-                            className={cn(
-                              "w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2",
-                              isActive && "bg-accent font-medium"
-                            )}
-                          >
-                            <span className={cn("w-3 h-3 rounded-full flex-shrink-0", option.color)} />
-                            <span className="truncate">{option.name}</span>
-                            {isActive && <Check className="w-3 h-3 ms-auto flex-shrink-0 text-foreground" />}
-                          </button>
-                        );
-                      })}
-                      {currentColors.length > 0 && (
-                        <>
-                          <div className="h-px bg-border my-1" />
-                          <button
-                            onClick={() => { if (email) onSetColorTag?.(email.id, null); setMoreMenuOpen(false); setMoreMenuSub(null); }}
-                            className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2 text-muted-foreground"
-                          >
-                            <X className="w-3 h-3 flex-shrink-0" />
-                            <span>{t('remove_color')}</span>
-                          </button>
-                        </>
-                      )}
+                    <div className="absolute end-full top-0 me-1 py-1 w-56 bg-background rounded-md shadow-lg border border-border z-10">
+                      <TagPicker
+                        selectedIds={currentTagIds}
+                        onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
+                      />
                     </div>
                   )}
                 </div>
@@ -3340,6 +3264,16 @@ export function EmailViewer({
                 </button>
               )}
               <div className="h-px bg-border my-1" />
+              {/* Forward as attachment */}
+              {onForwardAsAttachment && email?.blobId && (
+                <button
+                  onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
+                  className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  {t('forward_as_attachment')}
+                </button>
+              )}
               {/* Export email */}
               <button
                 onClick={() => { handleExportEmail(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
@@ -3420,19 +3354,21 @@ export function EmailViewer({
                 {isStarred ? t('tooltips.unstar') : t('tooltips.star')}
               </button>
               {/* Tag (opens sub-view) */}
-              {colorOptions.length > 0 && (
+              {(emailKeywords.length > 0 || currentTagIds.length > 0) && (
                 <button
                   onClick={() => setMoreMenuSub('tag')}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
                 >
                   <Tag className="w-5 h-5" />
                   <span className="flex-1">{t('tag')}</span>
-                  {currentColors.length > 0 && (
+                  {currentTagIds.length > 0 && (
                     <div className="flex -space-x-1 me-1">
-                      {currentColors.slice(0, 3).map((c) => {
-                        const opt = colorOptions.find((o) => o.value === c);
-                        return opt ? <span key={c} className={cn("w-3 h-3 rounded-full border border-background", opt.color)} /> : null;
-                      })}
+                      {sortedTagIds.slice(0, 3).map((tagId) => (
+                        <span
+                          key={tagId}
+                          className={cn("w-3 h-3 rounded-full border border-background", tagColor(tagId).dot)}
+                        />
+                      ))}
                     </div>
                   )}
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -3462,6 +3398,15 @@ export function EmailViewer({
                 </button>
               )}
               <div className="h-px bg-border my-1" />
+              {onForwardAsAttachment && email?.blobId && (
+                <button
+                  onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); }}
+                  className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
+                >
+                  <Paperclip className="w-5 h-5" />
+                  {t('forward_as_attachment')}
+                </button>
+              )}
               <button
                 onClick={() => { handleExportEmail(); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
@@ -3519,35 +3464,12 @@ export function EmailViewer({
             };
             return renderMobileNodes(moveTree);
           })()}
-          {moreMenuSub === 'tag' && colorOptions.length > 0 && (
-            <>
-              {colorOptions.map((option) => {
-                const isActive = currentColors.includes(option.value);
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => { if (email) onSetColorTag?.(email.id, option.value); setMoreMenuOpen(false); setMoreMenuSub(null); }}
-                    className={cn(
-                      "w-full px-4 py-2.5 min-h-[44px] text-sm text-start hover:bg-muted flex items-center gap-3",
-                      isActive && "bg-accent font-medium"
-                    )}
-                  >
-                    <span className={cn("w-3.5 h-3.5 rounded-full flex-shrink-0", option.color)} />
-                    <span className="truncate">{option.name}</span>
-                    {isActive && <Check className="w-4 h-4 ms-auto flex-shrink-0 text-foreground" />}
-                  </button>
-                );
-              })}
-              {currentColors.length > 0 && (
-                <button
-                  onClick={() => { if (email) onSetColorTag?.(email.id, null); setMoreMenuOpen(false); setMoreMenuSub(null); }}
-                  className="w-full px-4 py-2.5 min-h-[44px] text-sm text-start hover:bg-muted flex items-center gap-3 text-muted-foreground"
-                >
-                  <X className="w-4 h-4 flex-shrink-0" />
-                  <span>{t('remove_color')}</span>
-                </button>
-              )}
-            </>
+          {moreMenuSub === 'tag' && (
+            <TagPicker
+              touch
+              selectedIds={currentTagIds}
+              onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
+            />
           )}
         </div>
       </div>
@@ -3605,24 +3527,24 @@ export function EmailViewer({
                     )} />
                   </button>
                 )}
-                {/* Color tag dots */}
-                {currentColors.length > 0 && (
-                  <span className="flex items-center gap-0.5">
-                    {currentColors.map((tagId) => {
-                      const kw = emailKeywords.find(k => k.id === tagId) ?? { id: tagId, label: tagId, color: 'gray' };
-                      const dotClass = KEYWORD_PALETTE[kw.color]?.dot || 'bg-gray-500';
-                      return (
-                        <span key={tagId} className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", dotClass)} title={kw.label} />
-                      );
-                    })}
-                  </span>
-                )}
                 {isImportant && (
                   <span className="px-1.5 lg:px-2 py-0.5 bg-warning/15 text-warning rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 self-center">
                     {t('important')}
                   </span>
                 )}
               </div>
+              {sortedTagIds.length > 0 && (
+                <div ref={headerTagsRef} className="mt-1.5 flex flex-wrap items-center gap-1">
+                  {sortedTagIds.map((tagId) => (
+                    <TagBadge
+                      key={tagId}
+                      tagId={tagId}
+                      variant={headerTagVariant}
+                      onRemove={onSetTag && email ? () => onSetTag(email.id, tagId) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
             {/* Date/time on the right of subject row - hidden on mobile, shown next to sender */}
             <div className="hidden sm:block flex-shrink-0 text-end">
