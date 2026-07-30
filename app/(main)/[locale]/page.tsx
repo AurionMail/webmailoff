@@ -61,7 +61,8 @@ import { isFilePreviewable } from "@/lib/file-preview";
 import { appendHtmlSignature, appendPlainTextSignature } from "@/lib/signature-utils";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
-import { findDraftIdentityId, resolveReplyFrom } from "@/lib/reply-identity";
+import { findDraftIdentityId, resolveReplyFrom, type ReplyFromResolution } from "@/lib/reply-identity";
+import { buildReplyRecipients, isSelfSent } from "@/lib/reply-recipients";
 import { useProMultiAccountIdentities } from "@/hooks/use-pro-multi-account-identities";
 import { Search, Filter, ChevronDown, X, Paperclip, Star, Mail, MailOpen, RotateCcw, PenSquare, PenLine, CheckSquare, Square, AlertTriangle } from "lucide-react";
 import { ResizeHandle } from "@/components/layout/resize-handle";
@@ -2400,8 +2401,20 @@ export default function Home() {
   const handleQuickReply = async (body: string) => {
     if (!client || !selectedEmail) return;
 
-    const sender = selectedEmail.from?.[0];
-    if (!sender?.email) {
+    // Quick reply follows the same addressing rules as the composer: Reply-To
+    // over From, and for our own messages in a thread the original recipients
+    // instead of ourselves (#703).
+    const ownIdentityEmails = identities.map(i => i.email).filter(Boolean);
+    const replySource = {
+      from: selectedEmail.from,
+      replyToAddresses: selectedEmail.replyTo,
+      to: selectedEmail.to,
+      cc: selectedEmail.cc,
+    };
+    const recipients = buildReplyRecipients(replySource, 'reply', ownIdentityEmails).to
+      .map(r => r.email)
+      .filter((email): email is string => Boolean(email));
+    if (recipients.length === 0) {
       throw new Error("No sender email found");
     }
 
@@ -2410,14 +2423,21 @@ export default function Home() {
 
     // Decide the sending identity and (for domain-catch-all) an optional
     // header From override that matches the address the message was sent to.
+    // Our own message keeps the identity it was sent from - the recipients are
+    // the other party, so resolving from them would send as their address.
     // When the setting is off, fall through to primary-identity behavior.
-    const resolved = autoSelectReplyIdentity
-      ? resolveReplyFrom(identities, {
-          to: selectedEmail.to,
-          cc: selectedEmail.cc,
-          bcc: selectedEmail.bcc,
-        })
+    const selfSentIdentityId = isSelfSent(replySource, ownIdentityEmails)
+      ? findDraftIdentityId(identities, selectedEmail.from?.[0])
       : null;
+    const resolved: ReplyFromResolution | null = !autoSelectReplyIdentity
+      ? null
+      : selfSentIdentityId
+        ? { identityId: selfSentIdentityId }
+        : resolveReplyFrom(identities, {
+            to: selectedEmail.to,
+            cc: selectedEmail.cc,
+            bcc: selectedEmail.bcc,
+          });
     const sendingIdentity = resolved
       ? (identities.find((i) => i.id === resolved.identityId) || primaryIdentity)
       : primaryIdentity;
@@ -2464,7 +2484,7 @@ export default function Home() {
     // Send reply with just the body text
     const result = await sendEmail(
       client,
-      [sender.email],
+      recipients,
       buildReplySubject(selectedEmail.subject || "(no subject)", t('email_composer.prefix.reply')),
       finalBody,
       undefined,
