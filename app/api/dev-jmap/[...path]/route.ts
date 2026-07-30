@@ -120,7 +120,7 @@ const emails: MockEmail[] = [
     },
   },
   {
-    id: 'email-002', threadId: 'thread-002', mailboxIds: { 'mb-inbox': true }, keywords: { $seen: true, $flagged: true, '$label:blue': true }, size: 5100, receivedAt: daysAgo(1),
+    id: 'email-002', threadId: 'thread-002', mailboxIds: { 'mb-inbox': true }, keywords: { $seen: true, $flagged: true, '$label:work/clients/acme': true }, size: 5100, receivedAt: daysAgo(1),
     from: [{ name: 'Dubois, Pierre', email: 'pierre@dubois.example' }],
     to: [{ name: 'Dev User', email: 'dev@localhost' }],
     cc: [{ name: 'de Vries, Karel', email: 'karel@devries.example' }],
@@ -152,7 +152,7 @@ const emails: MockEmail[] = [
     },
   },
   {
-    id: 'email-004', threadId: 'thread-004', mailboxIds: { 'mb-inbox': true }, keywords: { '$label:red': true }, size: 6200, receivedAt: daysAgo(0),
+    id: 'email-004', threadId: 'thread-004', mailboxIds: { 'mb-inbox': true }, keywords: { '$label:work/clients': true, '$label:receipts': true }, size: 6200, receivedAt: daysAgo(0),
     from: [{ name: 'GitHub Notifications', email: 'notifications@github.com' }],
     to: [{ name: 'Dev User', email: 'dev@localhost' }], cc: [],
     subject: '[bulwark-webmail] New issue: Add dark mode toggle (#42)',
@@ -181,7 +181,7 @@ const emails: MockEmail[] = [
   },
   // Newsletter with full HTML
   {
-    id: 'email-013', threadId: 'thread-012', mailboxIds: { 'mb-inbox': true }, keywords: { '$label:purple': true }, size: 18200, receivedAt: daysAgo(0),
+    id: 'email-013', threadId: 'thread-012', mailboxIds: { 'mb-inbox': true }, keywords: { '$label:personal/finance': true }, size: 18200, receivedAt: daysAgo(0),
     from: [{ name: 'Launchpad Weekly', email: 'hello@launchpad.example' }],
     to: [{ name: 'Dev User', email: 'dev@localhost' }], cc: [],
     subject: 'Launchpad Weekly #47 - The future of the open web',
@@ -228,7 +228,7 @@ const emails: MockEmail[] = [
     ],
   },
   {
-    id: 'email-016', threadId: 'thread-015', mailboxIds: { 'mb-inbox': true }, keywords: { '$label:green': true }, size: 4100, receivedAt: hoursAgo(3),
+    id: 'email-016', threadId: 'thread-015', mailboxIds: { 'mb-inbox': true }, keywords: { '$label:personal': true }, size: 4100, receivedAt: hoursAgo(3),
     from: [{ name: 'Élise Moreau', email: 'elise.moreau@fjord-systems.example' }],
     to: [{ name: 'Dev User', email: 'dev@localhost' }], cc: [],
     subject: 'Code review request: JMAP-342 contact import',
@@ -255,7 +255,7 @@ const emails: MockEmail[] = [
     },
   },
   {
-    id: 'email-018', threadId: 'thread-017', mailboxIds: { 'mb-inbox': true }, keywords: { $seen: true, $flagged: true, '$label:orange': true }, size: 4700, receivedAt: daysAgo(1),
+    id: 'email-018', threadId: 'thread-017', mailboxIds: { 'mb-inbox': true }, keywords: { $seen: true, $flagged: true, '$label:work': true }, size: 4700, receivedAt: daysAgo(1),
     from: [{ name: 'Hetzner Cloud', email: 'billing@hetzner.example' }],
     to: [{ name: 'Dev User', email: 'dev@localhost' }], cc: [],
     subject: 'Your Hetzner invoice is available - February 2026',
@@ -355,7 +355,7 @@ const emails: MockEmail[] = [
     },
   },
   {
-    id: 'email-025', threadId: 'thread-024', mailboxIds: { 'mb-inbox': true }, keywords: { $seen: true, $flagged: true, '$label:blue': true }, size: 4100, receivedAt: daysAgo(6),
+    id: 'email-025', threadId: 'thread-024', mailboxIds: { 'mb-inbox': true }, keywords: { $seen: true, $flagged: true, '$color:work/archived': true }, size: 4100, receivedAt: daysAgo(6),
     from: [{ name: 'Stripe Developer', email: 'developer-updates@stripe.example' }],
     to: [{ name: 'Dev User', email: 'dev@localhost' }], cc: [],
     subject: 'Action required: API v2023-10 deprecation on April 15, 2026',
