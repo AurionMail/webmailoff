@@ -5534,7 +5534,7 @@ export class JMAPClient implements IJMAPClient {
   }
 
   private static FILE_NODE_PROPERTIES = [
-    "id", "parentId", "name", "type", "blobId", "size", "created", "updated",
+    "id", "parentId", "name", "type", "blobId", "size", "created", "modified",
     // Stalwart omits shareWith/myRights from FileNode/get unless requested
     // explicitly, so the share dialog and indicators can't see existing
     // shares without naming them here (same as CALENDAR_PROPERTIES).
