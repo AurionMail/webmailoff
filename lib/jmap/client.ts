@@ -1758,15 +1758,19 @@ export class JMAPClient implements IJMAPClient {
 
   async emptyMailbox(mailboxId: string, accountId?: string): Promise<number> {
     const targetAccountId = accountId || this.accountId;
+    const batchSize = 500;
     let totalDestroyed = 0;
-    let hasMore = true;
 
-    while (hasMore) {
+    // Destroy in batches until the mailbox is empty. Never gate the loop on
+    // Email/query's `total`: it is only guaranteed when `calculateTotal` is
+    // requested, and Stalwart omits it otherwise, which used to stop the loop
+    // after the first batch and leave folders with >500 emails mostly intact.
+    while (true) {
       const response = await this.request([
         ["Email/query", {
           accountId: targetAccountId,
           filter: { inMailbox: mailboxId },
-          limit: 500,
+          limit: batchSize,
         }, "0"],
         ["Email/set", {
           accountId: targetAccountId,
@@ -1776,10 +1780,16 @@ export class JMAPClient implements IJMAPClient {
 
       const queryResult = response.methodResponses?.[0]?.[1];
       const setResult = response.methodResponses?.[1]?.[1];
+      const found: string[] = queryResult?.ids || [];
       const destroyed = setResult?.destroyed?.length || 0;
       totalDestroyed += destroyed;
 
-      hasMore = destroyed > 0 && (queryResult?.total || 0) > destroyed;
+      // Nothing left, or the server refused everything in this batch (missing
+      // permission, immutable mail) — stop instead of looping forever on the
+      // same ids.
+      if (found.length === 0 || destroyed === 0) break;
+      // A short page means we just handled the tail of the mailbox.
+      if (found.length < batchSize) break;
     }
 
     return totalDestroyed;
