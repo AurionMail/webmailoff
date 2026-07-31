@@ -2039,6 +2039,35 @@ function resolveBackReferences(
 }
 
 // ---------------------------------------------------------------------------
+// Request limits
+// ---------------------------------------------------------------------------
+
+// Stalwart's defaults. Too many method calls fails the request whole
+// (RFC 8620 §3.6.1), an over-sized /get or /set fails that call
+// (`requestTooLarge`, §5.1 and §5.3). The mock enforces what it advertises so a
+// client that sends an unsplit batch fails here the way it fails in production.
+const MAX_CALLS_IN_REQUEST = 16;
+const MAX_OBJECTS_IN_GET = 500;
+const MAX_OBJECTS_IN_SET = 500;
+
+/** Objects a /set call touches, across all three of its maps (RFC 8620 §5.3). */
+function setObjectCount(args: MethodArgs): number {
+  const size = (value: unknown) => (Array.isArray(value) ? value.length : Object.keys(value || {}).length);
+  return size(args.create) + size(args.update) + size(args.destroy);
+}
+
+/** The method-level error a server returns for an over-sized /get or /set. */
+function tooLargeFor(method: string, args: MethodArgs, callId: string): MethodResult | null {
+  if (method.endsWith('/get') && Array.isArray(args.ids) && args.ids.length > MAX_OBJECTS_IN_GET) {
+    return ['error', { type: 'requestTooLarge', description: `More than ${MAX_OBJECTS_IN_GET} ids in ${method}` }, callId];
+  }
+  if (method.endsWith('/set') && setObjectCount(args) > MAX_OBJECTS_IN_SET) {
+    return ['error', { type: 'requestTooLarge', description: `More than ${MAX_OBJECTS_IN_SET} objects in ${method}` }, callId];
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Route handlers
 // ---------------------------------------------------------------------------
 
@@ -2070,9 +2099,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           maxConcurrentUpload: 4,
           maxSizeRequest: 10000000,
           maxConcurrentRequests: 4,
-          maxCallsInRequest: 16,
-          maxObjectsInGet: 500,
-          maxObjectsInSet: 500,
+          maxCallsInRequest: MAX_CALLS_IN_REQUEST,
+          maxObjectsInGet: MAX_OBJECTS_IN_GET,
+          maxObjectsInSet: MAX_OBJECTS_IN_SET,
           collationAlgorithms: ['i;ascii-casemap', 'i;ascii-numeric', 'i;unicode-casemap'],
         },
         'urn:ietf:params:jmap:mail': {},
@@ -2218,6 +2247,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: 'Invalid request: missing methodCalls' }, { status: 400 });
       }
 
+      if (methodCalls.length > MAX_CALLS_IN_REQUEST) {
+        return NextResponse.json({
+          type: 'urn:ietf:params:jmap:error:limit',
+          status: 400,
+          limit: 'maxCallsInRequest',
+          detail: `This request contains ${methodCalls.length} method calls, the maximum is ${MAX_CALLS_IN_REQUEST}.`,
+        }, { status: 400 });
+      }
+
       const responses: MethodResult[] = [];
 
       // Process method calls sequentially (to support back-references)
@@ -2227,8 +2265,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Use resolved args if available, otherwise original
         const args = i < resolved.length ? resolved[i][1] : methodCalls[i][1];
 
+        const tooLarge = tooLargeFor(method, args, callId);
         const handler = METHOD_HANDLERS[method];
-        if (handler) {
+        if (tooLarge) {
+          responses.push(tooLarge);
+        } else if (handler) {
           const result = handler(args, callId);
           responses.push(result);
         } else {
