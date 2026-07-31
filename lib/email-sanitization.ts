@@ -35,12 +35,26 @@ export const EMAIL_SANITIZE_CONFIG = {
 };
 
 /**
+ * Sanitize with `restrictDataUriResourcesOnNode` applied - the config alone
+ * cannot express it, because DOMPurify's data:-URI carve-out for media tags
+ * short-circuits ALLOWED_URI_REGEXP and is not removable via config.
+ */
+function sanitizeWithDataUriGuard(html: string, config: typeof EMAIL_SANITIZE_CONFIG): string {
+  DOMPurify.addHook('afterSanitizeAttributes', restrictDataUriResourcesOnNode);
+  try {
+    return DOMPurify.sanitize(html, config);
+  } finally {
+    DOMPurify.removeAllHooks();
+  }
+}
+
+/**
  * Sanitize email HTML content
  * @param html - Raw HTML content from email
  * @returns Sanitized HTML safe for rendering
  */
 export function sanitizeEmailHtml(html: string): string {
-  return DOMPurify.sanitize(html, EMAIL_SANITIZE_CONFIG);
+  return sanitizeWithDataUriGuard(html, EMAIL_SANITIZE_CONFIG);
 }
 
 /**
@@ -60,7 +74,7 @@ export const EMAIL_IFRAME_SANITIZE_CONFIG = {
  * Preserves <style> tags so the email's own CSS is applied.
  */
 export function sanitizeEmailHtmlForIframe(html: string): string {
-  return DOMPurify.sanitize(html, EMAIL_IFRAME_SANITIZE_CONFIG);
+  return sanitizeWithDataUriGuard(html, EMAIL_IFRAME_SANITIZE_CONFIG);
 }
 
 /**
@@ -221,12 +235,55 @@ export function sanitizePlainTextRenderedHtml(html: string): string {
 }
 
 /**
- * 1x1 transparent SVG used to replace a blocked external <img> so the layout
+ * 1x1 transparent GIF used to replace a blocked external <img> so the layout
  * doesn't reflow to a broken-image icon. The real URL is stashed in
  * `data-blocked-src` for restore.
+ *
+ * Deliberately a raster GIF, not an SVG: `restrictDataUriResourcesOnNode`
+ * removes every non-raster data: URI from media elements, and it runs in the
+ * same afterSanitizeAttributes pass as the external-content blocking above.
+ * An SVG placeholder would depend on which of the two happens to run first.
  */
 export const TRANSPARENT_BLOCKED_PIXEL =
-  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB2aWV3Qm94PSIwIDAgMSAxIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJ0cmFuc3BhcmVudCIvPgo8L3N2Zz4=';
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+/**
+ * Media elements where DOMPurify waves any `data:` URI through. Its attribute
+ * check short-circuits on `DATA_URI_TAGS` *before* ALLOWED_URI_REGEXP is
+ * consulted, and the set can only be extended via config (ADD_DATA_URI_TAGS),
+ * never trimmed - so the regexp's careful SVG exclusion is unreachable for
+ * these tags and has to be re-applied by hand. `<image>` is absent on purpose:
+ * the HTML parser rewrites it to `<img>`.
+ */
+const DATA_URI_BYPASS_TAGS = new Set(['IMG', 'VIDEO', 'AUDIO', 'SOURCE', 'TRACK']);
+
+/** Raster image types that stay allowed as a data: URI (mirrors ALLOWED_URI_REGEXP). */
+const RASTER_IMAGE_DATA_URI =
+  /^data:image\/(?:png|jpe?g|gif|webp|bmp|avif|x-icon|vnd\.microsoft\.icon)[;,]/i;
+
+/**
+ * Drop `data:` URIs that aren't inline raster images from media elements.
+ * DOMPurify cannot inspect the bytes inside a data: URI, so an SVG payload can
+ * carry <script>/<foreignObject> that the surrounding sanitizer never sees -
+ * the same reason ALLOWED_URI_REGEXP excludes image/svg+xml for every other
+ * element. Browsers render SVG-in-<img> in secure static mode, so this closes
+ * the gap between what the sanitizer promises and what it enforces rather than
+ * a live script vector.
+ */
+export function restrictDataUriResourcesOnNode(node: Element): void {
+  if (!DATA_URI_BYPASS_TAGS.has(node.tagName)) return;
+  for (const attr of ['src', 'href', 'xlink:href']) {
+    const value = node.getAttribute(attr);
+    if (!value) continue;
+    // Mirror the URL parser (and isExternalResourceUrl): C0 controls and
+    // spaces are ignored, so they can't be used to hide the scheme.
+    // eslint-disable-next-line no-control-regex
+    const normalized = value.replace(/[\u0000-\u0020]+/g, '');
+    if (/^data:/i.test(normalized) && !RASTER_IMAGE_DATA_URI.test(normalized)) {
+      node.removeAttribute(attr);
+    }
+  }
+}
 
 /**
  * True if a resource URL would trigger an external (network) fetch once the
