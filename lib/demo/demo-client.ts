@@ -56,7 +56,7 @@ export class DemoJMAPClient implements IJMAPClient {
 
   getCapabilities(): Record<string, unknown> {
     return {
-      'urn:ietf:params:jmap:core': { maxSizeUpload: 50_000_000, maxCallsInRequest: 16, maxObjectsInGet: 500 },
+      'urn:ietf:params:jmap:core': { maxSizeUpload: 50_000_000, maxCallsInRequest: 16, maxObjectsInGet: 500, maxObjectsInSet: 500 },
       'urn:ietf:params:jmap:mail': {},
       'urn:ietf:params:jmap:submission': { maxDelayedSend: 30 * 24 * 60 * 60, submissionExtensions: { FUTURERELEASE: true } },
       'urn:ietf:params:jmap:vacationresponse': {},
@@ -71,6 +71,7 @@ export class DemoJMAPClient implements IJMAPClient {
   getMaxSizeUpload(): number { return 50_000_000; }
   getMaxCallsInRequest(): number { return 16; }
   getMaxObjectsInGet(): number { return 500; }
+  getMaxObjectsInSet(): number { return 500; }
   getMaxDelayedSend(): number { return 30 * 24 * 60 * 60; }
   hasDelayedSend(): boolean { return true; }
   getEventSourceUrl(): string | null { return null; }

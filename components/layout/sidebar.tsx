@@ -949,15 +949,18 @@ export function Sidebar({
     ? buildKeywordTree(emailKeywords)
     : emailKeywords.map((kw) => ({ ...kw, children: [], depth: 0 }));
 
-  // Counts arrive from a separate JMAP round trip; until they land, treat every
-  // "show if unread" tag as visible rather than blanking the section and
-  // filling it back in.
-  const tagCountsLoaded = Object.keys(tagCounts).length > 0;
+  // Counts arrive from a separate JMAP round trip, one batch per group of tags;
+  // a tag with no count yet is treated as visible rather than blanking it and
+  // filling it back in. A tag the server answered for with zero unread hides,
+  // which is the point of the setting.
   const isTagVisible = (node: KeywordNode) => {
     if (showAllTags || node.id === selectedKeyword) return true;
     const visibility = getKeywordVisibility(node);
     if (visibility === 'hide') return false;
-    if (visibility === 'unread') return !tagCountsLoaded || (tagCounts[node.id]?.unread ?? 0) > 0;
+    if (visibility === 'unread') {
+      const count = tagCounts[node.id];
+      return !count || count.unread > 0;
+    }
     return true;
   };
   const visibleTagTree = filterKeywordTree(tagTree, isTagVisible);
