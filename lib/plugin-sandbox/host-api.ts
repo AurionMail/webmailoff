@@ -67,6 +67,7 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // user
   'user.getAccounts': 'account:read',
   'user.getIdentities': 'identity:read',
+  'user.logout': 'auth:emit',
   // admin
   'admin.getConfig': 'admin:config',
   'admin.getAllConfig': 'admin:config',
@@ -195,6 +196,11 @@ function doUserGetAccounts(): AccountResponse[] {
 
 function doUserGetIdentities(): Identity[] {
   return useIdentityStore.getState().identities;
+}
+
+async function doUserLogout(): Promise<void>{
+  const logout = useAuthStore((s) => s.logout);
+  await logout();
 }
 
 // ─── http.post (same-origin /api/*) ───────────────────────────
@@ -787,6 +793,7 @@ export async function dispatchApiCall(
 
     case 'user.getAccounts':   return doUserGetAccounts();
     case 'user.getIdentities': return doUserGetIdentities();
+    case 'user.logout' : return doUserLogout();
 
     case 'admin.getConfig':    return adminGet(plugin.id, args[0] as string);
     case 'admin.getAllConfig': return adminGetAll(plugin.id);
