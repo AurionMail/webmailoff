@@ -178,6 +178,7 @@ function buildPluginApi(manifest: PluginManifest) {
     user: {
       getAccounts: () => callApi('user.getAccounts', []),
       getIdentities: () => callApi('user.getIdentities', []),
+      logout: () => callApi('user.logout', []),
     },
     http: {
       post: (path: string, body: Record<string, unknown>) => callApi('http.post', [path, body]),

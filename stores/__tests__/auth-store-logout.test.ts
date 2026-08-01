@@ -41,7 +41,7 @@ describe('auth-store logout redirects', () => {
     vi.useRealTimers();
   });
 
-  it('redirects full logout to the locale login page', () => {
+  it('redirects full logout to the locale login page', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
     vi.stubGlobal('fetch', fetchMock);
     const replaceSpy = vi.spyOn(browserNavigation, 'replaceWindowLocation').mockImplementation(() => {});
@@ -49,7 +49,7 @@ describe('auth-store logout redirects', () => {
     window.history.pushState({}, '', '/fr/calendar');
     useAuthStore.setState({ isAuthenticated: true, authMode: 'basic' });
 
-    useAuthStore.getState().logout();
+    await useAuthStore.getState().logout();
 
     expect(replaceSpy).toHaveBeenCalledWith('/fr/login');
     expect(fetchMock).toHaveBeenCalledWith('/api/auth/session?slot=0', { method: 'DELETE', keepalive: true });
@@ -169,7 +169,7 @@ describe('auth-store logout redirects', () => {
 
     // Refresh goes in flight, then the user signs out before it settles.
     const pending = useAuthStore.getState().refreshAccessToken();
-    useAuthStore.getState().logout();
+    await useAuthStore.getState().logout();
     resolveInFlight!({ ok: false, status: 503, json: async () => ({}) });
     await pending;
 
