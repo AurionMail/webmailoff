@@ -15,6 +15,8 @@ import { useProTabStore, type ProEmailTabData, type ProReplyContext } from "@/st
 import type { Email } from "@/lib/jmap/types";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
 import { getQuoteBodies } from "@/lib/email-composer-utils";
+import { buildForwardAsAttachmentPayload } from "@/lib/forward-as-attachment";
+import { KEYWORD_PREFIX, KEYWORD_PREFIX_LEGACY } from "@/lib/thread-utils";
 
 interface ProEmailTabBodyProps {
   tabId: string;
@@ -56,7 +58,6 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
   const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
   const setEmailKeywordsLocal = useEmailStore((s) => s.setEmailKeywordsLocal);
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  const settingsKeywords = useSettingsStore((s) => s.emailKeywords);
   const identities = useIdentityStore((s) => s.identities);
   const multiAccountIdentities = useProMultiAccountIdentities();
 
@@ -136,6 +137,50 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     });
   }, [email, openComposeTab, t]);
 
+  // Mirrors handleForward, but attaches the original as a message/rfc822
+  // file instead of quoting it inline - see lib/forward-as-attachment.ts.
+  // This is a separate, self-contained render path from the main Mail
+  // tab's EmailViewer (page.tsx) - Pro tabs fetch their own `email` and
+  // open compose tabs directly via useProTabStore, not through
+  // page.tsx's pendingDraft/selectedEmail plumbing - so it needed its own
+  // wiring rather than falling out of the page.tsx fix automatically.
+  const handleForwardAsAttachment = useCallback(() => {
+    if (!email) return;
+    const {
+      emailDownloadTemplate,
+      filenameSpaceReplacement,
+      filenameLowercase,
+      filenameStripDiacritics,
+      filenameCollapseSeparators,
+    } = useSettingsStore.getState();
+    const payload = buildForwardAsAttachmentPayload(email, t('email_composer.prefix.forward'), {
+      template: emailDownloadTemplate,
+      spaceReplacement: filenameSpaceReplacement,
+      lowercase: filenameLowercase,
+      stripDiacritics: filenameStripDiacritics,
+      collapseSeparators: filenameCollapseSeparators,
+    });
+    if (!payload) return;
+
+    composerSessionIdRef.current += 1;
+    openComposeTab({
+      sessionId: composerSessionIdRef.current,
+      mode: 'forward',
+      replyTo: {
+        subject: email.subject,
+        attachments: [payload.attachment],
+      },
+      sourceEmailId: email.id,
+      // payload.subject is intentionally blank for a subject-less email (to
+      // match normal Forward's *composer* subject behavior - see
+      // buildForwardAsAttachmentPayload). The Pro tab *title* is a separate
+      // UI label that still needs a sensible fallback, same as handleForward
+      // above uses - reusing payload.subject here would give the tab an
+      // empty title instead of e.g. "Fwd: New message".
+      title: buildForwardSubject(email.subject || t('email_composer.new_message'), t('email_composer.prefix.forward')),
+    });
+  }, [email, openComposeTab, t]);
+
   const handleDelete = useCallback(async () => {
     if (!client || !email) return;
     try {
@@ -191,21 +236,31 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     }
   }, [client, markAsRead]);
 
-  const handleSetColorTag = useCallback((emailId: string, color: string | null) => {
+  const handleSetTag = useCallback((emailId: string, tagId: string | null) => {
     if (!email || email.id !== emailId) return;
-    // Drop existing color keywords, optionally add the new one. Matches the
-    // mail page's local optimistic update.
+    // Toggle one tag, or clear them all. Matches the mail page's local
+    // optimistic update, down to reaching tags this client cannot name.
     const keywords = { ...(email.keywords ?? {}) };
-    for (const kw of settingsKeywords) {
-      delete keywords[`$label:${kw.id}`];
-    }
-    if (color) {
-      const def = settingsKeywords.find((k) => k.color === color);
-      if (def) keywords[`$label:${def.id}`] = true;
+    if (tagId === null) {
+      for (const key of Object.keys(keywords)) {
+        if (key.startsWith(KEYWORD_PREFIX) || key.startsWith(KEYWORD_PREFIX_LEGACY)) {
+          keywords[key] = false;
+        }
+      }
+    } else {
+      const activeKeys = [KEYWORD_PREFIX + tagId, KEYWORD_PREFIX_LEGACY + tagId]
+        .filter(key => keywords[key]);
+      if (activeKeys.length > 0) {
+        for (const key of activeKeys) {
+          keywords[key] = false;
+        }
+      } else {
+        keywords[KEYWORD_PREFIX + tagId] = true;
+      }
     }
     setEmailKeywordsLocal(emailId, keywords);
     setEmail({ ...email, keywords });
-  }, [email, settingsKeywords, setEmailKeywordsLocal]);
+  }, [email, setEmailKeywordsLocal]);
 
   const handleMoveToMailbox = useCallback(async (mailboxId: string) => {
     if (!client || !email) return;
@@ -283,11 +338,12 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
           onReply={handleReply}
           onReplyAll={handleReplyAll}
           onForward={handleForward}
+          onForwardAsAttachment={handleForwardAsAttachment}
           onDelete={handleDelete}
           onArchive={handleArchive}
           onToggleStar={handleToggleStar}
           onMarkAsRead={handleMarkAsRead}
-          onSetColorTag={handleSetColorTag}
+          onSetTag={handleSetTag}
           onDownloadAttachment={handleDownloadAttachment}
           onQuickReply={handleQuickReply}
           onEditDraft={handleEditDraft}

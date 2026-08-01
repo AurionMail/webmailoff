@@ -470,21 +470,20 @@ async function doContactCreate(contact: ContactCard): Promise<ContactCard> {
 
 // ─── WebAuthn (privileged tier) ─────────────────────────────────────────────
 
-// This salt acts as a constant context identifier for key derivation.
-// While hardcoded, security is maintained because the WebAuthn PRF extension 
-// mixes this salt with the device's unique, hardware-bound private key.
-// Changing this string will result in a completely different derived secret.
-const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1");
-
 /**
  * Retrieves or creates a WebAuthn passkey and extracts its PRF secret.
  * This secret is typically used as a local master encryption key.
  */
 async function doGetOrCreatePRF(
     masterCredentialIdBytes: number[] | undefined, 
+    pluginId: string,
     name?: string, 
-    displayName?: string
+    displayName?: string,
 ): Promise<{ credentialId: number[]; prfSecret: number[] } | string> {
+
+  // To avoid a privileged plugin to access secret created from another privileged plugin,
+  // we add the pluginID from manifest in salt.
+  const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1" + pluginId)
     
     // ─── CASE 1: Credential already exists (Authentication) ──────────────────
     if (masterCredentialIdBytes && masterCredentialIdBytes.length > 0) {
@@ -496,18 +495,18 @@ async function doGetOrCreatePRF(
           challenge: crypto.getRandomValues(new Uint8Array(32)),
           allowCredentials: [{ type: "public-key", id: credentialId }],
           userVerification: "required", // Required to ensure user presence & intent (biometrics/PIN)
-          extensions: { prf: { eval: { first: PRF_SALT } } } as any
+          extensions: { prf: { eval: { first: PRF_SALT } } }
         }
       }) as PublicKeyCredential;
 
       // Extract the derived symmetric key from the authenticator's output
       const outputs = assertion.getClientExtensionResults();
-      const prfSecret = (outputs as any).prf?.results?.first;
+      const prfSecret = (outputs).prf?.results?.first;
       if (!prfSecret) return 'Cannot get PRF secret from existing credential.';
 
       return {
         credentialId: masterCredentialIdBytes,
-        prfSecret: Array.from(new Uint8Array(prfSecret))
+        prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
       };
     }
     
@@ -532,14 +531,14 @@ async function doGetOrCreatePRF(
             authenticatorAttachment: "platform", // Forces the use of hardware/OS-bound passkeys (TouchID, Windows Hello, etc.)
             userVerification: "required"
           },
-          extensions: { prf: {} } as any // Request PRF extension support from the authenticator
+          extensions: { prf: {} } // Request PRF extension support from the authenticator
         }
       }) as PublicKeyCredential;
       
       const outputs = credential.getClientExtensionResults();
 
       // Ensure the authenticator successfully enabled and supports the PRF extension
-      const isPrfEnabled = (outputs as any).prf?.enabled;
+      const isPrfEnabled = (outputs).prf?.enabled;
       if (!isPrfEnabled) {
         return 'The authenticator does not support or has rejected the PRF extension.';
       }
@@ -556,20 +555,20 @@ async function doGetOrCreatePRF(
           userVerification: "required",
           extensions: {
             prf: { eval: { first: PRF_SALT } }
-          } as any
+          }
         }
       }) as PublicKeyCredential;
 
       const assertionOutputs = assertion.getClientExtensionResults();
 
-      const prfSecret = (assertionOutputs as any).prf?.results?.first;
+      const prfSecret = (assertionOutputs).prf?.results?.first;
       if (!prfSecret) {
         return 'Cannot get PRF secret from existing credential.';
       }
 
       return {
         credentialId: Array.from(new Uint8Array(credential.rawId)),
-        prfSecret: Array.from(new Uint8Array(prfSecret))
+        prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
       };
     }
     
@@ -778,7 +777,7 @@ export async function dispatchApiCall(
     );
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
-    case 'webauthn.getOrCreate': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string | undefined, args[2] as string | undefined);
+    case 'webauthn.getOrCreate': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string, args[2] as string | undefined, args[3] as string | undefined);
     
     case 'contact.get': return doContactGet(args[0] as string);
     case 'contact.update': return doContactUpdate(args[0] as string, args[1] as Partial<ContactCard>);
