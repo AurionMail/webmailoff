@@ -6,6 +6,8 @@ import type { InstalledPlugin, Permission } from '../plugin-types';
 import { IMPLICIT_PERMISSIONS } from '../plugin-types';
 import { toast as appToast } from '@/stores/toast-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAccountStore } from '@/stores/account-store';
+import { useIdentityStore } from '@/stores/identity-store';
 import { useEmailStore } from '@/stores/email-store';
 import { useFilterStore } from '@/stores/filter-store';
 import { useMessageListTabsStore } from '@/stores/message-list-tabs-store';
@@ -14,7 +16,7 @@ import { apiFetch } from '../browser-navigation';
 import { awaitDialog, awaitPrompt, type PromptField } from './host-dialog';
 import { fileStorage } from '../plugin-storage';
 import { generateUUID } from '../utils';
-import { ContactCard } from '../jmap/types';
+import { ContactCard, Identity } from '../jmap/types';
 
 /**
  * Methods only callable from the privileged (same-origin) tier. These expose
@@ -62,6 +64,9 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'contact.update': 'contacts:write',
   'contact.create': 'contacts:write',
   'contact.search': 'contacts:read',
+  // user
+  'user.getAccounts': 'account:read',
+  'user.getIdentities': 'identity:read',
   // admin
   'admin.getConfig': 'admin:config',
   'admin.getAllConfig': 'admin:config',
@@ -155,6 +160,41 @@ function storageKeys(pluginId: string): string[] {
     if (k?.startsWith(prefix)) out.push(k.slice(prefix.length));
   }
   return out;
+}
+
+// ─── user ─────────────────────────────────────────────────────
+interface AccountResponse {
+  id: string;
+  label: string;
+  serverUrl: string;
+  username: string;
+  displayName: string;
+  email: string;
+  avatarColor: string;
+  isConnected: boolean;
+  isDefault: boolean;
+}
+function doUserGetAccounts(): AccountResponse[] {
+  const state = useAccountStore.getState();
+
+  // ws remove sensitive fields from the account entries before returning to the plugin
+  const accounts = state.accounts.map((account) => ({
+    id: account.id,
+    label: account.label,
+    serverUrl: account.serverUrl,
+    username: account.username,
+    displayName: account.displayName,
+    email: account.email,
+    avatarColor: account.avatarColor,
+    isConnected: account.isConnected,
+    isDefault: account.isDefault,
+  }));
+
+  return accounts;
+}
+
+function doUserGetIdentities(): Identity[] {
+  return useIdentityStore.getState().identities;
 }
 
 // ─── http.post (same-origin /api/*) ───────────────────────────
@@ -743,6 +783,9 @@ export async function dispatchApiCall(
     case 'contact.update': return doContactUpdate(args[0] as string, args[1] as Partial<ContactCard>);
     case 'contact.create': return doContactCreate(args[0] as ContactCard);
     case 'contact.search': return doContactSearch(args[0] as string);
+
+    case 'user.getAccounts':   return doUserGetAccounts();
+    case 'user.getIdentities': return doUserGetIdentities();
 
     case 'admin.getConfig':    return adminGet(plugin.id, args[0] as string);
     case 'admin.getAllConfig': return adminGetAll(plugin.id);
