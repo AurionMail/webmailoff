@@ -1036,6 +1036,7 @@ export const ALL_PERMISSIONS = [
   'settings:read', 'settings:write',
   'security:read',
   'auth:observe',
+  'auth:emit',
   'account:read',
   'http:post', 'http:fetch',
   'ui:observe', 'ui:toolbar', 'ui:app-top-banner', 'ui:email-banner', 'ui:email-footer', 'ui:contact-cryptokeys',
