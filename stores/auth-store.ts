@@ -17,6 +17,7 @@ import { replaceWindowLocation, getPathPrefix, getLocaleFromPath, apiFetch } fro
 import { notifyParent } from '@/lib/iframe-bridge';
 import { snapshotAccount, restoreAccount, clearAllStores, evictAccount, evictAll } from '@/lib/account-state-manager';
 import type { Identity } from '@/lib/jmap/types';
+import { authHooks } from '@/lib/plugin-hooks';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -42,8 +43,8 @@ interface AuthState {
   loginWithServerSso: (code: string, state: string) => Promise<boolean>;
   loginDemo: () => Promise<boolean>;
   refreshAccessToken: () => Promise<string | null>;
-  logout: () => void;
-  logoutAll: () => void;
+  logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
   removeAccount: (accountId: string) => void;
   switchAccount: (accountId: string) => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -1196,7 +1197,7 @@ export const useAuthStore = create<AuthState>()(
         return promise;
       },
 
-      logout: () => {
+       logout: async () => {
         const state = get();
         const wasDemoMode = state.isDemoMode;
         const wasOAuth = state.authMode === 'oauth';
@@ -1206,6 +1207,15 @@ export const useAuthStore = create<AuthState>()(
         const slot = account?.cookieSlot ?? 0;
 
         // Stop refresh timers immediately
+
+        const ok = await authHooks.onBeforeLogout.intercept({
+          accountId: accountId ?? 'all',
+        });
+
+        if(!ok){
+          return;
+        }
+
         clearRefreshTimer(accountId ?? undefined);
 
         // Disconnect and null out the client BEFORE clearing stores so the
@@ -1222,6 +1232,10 @@ export const useAuthStore = create<AuthState>()(
         }
 
         useSettingsStore.getState().disableSync();
+
+        await authHooks.onAfterLogout.emit({
+          accountId: accountId ?? 'all',
+        });
 
         // Check if there are remaining accounts to switch to
         const remainingAccounts = accountStore.accounts;
@@ -1320,7 +1334,15 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logoutAll: () => {
+      logoutAll: async () => {
+        const ok = await authHooks.onBeforeLogout.intercept({
+          accountId: 'all'
+        });
+
+        if(!ok){
+          return;
+        }
+
         // Disconnect all clients
         for (const c of clients.values()) {
           c.disconnect();
@@ -1337,6 +1359,10 @@ export const useAuthStore = create<AuthState>()(
         for (const account of allAccounts) {
           accountStore.removeAccount(account.id);
         }
+
+        await authHooks.onAfterLogout.emit({
+          accountId: 'all'
+        });
 
         // Background cookie/token cleanup
         apiFetch('/api/auth/session?all=true', { method: 'DELETE', keepalive: true }).catch(() => {});
