@@ -178,7 +178,7 @@ interface AccountResponse {
 function doUserGetAccounts(): AccountResponse[] {
   const state = useAccountStore.getState();
 
-  // ws remove sensitive fields from the account entries before returning to the plugin
+  // we remove sensitive fields from the account entries before returning to the plugin
   const accounts = state.accounts.map((account) => ({
     id: account.id,
     label: account.label,
@@ -199,8 +199,7 @@ function doUserGetIdentities(): Identity[] {
 }
 
 async function doUserLogout(): Promise<void>{
-  const logout = useAuthStore((s) => s.logout);
-  await logout();
+  return useAuthStore.getState().logout();
 }
 
 // ─── http.post (same-origin /api/*) ───────────────────────────

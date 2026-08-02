@@ -55,9 +55,23 @@ export async function POST(request: NextRequest) {
       logger.error('Stalwart JMAP passthrough redirect error', { error: error.message });
       return NextResponse.json({ error: error.message }, { status: 502 });
     }
+    // `fetch failed` from undici is too generic to debug — the real reason
+    // (ENOTFOUND, ECONNREFUSED, self-signed TLS, …) lives on `error.cause`.
+    const err = error as Error & { cause?: { code?: string; message?: string } };
     logger.error('Stalwart JMAP passthrough error', {
-      error: error instanceof Error ? error.message : 'Unknown',
+      error: err?.message ?? 'Unknown',
+      causeCode: err?.cause?.code,
+      causeMessage: err?.cause?.message,
     });
+    // The server this process failed to reach is the user's own mail server,
+    // so the reason is worth surfacing: an opaque 500 leaves operators with
+    // nothing to act on.
+    if (err?.cause?.code) {
+      return NextResponse.json(
+        { error: `Cannot reach the JMAP server (${err.cause.code})` },
+        { status: 502 },
+      );
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

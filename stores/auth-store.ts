@@ -1209,7 +1209,7 @@ export const useAuthStore = create<AuthState>()(
         // Stop refresh timers immediately
 
         const ok = await authHooks.onBeforeLogout.intercept({
-          accountId: accountId
+          accountId: accountId ?? 'all',
         });
 
         if(!ok){
@@ -1234,7 +1234,7 @@ export const useAuthStore = create<AuthState>()(
         useSettingsStore.getState().disableSync();
 
         await authHooks.onAfterLogout.emit({
-          accountId: accountId
+          accountId: accountId ?? 'all',
         });
 
         // Check if there are remaining accounts to switch to

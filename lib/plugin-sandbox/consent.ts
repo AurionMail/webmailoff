@@ -83,7 +83,7 @@ const PERMISSION_LABELS: Record<string, { title: string; body: string }> = {
   'settings:write':   { title: 'Modify your settings',           body: 'Change non-secret user preferences.' },
   'security:read':    { title: 'Read account security state',    body: 'See whether TOTP / encryption are enabled (no secrets exposed).' },
   'auth:observe':     { title: 'Observe login events',           body: 'See when you log in, log out, or switch accounts.' },
-  'auth:emit':  { title: 'Emit login events',           body: 'Emit a logout.' },
+  'auth:emit':        { title: 'Emit login events',              body: 'Emit auth events such as logout.' },
   'http:post':        { title: 'Call same-origin APIs',          body: 'Make authenticated requests to the webmail backend on your behalf.' },
   'http:fetch':       { title: 'Talk to external services',      body: 'Make uncredentialled requests to the third-party origins listed in the manifest.' },
   'admin:config':     { title: 'Read/write admin config',        body: 'Access this plugin\'s admin-supplied configuration values.' },
