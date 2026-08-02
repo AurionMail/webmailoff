@@ -1,0 +1,49 @@
+name: Build and Release Bulwark Webmail
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build Next.js Artifact
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # Installe toutes les dépendances (y compris devDependencies nécessaires au build)
+        run: npm ci
+
+      - name: Build Next.js application
+        # Génère le dossier optimisé .next/
+        run: npm run build
+
+      - name: Package production artifact
+        # On liste uniquement les fichiers et dossiers indispensables au runtime.
+        # L'ordre est strict pour éviter les erreurs de syntaxe POSIX de tar.
+        run: |
+          tar -czvf bulwark-webmail.tar.gz \
+            .next \
+            public \
+            package.json \
+            package-lock.json
+
+      - name: Upload Artifact to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: bulwark-webmail.tar.gz
+          asset_name: bulwark-webmail.tar.gz
+          tag: ${{ github.ref }}
+          overwrite: true
