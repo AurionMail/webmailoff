@@ -12,6 +12,8 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISSED_KEY = "pwa-install-dismissed";
+export const PWA_INSTALL_PROMPT_VISIBILITY_EVENT =
+  "bulwark:pwa-install-prompt-visibility";
 
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
@@ -35,6 +37,14 @@ export function PWAInstallPrompt() {
       window.removeEventListener("beforeinstallprompt", handler);
     };
   }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(PWA_INSTALL_PROMPT_VISIBILITY_EVENT, {
+        detail: { visible: showPrompt },
+      }),
+    );
+  }, [showPrompt]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
