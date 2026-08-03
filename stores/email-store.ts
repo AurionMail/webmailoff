@@ -2934,28 +2934,58 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     }
 
     try {
-      // Fetch emails for the current mailbox without clearing the list first
-      // This provides a smoother update experience
-      const mailboxes = resolveActionMailboxes();
-      const effectiveClient = resolveActionClient(client);
-      const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
-      const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
-      const jmapMailboxId = mailbox?.originalId || selectedMailbox;
-
       // Get emails per page from settings
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
 
       // Respect active search filters / query so that a push-triggered refresh
       // does not silently replace a filtered list with an unfiltered one.
-      const { searchQuery, searchFilters } = get();
+      const { searchQuery, searchFilters, isUnifiedView, unifiedRole, crossView } = get();
       const hasFilters = !isFilterEmpty(searchFilters);
 
+      // The unified ("All Mail") and cross-account views hold a VIRTUAL
+      // selectedMailbox id (e.g. __cross_all__ / __unified_inbox__) that no real
+      // folder matches. Feeding it to getEmails as an inMailbox filter returns an
+      // empty page, and the merge below would then wipe the whole aggregated list
+      // on every push - and any delete/star/read raises an Email state change.
+      // Fan out via the same loaders the initial load and loadMore use so the
+      // aggregated list survives a refresh. `mailbox` stays undefined for these
+      // views; it only gates the inbox new-mail notification, which the unified
+      // views don't raise.
       let result;
-      if (hasFilters || searchQuery) {
-        const filter = buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId);
-        result = await effectiveClient.advancedSearchEmails(filter, accountId, emailsPerPage, 0);
+      let mailbox;
+      let unifiedErrors: Map<string, string> | undefined;
+      if (isUnifiedView && crossView) {
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
+        result = hasFilters
+          ? await advancedSearchCrossViewEmails(built, crossView, buildJMAPFilter(searchQuery, searchFilters, undefined), emailsPerPage, 0)
+          : searchQuery
+            ? await searchCrossViewEmails(built, crossView, searchQuery, emailsPerPage, 0)
+            : await fetchCrossViewEmails(built, crossView, emailsPerPage, 0);
+        unifiedErrors = result.errors;
+      } else if (isUnifiedView && unifiedRole) {
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
+        result = hasFilters
+          ? await advancedSearchUnifiedEmails(built, unifiedRole, (mailboxId) => buildJMAPFilter(searchQuery, searchFilters, mailboxId), emailsPerPage, 0)
+          : searchQuery
+            ? await searchUnifiedEmails(built, unifiedRole, searchQuery, emailsPerPage, 0)
+            : await fetchUnifiedEmails(built, unifiedRole, emailsPerPage, 0);
+        unifiedErrors = result.errors;
       } else {
-        result = await effectiveClient.getEmails(jmapMailboxId, accountId, emailsPerPage, 0, undefined, true);
+        // Single real mailbox (own or shared): query by its JMAP id. Refresh the
+        // list without clearing it first for a smoother update experience.
+        const mailboxes = resolveActionMailboxes();
+        const effectiveClient = resolveActionClient(client);
+        mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
+        const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
+        const jmapMailboxId = mailbox?.originalId || selectedMailbox;
+        if (hasFilters || searchQuery) {
+          const filter = buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId);
+          result = await effectiveClient.advancedSearchEmails(filter, accountId, emailsPerPage, 0);
+        } else {
+          result = await effectiveClient.getEmails(jmapMailboxId, accountId, emailsPerPage, 0, undefined, true);
+        }
       }
 
       const currentEmails = get().emails;
@@ -3066,6 +3096,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
             hasMoreEmails: hasMore,
             totalEmails: result.total,
             threadEmailsCache: newCache,
+            ...(unifiedErrors !== undefined ? { unifiedErrors } : {}),
           };
         });
 
