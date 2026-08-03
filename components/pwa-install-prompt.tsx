@@ -50,12 +50,13 @@ export function PWAInstallPrompt() {
     if (!deferredPrompt) return;
 
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    await deferredPrompt.userChoice;
 
-    if (outcome === "accepted") {
-      setDeferredPrompt(null);
-      setShowPrompt(false);
-    }
+    // A beforeinstallprompt event can only be consumed once. Close the card
+    // whether the browser prompt was accepted or dismissed so the next
+    // onboarding step can continue in the same session.
+    setDeferredPrompt(null);
+    setShowPrompt(false);
   };
 
   const handleDismiss = () => {

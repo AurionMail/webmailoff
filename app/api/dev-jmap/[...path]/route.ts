@@ -12,6 +12,18 @@ import { NextRequest, NextResponse } from 'next/server';
 const ACCOUNT_ID = 'dev-account-001';
 const scheduledSubmissions: Array<{ id: string; emailId: string; identityId: string; sendAt: string; undoStatus: 'pending' | 'final' | 'canceled' }> = [];
 const emailCreationIds = new Map<string, string>();
+const DEFAULT_PUSH_RELAY_ORIGIN = 'https://notifications.relay.bulwarkmail.org';
+
+interface MockPushSubscription {
+  id: string;
+  deviceClientId: string;
+  expires: string | null;
+  types: string[] | null;
+  expectedVerificationCode: string;
+  verified: boolean;
+}
+
+const pushSubscriptions: MockPushSubscription[] = [];
 
 // ---------------------------------------------------------------------------
 // Mailboxes
@@ -1501,6 +1513,10 @@ function buildThreads() {
 
 type MethodArgs = Record<string, unknown>;
 type MethodResult = [string, Record<string, unknown>, string];
+type MethodHandler = (
+  args: MethodArgs,
+  callId: string,
+) => MethodResult | Promise<MethodResult>;
 
 function handleCoreEcho(args: MethodArgs, callId: string): MethodResult {
   return ['Core/echo', args, callId];
@@ -1934,12 +1950,134 @@ function handleSieveScriptGet(_args: MethodArgs, callId: string): MethodResult {
   return ['SieveScript/get', { accountId: ACCOUNT_ID, state: nextState(), list: [], notFound: [] }, callId];
 }
 
+function handlePushSubscriptionGet(args: MethodArgs, callId: string): MethodResult {
+  const ids = Array.isArray(args.ids) ? args.ids as string[] : null;
+  const selected = ids
+    ? pushSubscriptions.filter((subscription) => ids.includes(subscription.id))
+    : pushSubscriptions;
+  const foundIds = new Set(selected.map((subscription) => subscription.id));
+
+  return ['PushSubscription/get', {
+    state: nextState(),
+    list: selected.map(({ id, deviceClientId, expires, types }) => ({
+      id,
+      deviceClientId,
+      expires,
+      types,
+    })),
+    notFound: ids?.filter((id) => !foundIds.has(id)) ?? [],
+  }, callId];
+}
+
+async function handlePushSubscriptionSet(args: MethodArgs, callId: string): Promise<MethodResult> {
+  const created: Record<string, { id: string; expires: string | null; types: string[] | null }> = {};
+  const notCreated: Record<string, { type: string; description: string }> = {};
+  const updated: Record<string, null> = {};
+  const notUpdated: Record<string, { type: string; description: string }> = {};
+  const destroyed: string[] = [];
+  const notDestroyed: Record<string, { type: string }> = {};
+
+  const create = args.create as Record<string, Record<string, unknown>> | undefined;
+  if (create) {
+    for (const [creationId, data] of Object.entries(create)) {
+      try {
+        const url = new URL(String(data.url ?? ''));
+        const allowedOrigin = new URL(
+          process.env.NEXT_PUBLIC_PUSH_RELAY_URL || DEFAULT_PUSH_RELAY_ORIGIN,
+        ).origin;
+        if (url.origin !== allowedOrigin || !url.pathname.startsWith('/api/push/jmap/')) {
+          throw new Error('The dev mock only sends verification to the configured push relay');
+        }
+
+        const id = `push-${crypto.randomUUID()}`;
+        const verificationCode = crypto.randomUUID().replace(/-/g, '');
+        const subscription: MockPushSubscription = {
+          id,
+          deviceClientId: String(data.deviceClientId ?? ''),
+          expires: typeof data.expires === 'string' ? data.expires : null,
+          types: Array.isArray(data.types) ? data.types as string[] : null,
+          expectedVerificationCode: verificationCode,
+          verified: false,
+        };
+
+        const verificationResponse = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            '@type': 'PushVerification',
+            pushSubscriptionId: id,
+            verificationCode,
+          }),
+        });
+        if (!verificationResponse.ok) {
+          throw new Error(`Push relay rejected verification (${verificationResponse.status})`);
+        }
+
+        pushSubscriptions.push(subscription);
+        created[creationId] = {
+          id,
+          expires: subscription.expires,
+          types: subscription.types,
+        };
+      } catch (error) {
+        notCreated[creationId] = {
+          type: 'invalidProperties',
+          description: error instanceof Error ? error.message : 'Invalid push subscription',
+        };
+      }
+    }
+  }
+
+  const update = args.update as Record<string, Record<string, unknown>> | undefined;
+  if (update) {
+    for (const [id, patch] of Object.entries(update)) {
+      const subscription = pushSubscriptions.find((candidate) => candidate.id === id);
+      if (!subscription) {
+        notUpdated[id] = { type: 'notFound', description: 'Push subscription not found' };
+        continue;
+      }
+      if (
+        typeof patch.verificationCode === 'string'
+        && patch.verificationCode !== subscription.expectedVerificationCode
+      ) {
+        notUpdated[id] = { type: 'invalidProperties', description: 'Invalid verification code' };
+        continue;
+      }
+      if (typeof patch.verificationCode === 'string') subscription.verified = true;
+      if (typeof patch.expires === 'string') subscription.expires = patch.expires;
+      if (Array.isArray(patch.types)) subscription.types = patch.types as string[];
+      updated[id] = null;
+    }
+  }
+
+  if (Array.isArray(args.destroy)) {
+    for (const id of args.destroy as string[]) {
+      const index = pushSubscriptions.findIndex((subscription) => subscription.id === id);
+      if (index === -1) {
+        notDestroyed[id] = { type: 'notFound' };
+        continue;
+      }
+      pushSubscriptions.splice(index, 1);
+      destroyed.push(id);
+    }
+  }
+
+  return ['PushSubscription/set', {
+    created,
+    notCreated,
+    updated,
+    notUpdated,
+    destroyed,
+    notDestroyed,
+  }, callId];
+}
+
 // Catch-all for unknown methods
 function handleUnknown(method: string, _args: MethodArgs, callId: string): MethodResult {
   return ['error', { type: 'unknownMethod', description: `Mock server does not implement ${method}` }, callId];
 }
 
-const METHOD_HANDLERS: Record<string, (args: MethodArgs, callId: string) => MethodResult> = {
+const METHOD_HANDLERS: Record<string, MethodHandler> = {
   'Core/echo': handleCoreEcho,
   'Mailbox/get': handleMailboxGet,
   'Mailbox/set': handleMailboxSet,
@@ -2009,6 +2147,8 @@ const METHOD_HANDLERS: Record<string, (args: MethodArgs, callId: string) => Meth
   'CalendarEvent/set': (_args, callId) => ['CalendarEvent/set', { accountId: ACCOUNT_ID, oldState: nextState(), newState: nextState(), created: null, updated: null, destroyed: null }, callId],
   'SieveScript/get': handleSieveScriptGet,
   'SieveScript/set': (_args, callId) => ['SieveScript/set', { accountId: ACCOUNT_ID, oldState: nextState(), newState: nextState(), created: null, updated: null, destroyed: null }, callId],
+  'PushSubscription/get': handlePushSubscriptionGet,
+  'PushSubscription/set': handlePushSubscriptionSet,
 };
 
 // ---------------------------------------------------------------------------
@@ -2270,7 +2410,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         if (tooLarge) {
           responses.push(tooLarge);
         } else if (handler) {
-          const result = handler(args, callId);
+          const result = await handler(args, callId);
           responses.push(result);
         } else {
           responses.push(handleUnknown(method, args, callId));

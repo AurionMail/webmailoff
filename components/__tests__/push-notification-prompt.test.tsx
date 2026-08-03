@@ -152,7 +152,7 @@ describe("PushNotificationPrompt", () => {
     expect(mocks.isWebPushEnabled).not.toHaveBeenCalled();
   });
 
-  it("defers push onboarding when the PWA install prompt was shown", async () => {
+  it("defers push onboarding until the PWA install prompt is closed", async () => {
     render(<PushNotificationPrompt />);
     act(() => {
       window.dispatchEvent(
@@ -165,5 +165,17 @@ describe("PushNotificationPrompt", () => {
 
     expect(mocks.isWebPushEnabled).not.toHaveBeenCalled();
     expect(screen.queryByText("title")).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(PWA_INSTALL_PROMPT_VISIBILITY_EVENT, {
+          detail: { visible: false },
+        }),
+      );
+    });
+    await advancePromptDelay();
+
+    expect(mocks.isWebPushEnabled).toHaveBeenCalledWith("account-1");
+    expect(screen.getByText("title")).toBeInTheDocument();
   });
 });

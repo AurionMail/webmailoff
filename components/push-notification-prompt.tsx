@@ -67,7 +67,7 @@ export function PushNotificationPrompt() {
   const [error, setError] = useState<string | null>(null);
   const [sessionDismissedAccountId, setSessionDismissedAccountId] =
     useState<string | null>(null);
-  const [pwaPromptWasShown, setPwaPromptWasShown] = useState(false);
+  const [pwaPromptVisible, setPwaPromptVisible] = useState(false);
 
   const accountId = client?.getAccountId() ?? null;
   const relayBaseUrl = (adminPushRelayUrl ?? "").trim()
@@ -76,7 +76,7 @@ export function PushNotificationPrompt() {
   useEffect(() => {
     const handlePwaPromptVisibility = (event: Event) => {
       const visible = (event as CustomEvent<{ visible?: boolean }>).detail?.visible;
-      if (visible) setPwaPromptWasShown(true);
+      setPwaPromptVisible(visible === true);
     };
 
     window.addEventListener(
@@ -107,7 +107,7 @@ export function PushNotificationPrompt() {
       || !emailNotificationsEnabled
       || isExcludedPath(pathname)
       || sessionDismissedAccountId === accountId
-      || pwaPromptWasShown
+      || pwaPromptVisible
       || wasDismissed(accountId)
       || !isWebPushSupported()
       || Notification.permission === "denied"
@@ -138,7 +138,7 @@ export function PushNotificationPrompt() {
     isDemoMode,
     pathname,
     policyLoaded,
-    pwaPromptWasShown,
+    pwaPromptVisible,
     sessionDismissedAccountId,
   ]);
 
