@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import QRCode from 'qrcode';
 import * as OTPAuth from 'otpauth';
-import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal, QrCode } from 'lucide-react';
+import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal, QrCode, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
@@ -570,6 +570,136 @@ function ApiKeysSection() {
   );
 }
 
+function PublicKeysSection() {
+  const t = useTranslations('settings.security');
+  const tk = (key: string) => t(`public_keys.${key}`);
+  const { publicKeys, createPublicKey, removePublicKey, isSaving, isLoadingAuth } = useAccountSecurityStore();
+  
+  const [showAdd, setShowAdd] = useState(false);
+  const [description, setDescription] = useState('');
+  const [publicKey, setPublicKey] = useState('');
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description.trim() || !publicKey.trim()) return;
+
+    try {
+      await createPublicKey({
+        description: description.trim(),
+        key: publicKey.trim(),
+      });
+      setDescription('');
+      setPublicKey('');
+      setShowAdd(false);
+      toast.success(tk('added'));
+    } catch (err) {
+      toast.error(tk('add_error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    try {
+      await removePublicKey(id);
+      toast.success(tk('removed'));
+    } catch (err) {
+      toast.error(tk('remove_error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  if (isLoadingAuth) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-2">
+          <FileCode className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
+        </div>
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileCode className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
+          <Plus className="w-3 h-3 me-1" />
+          {t('app_passwords.add')}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{tk('description')}</p>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="p-3 bg-muted rounded-md space-y-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{tk('name_label')}</label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={tk('name_placeholder')}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{tk('key_label')}</label>
+            <textarea
+              value={publicKey}
+              onChange={(e) => setPublicKey(e.target.value)}
+              placeholder={tk('key_placeholder')}
+              rows={3}
+              required
+              className="w-full text-xs font-mono px-3 py-2 rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSaving || !description.trim() || !publicKey.trim()}>
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
+              {t('app_passwords.create')}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
+              {t('app_passwords.cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {publicKeys.length > 0 ? (
+        <div className="space-y-1">
+          {publicKeys.map((key) => (
+            <div key={key.id} className="flex items-start justify-between py-2 px-3 bg-muted/50 rounded-md gap-2">
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-sm text-foreground truncate">{key.description || key.id}</span>
+                {key.createdAt && (
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(key.createdAt).toLocaleDateString()}
+                  </span>
+                )}
+                <code className="text-[10px] font-mono bg-background border border-border rounded px-1.5 py-0.5 text-muted-foreground truncate mt-1">
+                  {key.key}
+                </code>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRemove(key.id)}
+                disabled={isSaving}
+                className="text-destructive hover:text-destructive shrink-0"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">{tk('none')}</p>
+      )}
+    </div>
+  );
+}
+
 function EncryptionSection() {
   const t = useTranslations('settings.security');
   const { encryptionType, isLoadingCrypto } = useAccountSecurityStore();
@@ -862,6 +992,7 @@ export function AccountSecuritySettings() {
 
         <div className="border-t border-border" />
         <ApiKeysSection />
+        <PublicKeysSection />
 
         {isOAuth && (
           <>

@@ -27,6 +27,23 @@ export interface AppCredentialInput {
   allowedIps?: string[];
 }
 
+export interface PublicKeyInfo {
+  id: string;
+  accountId: string;
+  description: string;
+  key: string;
+  createdAt?: string | null;
+  expiresAt?: string | null;
+  emailAddresses: string[];
+}
+
+export interface PublicKeyInput {
+  description: string;
+  key: string;
+  emailAddresses?: string[];
+  expiresAt?: string | null;
+}
+
 interface AccountSecurityState {
   isStalwart: boolean | null;
   isProbing: boolean;
@@ -39,7 +56,9 @@ interface AccountSecurityState {
 
   // Encryption-at-rest
   encryptionType: EncryptionType;
+  publicKeys: PublicKeyInfo[];
   isLoadingCrypto: boolean;
+  isLoadingPublicKeys: boolean;
 
   // Profile
   displayName: string;
@@ -55,6 +74,7 @@ interface AccountSecurityState {
   fetchAuthInfo: () => Promise<void>;
   fetchCryptoInfo: () => Promise<void>;
   fetchPrincipal: () => Promise<void>;
+  fetchPublicKeys: () => Promise<void>;
   fetchAll: () => Promise<void>;
 
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -68,6 +88,9 @@ interface AccountSecurityState {
 
   createApiKey: (input: AppCredentialInput) => Promise<{ id: string; secret: string }>;
   removeApiKey: (id: string) => Promise<void>;
+
+  createPublicKey: (input: PublicKeyInput) => Promise<string>;
+  removePublicKey: (id: string) => Promise<void>;
 
   clearState: () => void;
 }
@@ -91,9 +114,32 @@ function credentialFromResult(raw: Record<string, unknown>): AppPasswordInfo {
   };
 }
 
+function publicKeyFromResult(raw: Record<string, unknown>): PublicKeyInfo {
+  const emailAddresses = raw.emailAddresses && typeof raw.emailAddresses === 'object'
+    ? Object.keys(raw.emailAddresses as Record<string, unknown>)
+    : Array.isArray(raw.emailAddresses)
+      ? raw.emailAddresses.map(String)
+      : [];
+
+  return {
+    id: String(raw.id ?? ''),
+    accountId: raw.accountId ? String(raw.accountId) : getPrimaryAccountId(),
+    description: typeof raw.description === 'string' ? raw.description : '',
+    key: typeof raw.key === 'string' ? raw.key : '',
+    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : null,
+    expiresAt: typeof raw.expiresAt === 'string' ? raw.expiresAt : null,
+    emailAddresses,
+  };
+}
+
 function ipsToMap(ips?: string[]): Record<string, true> | undefined {
   if (!ips || ips.length === 0) return undefined;
   return Object.fromEntries(ips.map((ip) => [ip, true]));
+}
+
+function emailsToMap(emails?: string[]): Record<string, true> | undefined {
+  if (!emails || emails.length === 0) return undefined;
+  return Object.fromEntries(emails.map((email) => [email, true]));
 }
 
 function buildCreateBody(input: AppCredentialInput): Record<string, unknown> {
@@ -203,9 +249,11 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   otpEnabled: false,
   appPasswords: [],
   apiKeys: [],
+  publicKeys: [],
   isLoadingAuth: false,
   encryptionType: 'Disabled',
   isLoadingCrypto: false,
+  isLoadingPublicKeys: false,
   displayName: '',
   emails: [],
   quota: 0,
@@ -353,8 +401,8 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   },
 
   fetchAll: async () => {
-    const { fetchAuthInfo, fetchCryptoInfo, fetchPrincipal } = get();
-    await Promise.allSettled([fetchAuthInfo(), fetchCryptoInfo(), fetchPrincipal()]);
+    const { fetchAuthInfo, fetchCryptoInfo, fetchPrincipal, fetchPublicKeys } = get();
+    await Promise.allSettled([fetchAuthInfo(), fetchCryptoInfo(), fetchPrincipal(), fetchPublicKeys()]);
   },
 
   changePassword: async (currentPassword, newPassword) => {
@@ -477,6 +525,118 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
 
   removeApiKey: async (id) => {
     return removeCredential(get, set, 'x:ApiKey/set', id, 'Failed to remove API key');
+  },
+
+  fetchPublicKeys: async () => {
+    set({ isLoadingPublicKeys: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      const queryResponses = await stalwartJmap([
+        ['x:PublicKey/query', { filter: { accountId } }, '0'],
+      ]);
+
+      const queryResult = requireResult<{ ids: string[] }>(queryResponses, 'x:PublicKey/query');
+
+      if (!queryResult.ids || queryResult.ids.length === 0) {
+        set({ publicKeys: [], isLoadingPublicKeys: false });
+        return;
+      }
+
+      const getResponses = await stalwartJmap([
+        ['x:PublicKey/get', { ids: queryResult.ids }, '0'],
+      ]);
+      const getResult = requireResult<{ list: Array<Record<string, unknown>> }>(getResponses, 'x:PublicKey/get');
+
+      const publicKeys = (getResult.list ?? []).map(publicKeyFromResult);
+      set({ publicKeys, isLoadingPublicKeys: false });
+    } catch (error) {
+      debug.error('Failed to fetch public keys:', error);
+      set({
+        isLoadingPublicKeys: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch public keys',
+      });
+    }
+  },
+
+  createPublicKey: async (input) => {
+    set({ isSaving: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      const tmpId = 'new1';
+
+      const createPayload: Record<string, unknown> = {
+        description: input.description,
+        key: input.key,
+        emailAddresses: emailsToMap(input.emailAddresses) ?? {},
+      };
+
+      if (input.expiresAt) {
+        createPayload.expiresAt = input.expiresAt;
+      }
+
+      const responses = await stalwartJmap([
+        [
+          'x:PublicKey/set',
+          {
+            accountId,
+            create: {
+              [tmpId]: createPayload,
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const result = requireResult<{
+        created?: Record<string, { id: string }>;
+        notCreated?: Record<string, { type: string; description?: string }>;
+      }>(responses, 'x:PublicKey/set');
+
+      const notCreated = result.notCreated?.[tmpId];
+      if (notCreated) {
+        throw new Error(notCreated.description || notCreated.type || 'Failed to create public key');
+      }
+
+      const created = result.created?.[tmpId];
+      if (!created?.id) {
+        throw new Error('Server did not return created public key');
+      }
+
+      await get().fetchPublicKeys();
+      set({ isSaving: false });
+      return created.id;
+    } catch (error) {
+      set({
+        isSaving: false,
+        error: error instanceof Error ? error.message : 'Failed to create public key',
+      });
+      throw error;
+    }
+  },
+
+  removePublicKey: async (id) => {
+    set({ isSaving: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      await stalwartJmap([
+        [
+          'x:PublicKey/set',
+          {
+            accountId,
+            destroy: [id],
+          },
+          '0',
+        ],
+      ]);
+      await get().fetchPublicKeys();
+      set({ isSaving: false });
+    } catch (error) {
+      set({
+        isSaving: false,
+        error: error instanceof Error ? error.message : 'Failed to remove public key',
+      });
+      throw error;
+    }
   },
 
   clearState: () => set({
