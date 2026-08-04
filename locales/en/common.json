@@ -1523,7 +1523,23 @@
         "inactive": "Disabled",
         "enabled": "Encryption at rest enabled",
         "disabled_success": "Encryption at rest disabled",
-        "error": "Failed to update encryption settings"
+        "error": "Failed to update encryption settings",
+        "algorithm_label": "Encryption Algorithm",
+        "encrypt_on_append": "Encrypt new emails on upload",
+        "allow_spam_training": "Allow spam training before encrypting emails",
+        "enable_encryption": "Enable encryption",
+        "enable_tooltip": "Enable encryption with this key",
+        "configure_title": "Enable encryption with this key",
+        "enable_button": "Enable",
+        "disabled_tooltip": "Disable encryption",
+        "enabled_success": "Encryption at rest enabled"
+      },
+      "public_keys":{
+        "name_label": "Public Key name",
+        "name_placeholder": "e.g. My Key",
+        "key_label": "Public Key (S/MIME or PGP ASCII-armored)",
+        "key_placeholder": "Paste your public key here",
+        "none": "No public keys configured"
       },
       "email_client": {
         "title": "Email Client Setup",
