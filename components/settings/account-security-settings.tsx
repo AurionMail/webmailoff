@@ -663,7 +663,7 @@ function PublicKeysSection() {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2 mb-2">
-          <FileCode className="w-4 h-4 text-muted-foreground" />
+          <Lock className="w-4 h-4 text-muted-foreground" />
           <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
         </div>
         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -675,15 +675,15 @@ function PublicKeysSection() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FileCode className="w-4 h-4 text-muted-foreground" />
-          <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
+          <Lock className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{t('encryption.section_title')}</h4>
         </div>
         <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
           <Plus className="w-3 h-3 me-1" />
           {t('app_passwords.add')}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">{tk('description')}</p>
+      <p className="text-xs text-muted-foreground">{t('encryption.description')}</p>
 
       {showAdd && (
         <form onSubmit={handleAdd} className="p-3 bg-muted rounded-md space-y-2">
@@ -1121,10 +1121,7 @@ export function AccountSecuritySettings() {
         )}
             <div className="border-t border-border" />
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <h4 className="text-sm font-medium text-foreground">{t('encryption.section_title')}</h4>
-              </div>
+              
               <PublicKeysSection />
             </div>
       </div>
