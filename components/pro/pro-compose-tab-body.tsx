@@ -52,6 +52,10 @@ export function ProComposeTabBody({ tabId, data }: ProComposeTabBodyProps) {
 
   const handleSend = useCallback(async (sendData: Parameters<NonNullable<React.ComponentProps<typeof EmailComposer>['onSend']>>[0]) => {
     if (!client) return;
+    // See the inline composer's handleEmailSend: a resolved onSend tells the
+    // composer the message is gone and it clears itself, so a genuine send
+    // failure has to propagate rather than be logged away (#702).
+    let submitted = false;
     try {
       const result = await sendEmail(
         client,
@@ -71,6 +75,7 @@ export function ProComposeTabBody({ tabId, data }: ProComposeTabBodyProps) {
         sendData.delayedUntil,
         sendData.envelopeMailFrom,
       );
+      submitted = true;
 
       if (result.scheduled) {
         await handleScheduledSendCreated();
@@ -116,6 +121,8 @@ export function ProComposeTabBody({ tabId, data }: ProComposeTabBodyProps) {
       closeTab(tabIdRef.current);
     } catch (error) {
       console.error('Failed to send email:', error);
+      // Post-send bookkeeping failing is cosmetic; the mail is already out.
+      if (!submitted) throw error;
       toast.error(t('notifications.error_sending'));
     }
   }, [client, sendEmail, closeTab, data.sourceEmailId, data.mode, t, handleScheduledSendCreated, refreshCurrentMailbox]);

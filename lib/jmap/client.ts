@@ -60,6 +60,25 @@ export class RateLimitError extends Error {
   }
 }
 
+/**
+ * A request produced no response headers within its deadline.
+ *
+ * `fetch()` has no timeout of its own, and a half-dead connection - the OS or a
+ * NAT dropped the socket while the browser still believes it is usable - never
+ * rejects. iOS hits this constantly: it freezes a backgrounded tab (and, more
+ * aggressively, a home-screen web app), and on resume WebKit reuses pooled
+ * connections the network has already torn down. The request bytes leave, the
+ * server may even act on them, but the response never comes back. Without a
+ * deadline the caller's promise stays pending forever, so the composer's Send
+ * button stays disabled and "Save draft" never closes the composer (#702).
+ */
+export class RequestTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+    this.name = 'RequestTimeoutError';
+  }
+}
+
 // JMAP protocol types - these are intentionally flexible due to server variations
 interface JMAPSession {
   // The authenticated login (JMAP spec Session.username) — server-confirmed,
@@ -541,6 +560,18 @@ type SubmissionCapability = {
 
 export class JMAPClient implements IJMAPClient {
   private static readonly RATE_LIMIT_TOAST_THROTTLE_MS = 10_000;
+  /**
+   * How long a request may go without producing response headers. Generous
+   * enough that a slow mobile link or a busy server still completes, short
+   * enough that a dead connection surfaces as an error the user can retry
+   * rather than a permanently spinning UI.
+   */
+  private static readonly REQUEST_TIMEOUT_MS = 30_000;
+  /**
+   * Blob transfers answer only once the payload has moved, so a large
+   * attachment on a slow uplink legitimately outlives the normal deadline.
+   */
+  private static readonly TRANSFER_TIMEOUT_MS = 300_000;
 
   private serverUrl: string;
   private username: string;
@@ -669,7 +700,56 @@ export class JMAPClient implements IJMAPClient {
     return this.serverUrl;
   }
 
-  private async authenticatedFetch(url: string, init?: Parameters<typeof fetch>[1]): Promise<Response> {
+  /**
+   * `fetch` with a deadline on the response *headers*.
+   *
+   * The timer is cleared as soon as the fetch settles, so it never touches the
+   * body: long-lived streams (SSE) and slow blob transfers keep working once
+   * the server has started answering. What it does catch is the stalled case -
+   * a connection that accepts the request and then goes silent - which fetch
+   * itself would leave pending indefinitely.
+   *
+   * A caller-supplied `init.signal` still aborts the request (and, for SSE, the
+   * stream) at any time; it is chained into the internal controller rather than
+   * replaced.
+   */
+  private async timedFetch(
+    url: string,
+    init: Parameters<typeof fetch>[1],
+    headers: Record<string, string>,
+    timeoutMs: number,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const external = init?.signal ?? undefined;
+    if (external) {
+      if (external.aborted) controller.abort(external.reason);
+      else external.addEventListener('abort', () => controller.abort(external.reason), { once: true });
+    }
+
+    // Tracked separately from the signal: the abort reason is what distinguishes
+    // "we gave up" from "the caller cancelled", and callers must be able to tell
+    // those apart (a cancelled send is not a failed send).
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      return await fetch(url, { ...init, headers, signal: controller.signal });
+    } catch (error) {
+      if (timedOut) throw new RequestTimeoutError(timeoutMs);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async authenticatedFetch(
+    url: string,
+    init?: Parameters<typeof fetch>[1],
+    opts?: { timeoutMs?: number },
+  ): Promise<Response> {
     // Short-circuit: if rate-limited, reject immediately without sending a request
     if (this.isRateLimited()) {
       const remaining = this.rateLimitedUntil - Date.now();
@@ -677,16 +757,22 @@ export class JMAPClient implements IJMAPClient {
       throw new RateLimitError(remaining);
     }
 
+    const timeoutMs = opts?.timeoutMs ?? JMAPClient.REQUEST_TIMEOUT_MS;
     const headers = { ...init?.headers as Record<string, string>, 'Authorization': this.authHeader };
     let response: Response;
 
     try {
-      response = await fetch(url, { ...init, headers });
+      response = await this.timedFetch(url, init, headers, timeoutMs);
     } catch (error) {
       // Network error: retry once after brief delay (transient proxy/connection issues)
       if (this.reconnecting) throw error;
+      // A timeout is NOT retried. The request may well have reached the server
+      // and been acted on - only the answer was lost - and these bodies are not
+      // idempotent: replaying an EmailSubmission/set would send the mail twice.
+      // Surface it instead so the caller can report a failure the user can act on.
+      if (error instanceof RequestTimeoutError) throw error;
       await new Promise(r => setTimeout(r, 1000));
-      response = await fetch(url, { ...init, headers });
+      response = await this.timedFetch(url, init, headers, timeoutMs);
     }
 
     // Handle 429 rate limiting - stop immediately, do not retry
@@ -702,7 +788,7 @@ export class JMAPClient implements IJMAPClient {
         if (newToken) {
           this.updateAccessToken(newToken);
           const retryHeaders = { ...init?.headers as Record<string, string>, 'Authorization': this.authHeader };
-          response = await fetch(url, { ...init, headers: retryHeaders });
+          response = await this.timedFetch(url, init, retryHeaders, timeoutMs);
         }
       } else if (this.authMode === 'basic' && !this.reconnecting && url !== `${this.serverUrl}/.well-known/jmap`) {
         // JMAP session may have expired - re-establish and retry once
@@ -711,7 +797,7 @@ export class JMAPClient implements IJMAPClient {
           await this.refreshSession();
           this.connectionChangeCallback?.(true);
           const retryHeaders = { ...init?.headers as Record<string, string>, 'Authorization': this.authHeader };
-          response = await fetch(url, { ...init, headers: retryHeaders });
+          response = await this.timedFetch(url, init, retryHeaders, timeoutMs);
         } catch {
           // Session refresh failed - if TOTP was used, try re-auth with fresh TOTP
           if (this.onTotpRequired && this.basePassword) {
@@ -722,7 +808,7 @@ export class JMAPClient implements IJMAPClient {
                 await this.refreshSession();
                 this.connectionChangeCallback?.(true);
                 const retryHeaders = { ...init?.headers as Record<string, string>, 'Authorization': this.authHeader };
-                response = await fetch(url, { ...init, headers: retryHeaders });
+                response = await this.timedFetch(url, init, retryHeaders, timeoutMs);
               }
             } catch {
               // TOTP re-auth also failed - return original 401
@@ -3463,7 +3549,7 @@ export class JMAPClient implements IJMAPClient {
         method: 'POST',
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
         body: file,
-      });
+      }, { timeoutMs: JMAPClient.TRANSFER_TIMEOUT_MS });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to upload file: ${response.status} - ${errorText}`);
@@ -3618,7 +3704,7 @@ export class JMAPClient implements IJMAPClient {
 
   async fetchBlob(blobId: string, name?: string, type?: string, accountId?: string): Promise<Blob> {
     const url = this.getBlobDownloadUrl(blobId, name, type, accountId);
-    const response = await this.authenticatedFetch(url, {});
+    const response = await this.authenticatedFetch(url, {}, { timeoutMs: JMAPClient.TRANSFER_TIMEOUT_MS });
     if (!response.ok) {
       throw new Error(`Failed to fetch blob: ${response.status}`);
     }
@@ -6337,12 +6423,35 @@ export class JMAPClient implements IJMAPClient {
     }
   }
 
+  /**
+   * Drop and rebuild an SSE stream that has gone quiet past the ping deadline.
+   *
+   * The ping monitor already does this, but it is a `setInterval`, and a
+   * suspended tab - an iOS home-screen web app in particular - freezes its
+   * timers along with everything else. Coming back to a page whose push
+   * connection died while it slept, the monitor needs up to a full tick just to
+   * notice, and the connection it is holding is one the OS already tore down.
+   * Checking on the way back in makes the recovery immediate rather than
+   * leaving the app on a socket that will never deliver another byte.
+   */
+  private recycleStaleSSE(): void {
+    if (this.intentionallyDisconnected) return;
+    if (!this.sseAbortController) return;
+    if (Date.now() - this.lastSSEActivity <= JMAPClient.SSE_PING_TIMEOUT) return;
+
+    this.stopSSEPingMonitor();
+    this.sseAbortController.abort();
+    this.sseAbortController = null;
+    this.scheduleSSEReconnect();
+  }
+
   private setupBrowserEventListeners(): void {
     if (typeof document !== 'undefined') {
       this.visibilityHandler = () => {
         if (!document.hidden) {
           // Tab became visible - immediately check for state changes
           this.checkForStateChanges();
+          this.recycleStaleSSE();
         }
       };
       document.addEventListener('visibilitychange', this.visibilityHandler);
@@ -6465,7 +6574,7 @@ export class JMAPClient implements IJMAPClient {
   /** Fetch blob content as an ArrayBuffer (for S/MIME byte processing). */
   async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string, accountId?: string): Promise<ArrayBuffer> {
     const url = this.getBlobDownloadUrl(blobId, name, type, accountId);
-    const response = await this.authenticatedFetch(url, {});
+    const response = await this.authenticatedFetch(url, {}, { timeoutMs: JMAPClient.TRANSFER_TIMEOUT_MS });
     if (!response.ok) {
       throw new Error(`Failed to fetch blob: ${response.status}`);
     }

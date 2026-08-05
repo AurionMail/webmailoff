@@ -1,5 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { JMAPClient } from '../jmap/client';
+import { JMAPClient, RequestTimeoutError } from '../jmap/client';
+
+/**
+ * A connection that accepts the request and then goes silent: the promise never
+ * settles on its own, exactly like `fetch` over a socket the network has torn
+ * down underneath it. Only an abort ends it - which is what the deadline does.
+ */
+function stalledFetch() {
+  return (_url: string, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(new DOMException('The operation was aborted.', 'AbortError'));
+      });
+    });
+}
 
 // Minimal valid JMAP session response
 function makeSession(overrides?: Record<string, unknown>) {
@@ -92,6 +106,77 @@ describe('JMAPClient resilience', () => {
 
       await expect(client.ping()).rejects.toThrow('Failed to fetch');
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('authenticatedFetch - stalled request deadline', () => {
+    const downloadCalls = () =>
+      fetchSpy.mock.calls.filter(([url]: unknown[]) => String(url).includes('/jmap/download/'));
+
+    it('rejects a request that never produces response headers', async () => {
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(stalledFetch());
+
+      const pending = client.ping();
+      const assertion = expect(pending).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await assertion;
+    });
+
+    it('does not replay a timed-out request', async () => {
+      // The network-error path retries once, but a timeout may mean the server
+      // received and acted on the request - replaying an EmailSubmission/set
+      // there would send the message twice. Counted on the download URL so the
+      // keep-alive ping, which fires against the API URL while the clock runs,
+      // stays out of the tally.
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(stalledFetch());
+
+      const pending = client.fetchBlob('blob-1', 'big.zip', 'application/zip');
+      const assertion = expect(pending).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.advanceTimersByTimeAsync(300_000);
+      await assertion;
+      // Well past the 1s the retry path would have waited.
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(downloadCalls()).toHaveLength(1);
+    });
+
+    it('clears the deadline once the response arrives, leaving the body alone', async () => {
+      const client = await createConnectedClient();
+      const echoResponse = { methodResponses: [['Core/echo', { ping: 'pong' }, '0']] };
+      let capturedSignal: AbortSignal | undefined;
+
+      fetchSpy.mockImplementation((_url: string, init?: RequestInit) => {
+        capturedSignal = init?.signal ?? undefined;
+        return Promise.resolve(mockFetchResponse(200, echoResponse));
+      });
+
+      await expect(client.ping()).resolves.toBeUndefined();
+
+      // Long after the deadline would have fired, a streaming body handed back
+      // to the caller (SSE) must still be readable.
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(capturedSignal?.aborted).toBe(false);
+    });
+
+    it('gives blob transfers a longer budget than ordinary requests', async () => {
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(stalledFetch());
+
+      let outcome: unknown;
+      const pending = client
+        .fetchBlob('blob-1', 'big.zip', 'application/zip')
+        .catch((error) => { outcome = error; });
+
+      // A large attachment on a slow uplink is legitimately still moving well
+      // past the deadline that applies to an ordinary API call.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(outcome).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      await pending;
+      expect(outcome).toBeInstanceOf(RequestTimeoutError);
     });
   });
 

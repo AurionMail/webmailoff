@@ -1230,11 +1230,18 @@ export default function Home() {
   }) => {
     if (!client) return;
 
+    // Separates "the submission failed" from "a follow-up step failed". Only the
+    // former may propagate: the composer treats a resolved onSend as a delivered
+    // message and wipes its fields, so swallowing a real send failure here lost
+    // the user's message without so much as a toast (#702).
+    let submitted = false;
+
     try {
       const effectiveMode = pendingDraft?.mode ?? composerMode;
       const originalEmailId = selectedEmail?.id;
 
       const result = await sendEmail(client, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.delayedUntil, data.envelopeMailFrom, { requestReadReceipt: data.requestReadReceipt });
+      submitted = true;
       setShowComposer(false);
       if (result.filingError) {
         // The mail went out, but a post-send step (filing to Sent /
@@ -1299,6 +1306,9 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Failed to send email:", error);
+      // Post-send bookkeeping - refreshing Sent, flagging the original as
+      // answered, re-reading the thread - is cosmetic once the mail is out.
+      if (!submitted) throw error;
     }
   };
 

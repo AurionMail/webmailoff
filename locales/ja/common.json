@@ -650,6 +650,7 @@
     "smime_unlock_message": "S/MIME 鍵を解除するためのパスフレーズを入力してください。",
     "smime_unlock_button": "ロック解除",
     "smime_passphrase_placeholder": "S/MIME パスフレーズ",
+    "send_timeout": "サーバーが応答しなくなりました。再送信する前に送信済みフォルダーを確認してください。メッセージはすでに送信されている可能性があります。",
     "continue_draft": "下書きを続ける",
     "close_draft_title": "下書きを保存または破棄しますか？",
     "close_draft_message": "未保存の変更があります。下書きとして保存しますか、それとも破棄しますか？",

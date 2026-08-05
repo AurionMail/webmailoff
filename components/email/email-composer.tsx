@@ -39,6 +39,7 @@ import { appendPlainTextSignature, getPlainTextSignature } from "@/lib/signature
 import { findComposeIdentityId, findDraftIdentityId, resolveReplyFrom } from "@/lib/reply-identity";
 import { buildReplyRecipients, isSelfSent } from "@/lib/reply-recipients";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
+import { RequestTimeoutError } from "@/lib/jmap/client";
 import {
   rewriteCidImagesForEditor,
   replaceInlineImagePlaceholders,
@@ -508,6 +509,10 @@ export function EmailComposer({
   // timer + send button) serialize instead of issuing parallel destroy/create
   // requests with the same draftId. See bug #303.
   const inflightSaveRef = useRef<Promise<string | null> | null>(null);
+  // Whether the most recent save attempt failed. saveDraftOnce swallows its
+  // errors and returns null - the same value it returns for an empty draft -
+  // so this is the only way to distinguish the two.
+  const saveFailedRef = useRef(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>(() => {
     if (mode === 'forward' && replyTo?.attachments?.length) {
       return replyTo.attachments
@@ -1480,6 +1485,7 @@ export function EmailComposer({
       setDraftId(savedDraftId);
       lastSavedDataRef.current = currentData;
       setSaveStatus('saved');
+      saveFailedRef.current = false;
 
       // Reset status after 2 seconds
       setTimeout(() => setSaveStatus('idle'), 2000);
@@ -1487,6 +1493,10 @@ export function EmailComposer({
       return savedDraftId;
     } catch (error) {
       console.error('Failed to save draft:', error);
+      // A null return means both "nothing worth saving" and "the save broke",
+      // so the outcome is recorded here for callers that have to tell them
+      // apart - closing the composer on a failed save is worth a warning.
+      saveFailedRef.current = true;
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
       return null;
@@ -1973,7 +1983,14 @@ export function EmailComposer({
       stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
     } catch (err) {
       debug.error('Failed to send email:', err);
-      toast.error(err instanceof Error ? err.message : t('send_failed'));
+      // A timeout is not a clean failure: the submission may have reached the
+      // server and gone out, with only the answer lost. Saying "send failed"
+      // would invite a re-send and a duplicate, so point at Sent instead (#702).
+      toast.error(
+        err instanceof RequestTimeoutError
+          ? t('send_timeout')
+          : err instanceof Error ? err.message : t('send_failed')
+      );
     } finally {
       isSendingRef.current = false;
       setIsSending(false);
@@ -2034,9 +2051,25 @@ export function EmailComposer({
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    await saveDraft();
-    stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
-    onClose?.();
+    // Close whatever the save does. When the request stalled, this await never
+    // settled and onClose never ran, so the composer stayed mounted and the next
+    // close attempt just re-opened this dialog - Discard was the only way out
+    // (#702). Requests carry a deadline now, so a broken save resolves.
+    try {
+      await saveDraft();
+      if (saveFailedRef.current) {
+        // The server never took the draft. Clearing stateRef here would drop the
+        // message on the floor with nothing but a toast, so leave the text in
+        // place and let the unmount stash hand it to the host's "continue draft"
+        // slot - the same path an implicit close uses.
+        toast.error(t('save_failed'));
+        explicitCloseRef.current = false;
+      } else {
+        stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
+      }
+    } finally {
+      onClose?.();
+    }
   };
 
   const handleDiscardAndClose = () => {
