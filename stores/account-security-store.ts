@@ -350,10 +350,12 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   fetchCryptoInfo: async () => {
     set({ isLoadingCrypto: true, error: null });
     try {
+      const accountId = getPrimaryAccountId();
       const responses = await stalwartJmap([
         [
           'x:AccountSettings/get',
           {
+            accountId,
             ids: ['singleton'],
           },
           '0',
@@ -395,6 +397,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   updateEncryptionAtRest: async ({ type, publicKeyId, encryptOnAppend = false, allowSpamTraining = false }) => {
     set({ isSaving: true, error: null });
     try {
+      const accountId = getPrimaryAccountId();
       let encryptionAtRestPayload: Record<string, unknown>;
 
       if (type === 'Disabled') {
@@ -417,6 +420,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
         [
           'x:AccountSettings/set',
           {
+            accountId,
             update: {
               singleton: {
                 encryptionAtRest: encryptionAtRestPayload,
@@ -634,7 +638,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
       }
 
       const getResponses = await stalwartJmap([
-        ['x:PublicKey/get', { ids: queryResult.ids }, '0'],
+        ['x:PublicKey/get', {accountId, ids: queryResult.ids }, '0'],
       ]);
       const getResult = requireResult<{ list: Array<Record<string, unknown>> }>(getResponses, 'x:PublicKey/get');
 

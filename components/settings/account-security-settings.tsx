@@ -1026,7 +1026,7 @@ function LinkDeviceSection() {
 
 export function AccountSecuritySettings() {
   const t = useTranslations('settings.security');
-  const { isStalwart, isProbing, probe, fetchAll, fetchAuthInfo } = useAccountSecurityStore();
+  const { isStalwart, isProbing, probe, fetchAll, fetchAuthInfo, fetchPublicKeys, fetchCryptoInfo } = useAccountSecurityStore();
   const { isAuthenticated, authMode, client } = useAuthStore();
   const isOAuth = authMode === 'oauth';
 
@@ -1041,13 +1041,15 @@ export function AccountSecuritySettings() {
         if (detected) {
           if (isOAuth) {
             fetchAuthInfo();
+            fetchPublicKeys();
+            fetchCryptoInfo();
           } else {
             fetchAll();
           }
         }
       });
     }
-  }, [isAuthenticated, client, isStalwart, probe, fetchAll, fetchAuthInfo, isOAuth]);
+  }, [isAuthenticated, client, isStalwart, probe, fetchAll, fetchAuthInfo, isOAuth, fetchPublicKeys, fetchCryptoInfo]);
 
   if (isProbing) {
     return (
