@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Mail, Phone, Building, ExternalLink, Copy, Send, UserPlus } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { MailtoLink } from "@/components/ui/mailto-link";
 import { useContactStore, getContactDisplayName } from "@/stores/contact-store";
 import { toast } from "@/stores/toast-store";
 import type { ContactCard } from "@/lib/jmap/types";
@@ -210,14 +211,14 @@ export function RecipientPopover({ name, email, displayLabel, onViewContact, cla
                 <Copy className="w-3.5 h-3.5" />
                 Copy
               </button>
-              <a
-                href={`mailto:${email}`}
+              <MailtoLink
+                to={email}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded hover:bg-muted transition-colors"
                 title="Send email"
               >
                 <Send className="w-3.5 h-3.5" />
                 Email
-              </a>
+              </MailtoLink>
               {onViewContact && (
                 <button
                   onClick={handleViewContact}

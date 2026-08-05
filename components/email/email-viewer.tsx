@@ -97,6 +97,7 @@ import { useTour } from "@/components/tour/tour-provider";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
 import { findCalendarAttachment, isCalendarMimeType } from "@/lib/calendar-invitation";
 import { RecipientPopover } from "./recipient-popover";
+import { MailtoLink } from "@/components/ui/mailto-link";
 import { isFilePreviewable, isMimeTypeSafeForInlinePreview } from "@/lib/file-preview";
 import { parseTnef, isTnefAttachment } from "@/lib/tnef";
 import { debug } from "@/lib/debug";
@@ -419,14 +420,14 @@ export function ContactSidebarPanel({
 
         {/* Quick actions */}
         <div className="px-4 pb-4 flex items-center justify-center gap-2">
-          <a
-            href={`mailto:${primaryEmail}`}
+          <MailtoLink
+            to={primaryEmail}
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition-colors border border-border"
             title={t('contact_sidebar.action_email_title')}
           >
             <Send className="w-3.5 h-3.5" />
             {t('contact_sidebar.action_email')}
-          </a>
+          </MailtoLink>
           <button
             onClick={() => handleCopy(primaryEmail)}
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition-colors border border-border"
@@ -455,9 +456,9 @@ export function ContactSidebarPanel({
               <SidebarSection icon={Mail} title={t('contact_sidebar.section_emails')}>
                 {emails.map((e, i) => (
                   <div key={i} className="flex items-center gap-2 group">
-                    <a href={`mailto:${e.address}`} className="text-sm text-primary hover:underline truncate">
+                    <MailtoLink to={e.address} className="text-sm text-primary hover:underline truncate">
                       {e.address}
-                    </a>
+                    </MailtoLink>
                     <button
                       onClick={() => handleCopy(e.address)}
                       className="p-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 shrink-0"
