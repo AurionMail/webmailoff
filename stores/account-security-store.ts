@@ -5,6 +5,13 @@ import { stalwartJmap, requireResult, type JmapMethodResponse } from '@/lib/stal
 
 export type EncryptionType = 'Disabled' | 'Aes128' | 'Aes256';
 
+export interface EncryptionAtRestConfig {
+  type: EncryptionType;
+  publicKeyId: string | null;
+  encryptOnAppend?: boolean;
+  allowSpamTraining?: boolean;
+}
+
 export interface AppPasswordInfo {
   id: string;
   description: string;
@@ -55,7 +62,7 @@ interface AccountSecurityState {
   isLoadingAuth: boolean;
 
   // Encryption-at-rest
-  encryptionType: EncryptionType;
+  encryptionConfig: EncryptionAtRestConfig;
   publicKeys: PublicKeyInfo[];
   isLoadingCrypto: boolean;
   isLoadingPublicKeys: boolean;
@@ -91,6 +98,12 @@ interface AccountSecurityState {
 
   createPublicKey: (input: PublicKeyInput) => Promise<string>;
   removePublicKey: (id: string) => Promise<void>;
+  updateEncryptionAtRest: (config: {
+    type: EncryptionType;
+    publicKeyId?: string | null;
+    encryptOnAppend?: boolean;
+    allowSpamTraining?: boolean;
+  }) => Promise<void>;
 
   clearState: () => void;
 }
@@ -236,13 +249,6 @@ function requireAccountPasswordUpdate(responses: JmapMethodResponse[], fallbackE
   }
 }
 
-function extractEncryptionType(raw: unknown): EncryptionType {
-  if (!raw || typeof raw !== 'object') return 'Disabled';
-  const type = (raw as { ['@type']?: string })['@type'];
-  if (type === 'Aes128' || type === 'Aes256') return type;
-  return 'Disabled';
-}
-
 export const useAccountSecurityStore = create<AccountSecurityState>()((set, get) => ({
   isStalwart: null,
   isProbing: false,
@@ -251,7 +257,12 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   apiKeys: [],
   publicKeys: [],
   isLoadingAuth: false,
-  encryptionType: 'Disabled',
+  encryptionConfig: {
+    type: 'Disabled',
+    publicKeyId: null,
+    encryptOnAppend: false,
+    allowSpamTraining: false,
+  },
   isLoadingCrypto: false,
   isLoadingPublicKeys: false,
   displayName: '',
@@ -339,22 +350,102 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   fetchCryptoInfo: async () => {
     set({ isLoadingCrypto: true, error: null });
     try {
-      const accountId = getPrimaryAccountId();
       const responses = await stalwartJmap([
-        ['x:AccountSettings/get', { accountId, ids: ['singleton'] }, '0'],
+        [
+          'x:AccountSettings/get',
+          {
+            ids: ['singleton'],
+          },
+          '0',
+        ],
       ]);
-      const result = requireResult<{ list: Array<{ encryptionAtRest?: unknown }> }>(
+
+      const result = requireResult<{ list: Array<{ encryptionAtRest?: Record<string, unknown> }> }>(
         responses,
-        'x:AccountSettings/get',
+        'x:AccountSettings/get'
       );
-      const encryptionType = extractEncryptionType(result.list?.[0]?.encryptionAtRest);
-      set({ encryptionType, isLoadingCrypto: false });
+
+      const settings = result.list?.[0];
+      const enc = settings?.encryptionAtRest ?? {};
+
+      // The backend returns type via "@type" (e.g. "Disabled", "Aes128", "Aes256")
+      const rawType = String(enc['@type'] ?? 'Disabled') as EncryptionType;
+      const publicKeyId = typeof enc.publicKey === 'string' ? enc.publicKey : null;
+      const encryptOnAppend = Boolean(enc.encryptOnAppend);
+      const allowSpamTraining = Boolean(enc.allowSpamTraining);
+
+      set({
+        encryptionConfig: {
+          type: rawType,
+          publicKeyId,
+          encryptOnAppend,
+          allowSpamTraining,
+        },
+        isLoadingCrypto: false,
+      });
     } catch (error) {
-      debug.error('Failed to fetch crypto info:', error);
+      debug.error('Failed to fetch encryption settings:', error);
       set({
         isLoadingCrypto: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch crypto info',
+        error: error instanceof Error ? error.message : 'Failed to fetch encryption settings',
       });
+    }
+  },
+
+  updateEncryptionAtRest: async ({ type, publicKeyId, encryptOnAppend = false, allowSpamTraining = false }) => {
+    set({ isSaving: true, error: null });
+    try {
+      let encryptionAtRestPayload: Record<string, unknown>;
+
+      if (type === 'Disabled') {
+        encryptionAtRestPayload = {
+          '@type': 'Disabled',
+        };
+      } else {
+        if (!publicKeyId) {
+          throw new Error('A Public Key ID is required to enable encryption.');
+        }
+        encryptionAtRestPayload = {
+          '@type': type,
+          publicKey: publicKeyId,
+          encryptOnAppend,
+          allowSpamTraining,
+        };
+      }
+
+      const responses = await stalwartJmap([
+        [
+          'x:AccountSettings/set',
+          {
+            update: {
+              singleton: {
+                encryptionAtRest: encryptionAtRestPayload,
+              },
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const result = requireResult<{
+        updated?: Record<string, unknown>;
+        notUpdated?: Record<string, { type: string; description?: string }>;
+      }>(responses, 'x:AccountSettings/set');
+
+      const notUpdated = result.notUpdated?.singleton;
+      if (notUpdated) {
+        throw new Error(notUpdated.description || notUpdated.type || 'Failed to update encryption settings');
+      }
+
+      // Refresh settings after success
+      await get().fetchCryptoInfo();
+      set({ isSaving: false });
+    } catch (error) {
+      set({
+        isSaving: false,
+        error: error instanceof Error ? error.message : 'Failed to update encryption settings',
+      });
+      throw error;
     }
   },
 
@@ -646,7 +737,12 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
     appPasswords: [],
     apiKeys: [],
     isLoadingAuth: false,
-    encryptionType: 'Disabled',
+    encryptionConfig: {
+      type: 'Disabled',
+      publicKeyId: null,
+      encryptOnAppend: false,
+      allowSpamTraining: false,
+    },
     isLoadingCrypto: false,
     displayName: '',
     emails: [],
