@@ -241,7 +241,7 @@ export const SANDBOX_PRIVILEGED_PATH = '/plugin-sandbox-privileged';
 export const API_METHODS = [
   'storage.get', 'storage.set', 'storage.remove', 'storage.keys',
   'http.post', 'http.fetch',
-  'webauthn.getOrCreate',
+  'crypto.getOrCreateWebAuthn', 'crypto.getPublicKeys', 'crypto.createPublicKey', 'crypto.removePublicKey', 'crypto.getEncryptionAtRest', 'crypto.setEncryptionAtRest',
   'jmap.fetchBlob', 'jmap.sendRaw',
   'upfiles.get', 'upfiles.save',
   'contact.get', 'contact.update', 'contact.create', 'contact.search',

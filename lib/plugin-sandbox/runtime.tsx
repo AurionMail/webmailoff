@@ -30,6 +30,7 @@ import type {
 import { themeSnapshotToCSS, type ThemeSnapshot } from './host-theme';
 import type { SlotName } from '../plugin-types';
 import { ContactCard } from '../jmap/types';
+import { EncryptionAtRestConfig, PublicKeyInput } from '@/stores/account-security-store';
 
 // ─── Module-scope state ──────────────────────────────────────
 
@@ -166,8 +167,13 @@ function buildPluginApi(manifest: PluginManifest) {
       version: manifest.version,
       settings: { ...manifest.settings },
     },
-    webauthn: {
-      getOrCreate: (masterCredentialIdBytes?: number[], name?: string, displayName?: string) => callApi('webauthn.getOrCreate', [masterCredentialIdBytes, manifest.id, name, displayName], 0)
+    crypto: {
+      getPublicKeys: () => callApi('crypto.fetchPublicKeys', []),
+      createPublicKey: (input: PublicKeyInput) => callApi('crypto.createPublicKey', [input]),
+      removePublicKey: (keyId: string) => callApi('crypto.removePublicKey', [keyId]),
+      setEncryptionAtRest: (config: EncryptionAtRestConfig) => callApi('crypto.setEncryptionAtRest', [config]),
+      getEncryptionAtRest: () => callApi('crypto.getEncryptionAtRest', []),
+      getOrCreateWebAuthn: (masterCredentialIdBytes?: number[], name?: string, displayName?: string) => callApi('crypto.getOrCreateWebAuthn', [masterCredentialIdBytes, manifest.id, name, displayName], 0)
     },
     storage: {
       get: (key: string) => callApi('storage.get', [key]),
