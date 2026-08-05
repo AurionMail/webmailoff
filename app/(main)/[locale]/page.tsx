@@ -712,12 +712,13 @@ export default function Home() {
     handlers: keyboardHandlers,
   });
 
-  // Intercept browser refresh gestures (F5, Ctrl/Cmd+R, pull-to-refresh)
-  // and refresh mail data via JMAP instead of reloading the page.
-  useRefreshGesture({
-    enabled: isAuthenticated && !!client,
-    onRefresh: async () => {
-      if (!client) return;
+  // Shared mail refresh: re-fetch mailboxes (unread counts) + the active list
+  // via JMAP. Used by both the browser refresh gestures and the toolbar button.
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const handleManualRefresh = useCallback(async () => {
+    if (!client) return;
+    setIsManualRefreshing(true);
+    try {
       const state = useEmailStore.getState();
       if (state.isScheduledView || state.selectedMailbox === SCHEDULED_MAILBOX_ID) {
         await Promise.all([
@@ -729,7 +730,16 @@ export default function Home() {
         await state.refreshScheduledMetadata(client);
         await (state.selectedMailbox ? state.fetchEmails(client, state.selectedMailbox) : state.fetchEmails(client));
       }
-    },
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [client]);
+
+  // Intercept browser refresh gestures (F5, Ctrl/Cmd+R, pull-to-refresh)
+  // and refresh mail data via JMAP instead of reloading the page.
+  useRefreshGesture({
+    enabled: isAuthenticated && !!client,
+    onRefresh: handleManualRefresh,
   });
 
   useEffect(() => {
@@ -3132,6 +3142,20 @@ export default function Home() {
                         {activeFilterCount(searchFilters)}
                       </span>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleManualRefresh}
+                    disabled={!client || isManualRefreshing}
+                    className={cn(
+                      "flex-shrink-0 p-2 rounded-md transition-colors",
+                      "text-muted-foreground hover:text-foreground hover:bg-muted",
+                      (!client || isManualRefreshing) && "opacity-50 cursor-not-allowed"
+                    )}
+                    title={tCommon("refresh")}
+                    aria-label={tCommon("refresh")}
+                  >
+                    <RotateCcw className={cn("w-4 h-4", isManualRefreshing && "animate-spin")} />
                   </button>
                 </div>
               </div>

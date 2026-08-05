@@ -634,7 +634,10 @@ export default function LoginPage() {
       formData.username,
       formData.password,
       totpCode || undefined,
-      rememberMe
+      // Only persist credentials when the server actually supports it
+      // (a SESSION_SECRET is configured). Prevents a broken cookie write
+      // when the remember-me feature is disabled server-side.
+      rememberMeEnabled && rememberMe
     );
 
     if (success) {
