@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import QRCode from 'qrcode';
 import * as OTPAuth from 'otpauth';
-import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal, QrCode } from 'lucide-react';
+import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal, QrCode, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
@@ -570,25 +570,271 @@ function ApiKeysSection() {
   );
 }
 
-function EncryptionSection() {
+function PublicKeysSection() {
   const t = useTranslations('settings.security');
-  const { encryptionType, isLoadingCrypto } = useAccountSecurityStore();
+  const tk = (key: string) => t(`public_keys.${key}`);
+  const {
+    publicKeys,
+    createPublicKey,
+    removePublicKey,
+    encryptionConfig,
+    updateEncryptionAtRest,
+    isSaving,
+    isLoadingAuth,
+  } = useAccountSecurityStore();
 
-  if (isLoadingCrypto) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [description, setDescription] = useState('');
+  const [publicKey, setPublicKey] = useState('');
+
+  // Encryption config dialog state
+  const [selectedKeyForEncryption, setSelectedKeyForEncryption] = useState<string | null>(null);
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<'Aes128' | 'Aes256'>('Aes256');
+  const [encryptOnAppend, setEncryptOnAppend] = useState(false);
+  const [allowSpamTraining, setAllowSpamTraining] = useState(false);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description.trim() || !publicKey.trim()) return;
+
+    try {
+      await createPublicKey({
+        description: description.trim(),
+        key: publicKey.trim(),
+      });
+      setDescription('');
+      setPublicKey('');
+      setShowAdd(false);
+      toast.success(tk('added'));
+    } catch (err) {
+      toast.error(tk('add_error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    try {
+      await removePublicKey(id);
+      toast.success(tk('removed'));
+    } catch (err) {
+      toast.error(tk('remove_error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleToggleEncryption = async (keyId: string) => {
+    const isCurrentlyActiveKey =
+      encryptionConfig.type !== 'Disabled' && encryptionConfig.publicKeyId === keyId;
+
+    if (isCurrentlyActiveKey) {
+      // Disable encryption
+      try {
+        await updateEncryptionAtRest({ type: 'Disabled' });
+        toast.success(t('encryption.disabled_success'));
+      } catch (err) {
+        toast.error(t('encryption.error'), err instanceof Error ? err.message : undefined);
+      }
+    } else {
+      // Open algorithm selection dialog for this key
+      setSelectedKeyForEncryption(keyId);
+      setSelectedAlgorithm('Aes256');
+      setEncryptOnAppend(false);
+      setAllowSpamTraining(false);
+    }
+  };
+
+  const handleEnableEncryptionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedKeyForEncryption) return;
+
+    try {
+      await updateEncryptionAtRest({
+        type: selectedAlgorithm,
+        publicKeyId: selectedKeyForEncryption,
+        encryptOnAppend,
+        allowSpamTraining,
+      });
+      setSelectedKeyForEncryption(null);
+      toast.success(t('encryption.enabled_success'));
+    } catch (err) {
+      toast.error(t('encryption.error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  if (isLoadingAuth) {
     return (
-      <SettingItem label={t('encryption.label')} description={t('encryption.description')}>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-2">
+          <Lock className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
+        </div>
         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </SettingItem>
+      </div>
     );
   }
 
-  const isEnabled = encryptionType !== 'Disabled';
   return (
-    <SettingItem label={t('encryption.label')} description={t('encryption.description')}>
-      <span className={cn('text-xs font-medium', isEnabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground')}>
-        {isEnabled ? t('encryption.active', { type: encryptionType }) : t('encryption.inactive')}
-      </span>
-    </SettingItem>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Lock className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{t('encryption.section_title')}</h4>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
+          <Plus className="w-3 h-3 me-1" />
+          {t('app_passwords.add')}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{t('encryption.description')}</p>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="p-3 bg-muted rounded-md space-y-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{tk('name_label')}</label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={tk('name_placeholder')}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{tk('key_label')}</label>
+            <textarea
+              value={publicKey}
+              onChange={(e) => setPublicKey(e.target.value)}
+              placeholder={tk('key_placeholder')}
+              rows={3}
+              required
+              className="w-full text-xs font-mono px-3 py-2 rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSaving || !description.trim() || !publicKey.trim()}>
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
+              {t('app_passwords.create')}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
+              {t('app_passwords.cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {selectedKeyForEncryption && (
+        <form onSubmit={handleEnableEncryptionSubmit} className="p-3 bg-muted border border-border rounded-md space-y-3">
+          <h5 className="text-xs font-semibold text-foreground">{t('encryption.configure_title')}</h5>
+          
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t('encryption.algorithm_label')}</label>
+            <select
+              value={selectedAlgorithm}
+              onChange={(e) => setSelectedAlgorithm(e.target.value as 'Aes128' | 'Aes256')}
+              className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="Aes256">AES-256</option>
+              <option value="Aes128">AES-128</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={encryptOnAppend}
+                onChange={(e) => setEncryptOnAppend(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-ring"
+              />
+              {t('encryption.encrypt_on_append')}
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={allowSpamTraining}
+                onChange={(e) => setAllowSpamTraining(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-ring"
+              />
+              {t('encryption.allow_spam_training')}
+            </label>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button type="submit" size="sm" disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
+              {t('encryption.enable_button')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedKeyForEncryption(null)}
+            >
+              {t('app_passwords.cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {publicKeys.length > 0 ? (
+        <div className="space-y-1">
+          {publicKeys.map((key) => {
+            const isEncryptedWithThisKey =
+              encryptionConfig.type !== 'Disabled' && encryptionConfig.publicKeyId === key.id;
+
+            return (
+              <div key={key.id} className="flex items-start justify-between py-2 px-3 bg-muted/50 rounded-md gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground truncate">{key.description || key.id}</span>
+                    {isEncryptedWithThisKey && (
+                      <span className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 font-medium px-1.5 py-0.5 rounded border border-green-500/20">
+                        {encryptionConfig.type}
+                      </span>
+                    )}
+                  </div>
+                  {key.createdAt && (
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(key.createdAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  <code className="text-[10px] font-mono bg-background border border-border rounded px-1.5 py-0.5 text-muted-foreground truncate mt-1">
+                    {key.key}
+                  </code>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleEncryption(key.id)}
+                    disabled={isSaving}
+                    title={isEncryptedWithThisKey ? t('encryption.disable_tooltip') : t('encryption.enable_tooltip')}
+                    className={cn(
+                      isEncryptedWithThisKey
+                        ? 'text-green-600 hover:text-green-700 dark:text-green-400'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {isEncryptedWithThisKey ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemove(key.id)}
+                    disabled={isSaving || isEncryptedWithThisKey}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">{tk('none')}</p>
+      )}
+    </div>
   );
 }
 
@@ -780,7 +1026,7 @@ function LinkDeviceSection() {
 
 export function AccountSecuritySettings() {
   const t = useTranslations('settings.security');
-  const { isStalwart, isProbing, probe, fetchAll, fetchAuthInfo } = useAccountSecurityStore();
+  const { isStalwart, isProbing, probe, fetchAll, fetchAuthInfo, fetchPublicKeys, fetchCryptoInfo } = useAccountSecurityStore();
   const { isAuthenticated, authMode, client } = useAuthStore();
   const isOAuth = authMode === 'oauth';
 
@@ -795,13 +1041,15 @@ export function AccountSecuritySettings() {
         if (detected) {
           if (isOAuth) {
             fetchAuthInfo();
+            fetchPublicKeys();
+            fetchCryptoInfo();
           } else {
             fetchAll();
           }
         }
       });
     }
-  }, [isAuthenticated, client, isStalwart, probe, fetchAll, fetchAuthInfo, isOAuth]);
+  }, [isAuthenticated, client, isStalwart, probe, fetchAll, fetchAuthInfo, isOAuth, fetchPublicKeys, fetchCryptoInfo]);
 
   if (isProbing) {
     return (
@@ -871,19 +1119,11 @@ export function AccountSecuritySettings() {
             <LinkDeviceSection />
           </>
         )}
-
-        {!isOAuth && (
-          <>
             <div className="border-t border-border" />
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <h4 className="text-sm font-medium text-foreground">{t('encryption.section_title')}</h4>
-              </div>
-              <EncryptionSection />
+              
+              <PublicKeysSection />
             </div>
-          </>
-        )}
       </div>
     </SettingsSection>
   );
