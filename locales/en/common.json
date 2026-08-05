@@ -1529,6 +1529,8 @@
         "allow_spam_training": "Allow spam training before encrypting emails",
         "enable_encryption": "Enable encryption",
         "enable_tooltip": "Enable encryption with this key",
+        "configure_title": "Enable encryption with this key",
+        "enable_button": "Enable",
         "disabled_tooltip": "Disable encryption",
         "enabled_success": "Encryption at rest enabled"
       },
