@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Mail, Phone, Building, MapPin, StickyNote, Pencil, Trash2, BookUser, Copy, Send, Globe, Cake, KeyRound, Users, Briefcase, Heart, Languages, Calendar, UserCircle, Download, MoreHorizontal, Printer } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { MailtoLink } from "@/components/ui/mailto-link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ContactCard, AnniversaryDate, PartialDate } from "@/lib/jmap/types";
@@ -232,18 +233,18 @@ export function ContactDetail({ contact, onEdit, onDelete, onAddToGroup, onDupli
               {emails.map((e, i) => (
                 <FieldRow key={`em${i}`} icon={Mail} label={e.label || formatContexts(e.contexts) || t("detail.email_default_label")}>
                   <div className="flex items-center gap-2 group">
-                    <a href={`mailto:${e.address}`} className="text-sm text-primary hover:underline break-all">
+                    <MailtoLink to={e.address} className="text-sm text-primary hover:underline break-all">
                       {e.address}
-                    </a>
+                    </MailtoLink>
                     <RowActions>
-                      <a
-                        href={`mailto:${e.address}`}
+                      <MailtoLink
+                        to={e.address}
                         className="p-1.5 rounded hover:bg-muted transition-colors touch-manipulation"
                         title={t("detail.compose_email")}
                         aria-label={t("detail.compose_email")}
                       >
                         <Send className="w-3.5 h-3.5 text-muted-foreground" />
-                      </a>
+                      </MailtoLink>
                       <CopyButton value={e.address} label={t("detail.copy_email")} successMsg={t("detail.copied")} failMsg={t("detail.copy_failed")} />
                     </RowActions>
                   </div>

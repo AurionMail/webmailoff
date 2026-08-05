@@ -116,3 +116,28 @@ export function parseMailto(raw: string): ParsedMailto | null {
     body: stripBodyControlChars(getQueryValue(searchParams, "body")).slice(0, MAX_BODY_LENGTH),
   };
 }
+
+/** Window event carrying a parsed in-app mailto request to the mail page. */
+export const INTERNAL_MAILTO_EVENT = "bulwark:mailto";
+
+/**
+ * Ask the mail page to open its composer for an in-app `mailto:` click.
+ * Loosely coupled through a window event (as `bulwark:rate-limit-blocked`
+ * already is) because the composer state lives in the page component, several
+ * levels above the address links in cards and sidebars.
+ *
+ * Returns whether the request was taken: false when the URL is unusable or no
+ * listener is mounted, so callers can fall back to the browser's behaviour
+ * rather than swallowing the click.
+ */
+export function requestInternalMailto(raw: string): boolean {
+  if (typeof window === "undefined") return false;
+  const parsed = parseMailto(raw);
+  if (!parsed || parsed.to.length === 0) return false;
+  // The listener signals "handled" by cancelling the event, which makes
+  // dispatchEvent report false - so an uncancelled dispatch means nobody took it.
+  const uncancelled = window.dispatchEvent(
+    new CustomEvent<ParsedMailto>(INTERNAL_MAILTO_EVENT, { detail: parsed, cancelable: true }),
+  );
+  return !uncancelled;
+}
