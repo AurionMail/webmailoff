@@ -5349,7 +5349,7 @@ export class JMAPClient implements IJMAPClient {
 
     if (response.methodResponses?.[0]?.[0] === "CalendarEvent/parse") {
       const result = response.methodResponses[0][1];
-      console.log('[PARSE DEBUG] CalendarEvent/parse raw result:', JSON.stringify(result, null, 2));
+      debug.log('calendar', '[CalendarEvent/parse] raw result:', result);
 
       if (result.notParsable && result.notParsable.includes(blobId)) {
         throw new Error("Invalid calendar file format");
