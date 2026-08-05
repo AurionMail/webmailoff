@@ -4218,7 +4218,7 @@ export class JMAPClient implements IJMAPClient {
       // or are non-personal (shared/group) accounts - Stalwart doesn't
       // always advertise capabilities on group accounts even when they
       // have calendar resources.
-      if (account.accountCapabilities?.["urn:ietf:params:jmap:calendars"] || !account.isPersonal) {
+      if (account.accountCapabilities?.["urn:ietf:params:jmap:calendars"] || account.isPersonal === false) {
         accountIds.push(id);
       }
     }
@@ -4234,7 +4234,7 @@ export class JMAPClient implements IJMAPClient {
       // or are non-personal (shared/group) accounts - Stalwart doesn't
       // always advertise capabilities on group accounts even when they
       // have contact resources.
-      if (account.accountCapabilities?.["urn:ietf:params:jmap:contacts"] || !account.isPersonal) {
+      if (account.accountCapabilities?.["urn:ietf:params:jmap:contacts"] || account.isPersonal === false) {
         accountIds.push(id);
       }
     }
