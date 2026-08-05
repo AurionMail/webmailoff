@@ -840,7 +840,6 @@ export function EmailViewer({
   const [embeddedEmailHtml, setEmbeddedEmailHtml] = useState<string | null>(null);
   const [embeddedEmailText, setEmbeddedEmailText] = useState<string | null>(null);
   const [embeddedEmailAttachments, setEmbeddedEmailAttachments] = useState<PostalMimeAttachment[]>([]);
-  const [embeddedEmailUnwrapped, setEmbeddedEmailUnwrapped] = useState(false);
 
   // Plugin detail sidebar state. Collapsed/width persist across opens and
   // sessions so the panel reopens the way the user last left it.
@@ -1148,7 +1147,6 @@ export function EmailViewer({
     setEmbeddedEmailHtml(null);
     setEmbeddedEmailText(null);
     setEmbeddedEmailAttachments([]);
-    setEmbeddedEmailUnwrapped(false);
   }, [email?.id, externalContentPolicy]);
 
   // Crypto-plugin body takeover (S/MIME, PGP, …). A privileged crypto plugin
@@ -1382,7 +1380,6 @@ export function EmailViewer({
             a => (a.filename || 'unnamed') + ' (' + a.mimeType + ')'
           ).join(', '));
         }
-        setEmbeddedEmailUnwrapped(true);
         debug.groupEnd();
       } catch (err) {
         debug.error('Embedded RFC822 unwrapping failed:', err);
@@ -1481,8 +1478,9 @@ export function EmailViewer({
     const jmapAttachments = (email?.attachments ?? [])
       // Hide winmail.dat when we have successfully extracted TNEF content or attachments
       .filter(att => !(tnefHtml || tnefText || tnefAttachments.length > 0) || !isTnefAttachment(att.name, att.type))
-      // Hide message/rfc822 when we have unwrapped the embedded email
-      .filter(att => !embeddedEmailUnwrapped || att.type !== 'message/rfc822')
+      // Keep the message/rfc822 attachment itself visible in the attachment list even
+      // when we've unwrapped it for inline preview - it's a real, downloadable
+      // attachment (e.g. "Forward as attachment" sends), not just preview scaffolding.
       // Hide calendar MIME parts (text/calendar, application/ics) when the invitation
       // banner is shown - prevents raw ICS files appearing as spurious attachments.
       .filter(att => !hasCalInvitation || !isCalendarMimeType(att.type))
@@ -1527,7 +1525,7 @@ export function EmailViewer({
     // attachment list — and its downstream layout measurement — on every email
     // field change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email?.attachments, pluginRenderedAttachments, tnefHtml, tnefText, tnefAttachments, embeddedEmailUnwrapped, embeddedEmailAttachments, calendarInvitationParsingEnabled, hideInlineImageAttachments]);
+  }, [email?.attachments, pluginRenderedAttachments, tnefHtml, tnefText, tnefAttachments, embeddedEmailAttachments, calendarInvitationParsingEnabled, hideInlineImageAttachments]);
 
   // Measure attachment chips in the below-header row to determine how many fit
   // on a single line; the rest collapse into a "+N attachments" overflow pill.
