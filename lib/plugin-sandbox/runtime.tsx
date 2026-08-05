@@ -175,6 +175,11 @@ function buildPluginApi(manifest: PluginManifest) {
       remove: (key: string) => callApi('storage.remove', [key]),
       keys: () => callApi('storage.keys', []),
     },
+    user: {
+      getAccounts: () => callApi('user.getAccounts', []),
+      getIdentities: () => callApi('user.getIdentities', []),
+      logout: () => callApi('user.logout', []),
+    },
     http: {
       post: (path: string, body: Record<string, unknown>) => callApi('http.post', [path, body]),
       fetch: (url: string, init?: unknown) => callApi('http.fetch', [url, init]),
