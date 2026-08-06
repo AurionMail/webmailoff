@@ -1078,6 +1078,7 @@
         "description": "Ontvang systeemmeldingen voor nieuwe e-mail wanneer deze site gesloten is. Geleverd via de Bulwark-pushrelay; de relay ziet nooit e-mailinhoud.",
         "disable": "Uitschakelen",
         "enable": "Inschakelen",
+        "dismiss_aria": "Meldingsvenster sluiten",
         "ios_hint": "Installeer de site op iOS eerst op het beginscherm – Safari levert Web Push alleen aan geïnstalleerde PWA's.",
         "reenable": "Opnieuw registreren",
         "relay_desc": "Gebruikt standaard de gehoste Bulwark-relay. Wijzig alleen als je zelf hostt.",

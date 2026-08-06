@@ -1078,6 +1078,7 @@
         "description": "在此网站关闭时接收新邮件的系统通知。通过 Bulwark 推送中继传送；中继永远不会看到邮件内容。",
         "disable": "禁用",
         "enable": "启用",
+        "dismiss_aria": "关闭通知提示",
         "ios_hint": "在 iOS 上，请先将网站安装到主屏幕 – Safari 仅向已安装的 PWA 发送 Web Push。",
         "reenable": "重新注册",
         "relay_desc": "默认使用托管的 Bulwark 中继。仅当您自托管时才更改。",

@@ -12,6 +12,16 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISSED_KEY = "pwa-install-dismissed";
+export const PWA_INSTALL_PROMPT_VISIBILITY_EVENT =
+  "bulwark:pwa-install-prompt-visibility";
+
+// Mirrors the last dispatched visibility so a listener that mounts after the
+// event was fired can still read the current state instead of assuming hidden.
+let promptVisible = false;
+
+export function isPWAInstallPromptVisible(): boolean {
+  return promptVisible;
+}
 
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
@@ -36,16 +46,29 @@ export function PWAInstallPrompt() {
     };
   }, []);
 
+  useEffect(() => {
+    promptVisible = showPrompt;
+    window.dispatchEvent(
+      new CustomEvent(PWA_INSTALL_PROMPT_VISIBILITY_EVENT, {
+        detail: { visible: showPrompt },
+      }),
+    );
+    return () => {
+      if (showPrompt) promptVisible = false;
+    };
+  }, [showPrompt]);
+
   const handleInstall = async () => {
     if (!deferredPrompt) return;
 
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    await deferredPrompt.userChoice;
 
-    if (outcome === "accepted") {
-      setDeferredPrompt(null);
-      setShowPrompt(false);
-    }
+    // A beforeinstallprompt event can only be consumed once. Close the card
+    // whether the browser prompt was accepted or dismissed so the next
+    // onboarding step can continue in the same session.
+    setDeferredPrompt(null);
+    setShowPrompt(false);
   };
 
   const handleDismiss = () => {

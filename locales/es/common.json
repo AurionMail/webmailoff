@@ -1078,6 +1078,7 @@
         "description": "Recibe notificaciones del sistema para correo nuevo cuando este sitio está cerrado. Se entrega a través del relay push de Bulwark; el relay nunca ve el contenido del correo.",
         "disable": "Desactivar",
         "enable": "Activar",
+        "dismiss_aria": "Cerrar aviso de notificaciones",
         "ios_hint": "En iOS, instala primero el sitio en la pantalla de inicio: Safari solo entrega Web Push a PWAs instaladas.",
         "reenable": "Volver a registrar",
         "relay_desc": "Usa el relay alojado de Bulwark de forma predeterminada. Cámbialo solo si te alojas tú mismo.",

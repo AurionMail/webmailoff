@@ -1078,6 +1078,7 @@
         "description": "Bu site kapalıyken yeni postalar için sistem bildirimleri alın. Bulwark push röle aracılığıyla iletilir; röle posta içeriğini asla görmez.",
         "disable": "Devre dışı bırak",
         "enable": "Etkinleştir",
+        "dismiss_aria": "Bildirim istemini kapat",
         "ios_hint": "iOS'ta önce siteyi ana ekranınıza yükleyin – Safari Web Push'u yalnızca yüklü PWA'lara teslim eder.",
         "reenable": "Yeniden kaydet",
         "relay_desc": "Varsayılan olarak barındırılan Bulwark rölesini kullanır. Yalnızca kendiniz barındırıyorsanız değiştirin.",

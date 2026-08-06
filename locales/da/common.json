@@ -1068,6 +1068,7 @@
         "disable": "Deaktivér",
         "confirm_disable_title": "Deaktivér baggrundsnotifikationer?",
         "confirm_disable_message": "Denne enhed stopper med at modtage alarmer, når sitet er lukket.",
+        "dismiss_aria": "Afvis notifikationsprompt",
         "ios_hint": "På iOS skal du installere sitet på din startskærm først - Safari leverer kun Web Push til installerede PWA'er."
       },
       "sound_selection": {

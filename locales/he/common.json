@@ -1054,6 +1054,7 @@
         "disable": "השבת",
         "confirm_disable_title": "השבת התראות בדפדפן?",
         "confirm_disable_message": "התקן זה יפסיק לקבל התראות כאשר האתר סגור.",
+        "dismiss_aria": "בטל הודעת התראות",
         "ios_hint": "ב־iOS, התקן קודם כל את האתר בהיתוך שלך - Safari מספק Web Push רק לPWA מותקנות."
       }
     },

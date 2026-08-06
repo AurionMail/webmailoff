@@ -11,6 +11,7 @@ import { ImpersonationReconciler } from "@/components/impersonation/impersonatio
 import { PluginDialogHost } from "@/components/plugins/plugin-dialog-host";
 import { PluginConsentDialog } from "@/components/plugins/plugin-consent-dialog";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { PushNotificationPrompt } from "@/components/push-notification-prompt";
 import { locales } from "@/i18n/routing";
 
 export default async function LocaleLayout({
@@ -45,6 +46,7 @@ export default async function LocaleLayout({
                   <PluginDialogHost />
                   <PluginConsentDialog />
                   <PWAInstallPrompt />
+                  <PushNotificationPrompt />
                 </ProtocolLaunchHandlerProvider>
               </TourProvider>
             </EmbeddedBridgeProvider>
