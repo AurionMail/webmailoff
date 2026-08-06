@@ -43,6 +43,8 @@ import { RequestTimeoutError } from "@/lib/jmap/client";
 import {
   rewriteCidImagesForEditor,
   replaceInlineImagePlaceholders,
+  collectInlineImageCids,
+  sniffImageMime,
   formatRecipient,
   parseRecipient,
   parseRecipientList,
@@ -517,10 +519,18 @@ export function EmailComposer({
   const saveFailedRef = useRef(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>(() => {
     if (mode === 'forward' && replyTo?.attachments?.length) {
+      // cids the quoted body renders as <img>; those parts are re-attached
+      // inline by the send path, so listing them here would duplicate them.
+      // Covers parts the type/disposition test below misses - Foxmail embeds
+      // inline images as octet-stream with no inline disposition (#543).
+      const embeddedCids = collectInlineImageCids(body);
       return replyTo.attachments
         // Skip inline cid-referenced images - they're embedded in the forwarded HTML body
         // (matches the viewer's hideInlineImageAttachments logic).
-        .filter(att => !(att.cid && att.disposition === 'inline' && (att.type || '').startsWith('image/')))
+        .filter(att => !(att.cid && (
+          embeddedCids.has(att.cid) ||
+          (att.disposition === 'inline' && (att.type || '').startsWith('image/'))
+        )))
         .map(att => ({
           name: att.name || 'attachment',
           type: att.type || 'application/octet-stream',
@@ -786,8 +796,17 @@ export function EmailComposer({
     if (mode !== 'reply' && mode !== 'replyAll' && mode !== 'forward') return;
     if (!composerClient || !replyTo?.attachments?.length) return;
 
+    // Hydrate every cid the quoted body actually renders as an <img>, rather
+    // than only parts declared `image/*` + `inline`. Some clients (notably
+    // Foxmail 7.2) embed inline images as application/octet-stream with no
+    // inline disposition - the cid reference is the only signal they belong
+    // in the body, and requiring the headers left those images as blank
+    // placeholders in every reply/forward (#543). The viewer is equally
+    // lenient (email-viewer.tsx: `att.cid && att.blobId`), so reading and
+    // replying now agree. The real type is sniffed from the bytes below.
+    const embeddedCids = collectInlineImageCids(body);
     const inlineAtts = replyTo.attachments.filter((att) =>
-      att.cid && att.disposition === 'inline' && (att.type || '').startsWith('image/')
+      att.cid && att.blobId && embeddedCids.has(att.cid)
     );
     if (inlineAtts.length === 0) return;
 
@@ -818,7 +837,16 @@ export function EmailComposer({
             att.type,
           );
           if (cancelled) return;
-          const blob = new Blob([buffer], { type: att.type });
+          // Trust a declared image/* type; otherwise sniff the magic bytes so
+          // an octet-stream-embedded image still gets a renderable data URL
+          // and, on send, is re-attached with a correct image/* type that
+          // stricter clients (Thunderbird) will display.
+          const imageType = (att.type || '').startsWith('image/')
+            ? att.type
+            : sniffImageMime(new Uint8Array(buffer));
+          // Not an image at all - leave it alone rather than inlining it.
+          if (!imageType) continue;
+          const blob = new Blob([buffer], { type: imageType });
           const dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
@@ -827,7 +855,10 @@ export function EmailComposer({
           });
           if (cancelled) return;
           const entry = inlineImagesRef.current.find((e) => e.cid === att.cid);
-          if (entry) entry.dataUrl = dataUrl;
+          if (entry) {
+            entry.dataUrl = dataUrl;
+            entry.type = imageType;
+          }
           updates.set(att.cid, dataUrl);
         } catch (err) {
           debug.error('Failed to load inline image for compose', err);
