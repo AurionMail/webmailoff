@@ -140,7 +140,7 @@
 - Admin storage splits in two. `ADMIN_CONFIG_DIR` is operator-authored and can be mounted read-only once setup finishes; `ADMIN_STATE_DIR` holds the runtime audit log and login timestamps.
 - JSON config can read secrets from files (`passwordHashFile`, `sessionSecretFile`, `oauthClientSecretFile`) for Docker and Kubernetes secret mounts
 - An admin toggle controls search-engine indexing (`robots.txt` / `noindex`)
-- Plugin system: a schema-driven config UI, render and intercept hooks, `onAvatarResolve`, `onBeforeEmailSend`, composer-sidebar and email-banner slots, calendar event slots, i18n APIs (sandboxed plugins localize through manifest locales and `api.i18n.t`), an `/api/translate` proxy, email-body access, and managed policy enforcement
+- Plugin system: a schema-driven config UI, render and intercept hooks, `onAvatarResolve`, `onBeforeEmailSend`, composer-sidebar, email-banner, calendar-event, and contact crypto-key slots, i18n APIs (sandboxed plugins localize through manifest locales and `api.i18n.t`), an `/api/translate` proxy, email-body access, and managed policy enforcement
 - Plugin APIs reach contacts (`contact.get` / `create` / `update` / `search`), the signed-in user (`user.getAccounts`, `user.getIdentities`, `user.logout` and a logout hook), and — on the privileged tier — public keys and encryption at rest. Each sits behind its own consent permission.
 - `onBeforeBlobUpload` can divert an attachment to external storage before it reaches the server, and `api.http.post` takes binary `Blob` / `File` bodies to get it there
 - Plugins hot-reload, load from a dev folder, bundle `src/` on demand through esbuild, and can request `http:fetch` scoped by `httpOrigins`

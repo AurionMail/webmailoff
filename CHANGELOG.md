@@ -1,6 +1,34 @@
 # Changelog
 
-## 1.8.0 (2026-08-06)
+## 1.8.1 (2026-08-07)
+
+A GitHub Actions incident left the 1.8.0 release build queued indefinitely, so no Docker image was ever published for that tag. 1.8.1 re-runs the release with the same code, plus one plugin slot that merged in the meantime.
+
+Thank you for your donations:
+
+- _You? [Become a sponsor!](https://github.com/sponsors/bulwarkmail)_
+
+**One-time**
+
+- [@getpankajyadav](https://github.com/getpankajyadav)
+- [@Beckid](https://github.com/Beckid)
+- [@schnz](https://github.com/schnz)
+- [@BryanBerger98](https://github.com/BryanBerger98)
+
+**Monthly**
+
+- [@zeddD1abl0](https://github.com/zeddD1abl0)
+- [@fpauser](https://github.com/fpauser)
+- [@proxforge](https://github.com/proxforge)
+- [@spss20](https://github.com/spss20)
+- [@elgringoYan](https://github.com/elgringoYan)
+- [@pauladams8](https://github.com/pauladams8)
+- [@djpriest](https://github.com/djpriest)
+- [@umakers](https://github.com/umakers)
+- [@zplizzi](https://github.com/zplizzi)
+- [@jeremiah](https://github.com/jeremiah)
+- [@Theoretisch1337](https://github.com/Theoretisch1337)
+- [@svandive](https://github.com/svandive)
 
 ### Features
 
@@ -19,6 +47,7 @@
 - **i18n**: Catalan translation
 - **i18n**: Localized editor toolbar across every locale
 - **Plugins**: Contact API — `contact.get`, `contact.create`, `contact.update`, `contact.search`
+- **Plugins**: `contact-cryptokeys` UI slot, behind the `ui:contact-cryptokeys` permission, so a plugin can render a contact's crypto keys in place of the built-in list
 - **Plugins**: `user.getAccounts` and `user.getIdentities`
 - **Plugins**: `user.logout` method and logout hook
 - **Plugins**: Crypto API — public-key management and encryption-at-rest control on the privileged tier
@@ -67,6 +96,10 @@
 - **Plugins**: Correct the method names for message errors and `crypto.getPublicKeys`
 - **i18n**: Restore key parity across locales and the English `send_timeout` string
 - **Docs**: Document the remaining env vars in the env templates, and correct the facts and headings in README and FEATURES
+
+## 1.8.0 (2026-08-06)
+
+Superseded by 1.8.1. The release build never produced a Docker image — use 1.8.1 instead. The full notes live under 1.8.1 above.
 
 ## 1.7.8 (2026-07-22)
 
