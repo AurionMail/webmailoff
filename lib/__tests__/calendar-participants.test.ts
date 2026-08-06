@@ -10,7 +10,10 @@ import {
   buildParticipantMap,
 } from '@/lib/calendar-participants';
 
-function makeEvent(participants: Record<string, Partial<CalendarParticipant>> | null = null): CalendarEvent {
+function makeEvent(
+  participants: Record<string, Partial<CalendarParticipant>> | null = null,
+  overrides: Partial<CalendarEvent> = {}
+): CalendarEvent {
   return {
     '@type': 'Event',
     id: 'ev1',
@@ -54,8 +57,16 @@ function makeEvent(participants: Record<string, Partial<CalendarParticipant>> | 
     mayInviteSelf: false,
     mayInviteOthers: false,
     hideAttendees: false,
+    ...overrides,
   };
 }
+
+// What Stalwart hands back after an iCalendar round-trip: the ORGANIZER line is
+// rebuilt as a participant carrying only calendarAddress — no roles, no status.
+const stalwartOrganizerParticipant: Partial<CalendarParticipant> = {
+  '@type': 'Participant',
+  calendarAddress: 'mailto:alice@example.com',
+};
 
 const orgParticipant: Partial<CalendarParticipant> = {
   '@type': 'Participant',
@@ -258,6 +269,37 @@ describe('getParticipantList', () => {
     const list = getParticipantList(event);
     expect(list[0].status).toBe('needs-action');
   });
+
+  // #731: without this the organizer is treated as a plain attendee, seeded
+  // into the invite list on reopen, and re-saved as a duplicate every time.
+  it('flags the roles-less organizer Stalwart derives from ORGANIZER', () => {
+    const event = makeEvent(
+      { org: stalwartOrganizerParticipant, att1: attendeeParticipant },
+      { organizerCalendarAddress: 'mailto:alice@example.com' }
+    );
+    const list = getParticipantList(event);
+    expect(list.find(p => p.id === 'org')).toMatchObject({
+      email: 'alice@example.com',
+      isOrganizer: true,
+    });
+    expect(list.find(p => p.id === 'att1')!.isOrganizer).toBe(false);
+  });
+
+  it('matches the organizer address case-insensitively', () => {
+    const event = makeEvent(
+      { org: { '@type': 'Participant', calendarAddress: 'mailto:Alice@Example.COM' } },
+      { organizerCalendarAddress: 'mailto:alice@example.com' }
+    );
+    expect(getParticipantList(event)[0].isOrganizer).toBe(true);
+  });
+
+  it('flags the organizer via the legacy replyTo address', () => {
+    const event = makeEvent(
+      { org: stalwartOrganizerParticipant },
+      { replyTo: { imip: 'mailto:alice@example.com' } }
+    );
+    expect(getParticipantList(event)[0].isOrganizer).toBe(true);
+  });
 });
 
 describe('getStatusCounts', () => {
@@ -270,7 +312,8 @@ describe('getStatusCounts', () => {
       att4: attendeeParticipant,
     });
     const counts = getStatusCounts(event);
-    expect(counts.accepted).toBe(2);
+    // The organizer is excluded: they are not awaiting their own reply.
+    expect(counts.accepted).toBe(1);
     expect(counts.declined).toBe(1);
     expect(counts.tentative).toBe(1);
     expect(counts['needs-action']).toBe(1);
@@ -280,6 +323,18 @@ describe('getStatusCounts', () => {
     const event = makeEvent(null);
     const counts = getStatusCounts(event);
     expect(counts).toEqual({ accepted: 0, declined: 0, tentative: 0, 'needs-action': 0 });
+  });
+
+  // #731: the statusless participant Stalwart rebuilds from ORGANIZER would
+  // otherwise show the organizer as one more attendee still owing a response.
+  it('does not count the roles-less organizer as pending', () => {
+    const event = makeEvent(
+      { org: stalwartOrganizerParticipant, att1: attendeeParticipant },
+      { organizerCalendarAddress: 'mailto:alice@example.com' }
+    );
+    const counts = getStatusCounts(event);
+    expect(counts['needs-action']).toBe(1);
+    expect(counts.accepted).toBe(0);
   });
 });
 
@@ -369,5 +424,55 @@ describe('buildParticipantMap', () => {
     Object.values(map).forEach(p => {
       expect(p.kind).toBe('individual');
     });
+  });
+
+  // #731: the organizer must never also be written as an attendee, however
+  // they reached the invite list.
+  it('drops the organizer from the attendee list', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [
+        { name: 'Alice', email: 'alice@example.com' },
+        { name: 'Bob', email: 'bob@example.com' },
+      ]
+    );
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(Object.values(map).filter(p => p.roles?.attendee)).toHaveLength(1);
+    const alice = Object.values(map).filter(p => p.email === 'alice@example.com');
+    expect(alice).toHaveLength(1);
+    expect(alice[0].roles).toEqual({ owner: true });
+  });
+
+  it('drops the organizer regardless of case or surrounding whitespace', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [{ name: '', email: '  ALICE@Example.com  ' }]
+    );
+    expect(Object.keys(map)).toHaveLength(1);
+    expect(Object.values(map)[0].roles).toEqual({ owner: true });
+  });
+
+  it('deduplicates repeated attendee addresses case-insensitively', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [
+        { name: 'Bob', email: 'bob@example.com' },
+        { name: 'Bobby', email: 'BOB@example.com' },
+        { name: 'Carol', email: 'carol@example.com' },
+      ]
+    );
+    expect(Object.keys(map)).toHaveLength(3);
+    const bobs = Object.values(map).filter(p => p.email?.toLowerCase() === 'bob@example.com');
+    expect(bobs).toHaveLength(1);
+    expect(bobs[0].name).toBe('Bob');
+  });
+
+  it('skips blank attendee addresses', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [{ name: 'Nobody', email: '   ' }, { name: 'Bob', email: 'bob@example.com' }]
+    );
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(Object.values(map).some(p => p.name === 'Nobody')).toBe(false);
   });
 });

@@ -329,9 +329,22 @@ export function EventModal({
 
   const [attendees, setAttendees] = useState<{ name: string; email: string }[]>(() => {
     if (!event?.participants) return [];
+    // Never seed the invite list with the organizer or with a repeated address:
+    // handleSave writes the organizer separately, so either would round-trip
+    // into a duplicate entry every time the event is saved (#731).
+    const excluded = new Set<string>();
+    if (userIsOrganizer && currentUserEmails[0]) {
+      excluded.add(currentUserEmails[0].toLowerCase());
+    }
     return existingParticipants
       .filter(p => !p.isOrganizer)
-      .map(p => ({ name: p.name, email: p.email }));
+      .reduce<{ name: string; email: string }[]>((acc, p) => {
+        const key = p.email.trim().toLowerCase();
+        if (!key || excluded.has(key)) return acc;
+        excluded.add(key);
+        acc.push({ name: p.name, email: p.email.trim() });
+        return acc;
+      }, []);
   });
   const [sendInvitations, setSendInvitations] = useState(true);
   const participantInputRef = useRef<ParticipantInputHandle>(null);

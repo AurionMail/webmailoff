@@ -35,13 +35,21 @@ function participantMatchesEmail(p: CalendarParticipant, lowerEmails: string[]):
   return false;
 }
 
+/** Best-effort scheduling address for a participant, without the mailto: scheme. */
+function getParticipantEmail(p: CalendarParticipant): string {
+  if (p.email) return p.email;
+  if (p.calendarAddress) return p.calendarAddress.replace(/^mailto:/i, '');
+  if (p.sendTo?.imip) return p.sendTo.imip.replace(/^mailto:/i, '');
+  return '';
+}
+
 /**
  * Collects the event-level organizer calendar address(es).
  * Stalwart conveys the organizer via `organizerCalendarAddress` / `replyTo`
  * rather than a participant `roles.owner` flag, so self-organized events
  * imported from another server have no owner participant to match against.
  */
-function getEventOrganizerEmails(event: CalendarEvent): string[] {
+export function getEventOrganizerEmails(event: CalendarEvent): string[] {
   const emails: string[] = [];
   if (event.organizerCalendarAddress) {
     emails.push(event.organizerCalendarAddress.replace(/^mailto:/i, '').toLowerCase());
@@ -93,20 +101,18 @@ export function getUserStatus(
 
 export function getParticipantList(event: CalendarEvent): ParticipantInfo[] {
   if (!event.participants) return [];
+  // Stalwart rebuilds the ORGANIZER line into a participant that carries only
+  // `calendarAddress` — no `roles` at all — so `roles.owner` alone would treat
+  // the organizer as a plain attendee on every re-read (#731).
+  const organizerEmails = getEventOrganizerEmails(event);
   return Object.entries(event.participants).map(([id, p]) => {
-    let email = p.email || '';
-    if (!email && p.calendarAddress) {
-      email = p.calendarAddress.replace(/^mailto:/i, '');
-    }
-    if (!email && p.sendTo?.imip) {
-      email = p.sendTo.imip.replace(/^mailto:/i, '');
-    }
+    const email = getParticipantEmail(p);
     return {
       id,
       name: p.name || '',
       email,
       status: p.participationStatus || 'needs-action',
-      isOrganizer: !!p.roles?.owner,
+      isOrganizer: !!p.roles?.owner || (!!email && organizerEmails.includes(email.toLowerCase())),
     };
   });
 }
@@ -114,7 +120,12 @@ export function getParticipantList(event: CalendarEvent): ParticipantInfo[] {
 export function getStatusCounts(event: CalendarEvent): StatusCounts {
   const counts: StatusCounts = { accepted: 0, declined: 0, tentative: 0, 'needs-action': 0 };
   if (!event.participants) return counts;
+  const organizerEmails = getEventOrganizerEmails(event);
   for (const p of Object.values(event.participants)) {
+    // The organizer is not awaiting their own reply; counting the roles-less
+    // participant Stalwart derives from ORGANIZER inflates the pending total.
+    const email = getParticipantEmail(p).toLowerCase();
+    if (p.roles?.owner || (email && organizerEmails.includes(email))) continue;
     const s = p.participationStatus || 'needs-action';
     if (s in counts) counts[s as keyof StatusCounts]++;
   }
@@ -152,12 +163,21 @@ export function buildParticipantMap(
     kind: 'individual',
   };
 
+  // The organizer already has an entry above, and an address must not appear
+  // twice in the invite list, so drop both cases case-insensitively (#731).
+  const seen = new Set<string>([organizer.email.trim().toLowerCase()]);
+
   attendees.forEach((a) => {
+    const email = a.email.trim();
+    const key = email.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+
     participants[generateId()] = {
       '@type': 'Participant',
       name: a.name,
-      email: a.email,
-      calendarAddress: `mailto:${a.email}`,
+      email,
+      calendarAddress: `mailto:${email}`,
       roles: { attendee: true },
       participationStatus: 'needs-action',
       scheduleAgent: 'server',
