@@ -187,7 +187,11 @@ function buildPluginApi(manifest: PluginManifest) {
       logout: () => callApi('user.logout', []),
     },
     http: {
-      post: (path: string, body: Record<string, unknown>) => callApi('http.post', [path, body]),
+      // A Blob/File body is sent as a binary request; options.headers may then
+      // carry Content-Type and X-Plugin-* metadata for the receiving route.
+      // Any other body keeps the stock JSON behaviour.
+      post: (path: string, body: Record<string, unknown> | Blob, options?: { headers?: Record<string, string> }) =>
+        callApi('http.post', [path, body, options]),
       fetch: (url: string, init?: unknown) => callApi('http.fetch', [url, init]),
     },
     // Privileged-tier only (same-origin plugins). Calls throw for untrusted
@@ -225,6 +229,7 @@ function buildPluginApi(manifest: PluginManifest) {
     /**
      * Used to alterate files before they are uploaded to server.
      * Edited files are saved on indexedDB and remove once the upload to server begins.
+     * `get` needs the email:blob-read permission, `save` needs email:blob-write.
      */
     upfiles: {
       save: (formerFileId:string, file:File) =>
