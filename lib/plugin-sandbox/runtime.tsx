@@ -168,7 +168,7 @@ function buildPluginApi(manifest: PluginManifest) {
       settings: { ...manifest.settings },
     },
     crypto: {
-      getPublicKeys: () => callApi('crypto.fetchPublicKeys', []),
+      getPublicKeys: () => callApi('crypto.getPublicKeys', []),
       createPublicKey: (input: PublicKeyInput) => callApi('crypto.createPublicKey', [input]),
       removePublicKey: (keyId: string) => callApi('crypto.removePublicKey', [keyId]),
       setEncryptionAtRest: (config: EncryptionAtRestConfig) => callApi('crypto.setEncryptionAtRest', [config]),
