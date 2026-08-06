@@ -14,6 +14,7 @@ import { BUILTIN_THEMES } from '@/lib/builtin-themes';
 import { usePolicyStore } from '@/stores/policy-store';
 import { apiFetch } from '@/lib/browser-navigation';
 import { themeHooks } from '@/lib/plugin-hooks';
+import { syncThemeColorMeta } from '@/lib/theme-color-meta';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -68,6 +69,9 @@ const applyTheme = (theme: 'light' | 'dark') => {
 
   // Also update color-scheme for native elements (scrollbars, form controls)
   root.style.colorScheme = theme;
+
+  // Keep the PWA title bar in step with the mode switch (#671).
+  syncThemeColorMeta();
 
   localStorage.setItem('theme-applied', theme);
 };

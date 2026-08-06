@@ -1,6 +1,7 @@
 // Theme CSS injection and sanitization
 
 import { DISALLOWED_CSS_PATTERNS } from './plugin-types';
+import { syncThemeColorMeta } from './theme-color-meta';
 
 const THEME_STYLE_ID = 'active-theme';
 const THEME_SKIN_STYLE_ID = 'active-theme-skin';
@@ -76,6 +77,7 @@ export function injectThemeCSS(css: string): void {
   }
 
   styleEl.textContent = css;
+  syncThemeColorMeta();
 }
 
 /**
@@ -88,6 +90,7 @@ export function removeThemeCSS(): void {
   if (styleEl) {
     styleEl.remove();
   }
+  syncThemeColorMeta();
 }
 
 /**
@@ -113,6 +116,7 @@ export function injectThemeSkinCSS(css: string, themeId: string): void {
   if (document.body) {
     document.body.setAttribute(THEME_SKIN_BODY_ATTR, themeId);
   }
+  syncThemeColorMeta();
 }
 
 export function removeThemeSkinCSS(): void {
@@ -121,6 +125,7 @@ export function removeThemeSkinCSS(): void {
   const styleEl = document.getElementById(THEME_SKIN_STYLE_ID);
   if (styleEl) styleEl.remove();
   if (document.body) document.body.removeAttribute(THEME_SKIN_BODY_ATTR);
+  syncThemeColorMeta();
 }
 
 /**

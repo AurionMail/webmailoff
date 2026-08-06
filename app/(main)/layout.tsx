@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { FaviconBadge } from "@/components/favicon-badge";
+import { ThemeColorSync } from "@/components/theme-color-sync";
 import { configManager } from "@/lib/admin/config-manager";
 import {
   matchDomainBranding,
@@ -48,6 +49,21 @@ async function brandedValue(key: BrandingOverrideKey, fallback: string): Promise
   )[key];
   if (typeof override === "string" && override.length > 0) return override;
   return configManager.get<string>(key, fallback);
+}
+
+/**
+ * Whether an admin explicitly set a PWA theme colour (per-domain override, or
+ * an admin/env value rather than the built-in default). When they have, it wins
+ * outright; when they haven't, <ThemeColorSync /> tracks the active theme.
+ */
+async function hasExplicitThemeColor(): Promise<boolean> {
+  const host = pickRequestHost(await headers());
+  const override = matchDomainBranding(
+    host,
+    parseDomainBranding(configManager.get<unknown>("domainBranding", [])),
+  ).pwaThemeColor;
+  if (typeof override === "string" && override.length > 0) return true;
+  return configManager.getAllWithSources().pwaThemeColor?.source !== "default";
 }
 
 export async function generateViewport(): Promise<Viewport> {
@@ -103,9 +119,11 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  await configManager.ensureLoaded();
   const locale = await resolveRequestLocale();
   const nonce = (await headers()).get("x-nonce") ?? "";
   const parentOrigin = process.env.NEXT_PUBLIC_PARENT_ORIGIN || "";
+  const themeColorConfigured = await hasExplicitThemeColor();
 
   return (
     <html lang={locale} dir={getLocaleDirection(locale)} suppressHydrationWarning>
@@ -145,6 +163,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ServiceWorkerRegistration />
+        {!themeColorConfigured && <ThemeColorSync />}
         <FaviconBadge />
         {children}
       </body>
