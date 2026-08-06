@@ -30,7 +30,11 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.sendRaw',
   'jmap.submitRaw',
   'jmap.importRaw',
-  'upfiles.get',
+  // NOTE: upfiles.get is deliberately NOT tier-gated. It only reads back a
+  // file the user just attached in this session, by an unguessable UUID the
+  // composer itself hands to the onBeforeBlobUpload hook - not arbitrary
+  // message bytes from the server (those stay behind jmap.fetchBlob above).
+  // It remains behind the email:blob-read permission.
   'crypto.getOrCreateWebAuthn',
   'crypto.getPublicKeys',
   'crypto.createPublicKey',
@@ -59,10 +63,12 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'jmap.sendRaw': 'email:raw-send',
   'jmap.submitRaw': 'email:raw-send',
   'jmap.importRaw': 'email:raw-send',
-  // uploaded files (privileged-tier only) : 
-  // Used only to get a file before it is uploaded to alterate it. 
-  // To just read, use jmap.fetchBlob.
-  'upfiles.get' : 'email:blob-write',
+  // uploaded files :
+  // upfiles.get reads back a just-attached file (see onBeforeBlobUpload) and
+  // is a read - it sits behind email:blob-read. To read a stored message
+  // blob, use jmap.fetchBlob. upfiles.save rewrites the staged file and
+  // stays behind email:blob-write.
+  'upfiles.get' : 'email:blob-read',
   'upfiles.save' : 'email:blob-write',
   'crypto.getOrCreateWebAuthn': 'crypto:full',
   'crypto.getPublicKeys': 'crypto:full',
