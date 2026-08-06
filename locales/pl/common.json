@@ -1044,6 +1044,18 @@
         "show": "Pokaż",
         "unread": "Pokaż przy nieprzeczytanych",
         "hide": "Ukryj"
+      },
+      "unrecognized": {
+        "title": "Odzyskaj etykiety z serwera",
+        "description": "Nazwy i kolory etykiet są zapisane w tej przeglądarce, ale same etykiety znajdują się w wiadomościach jako słowa kluczowe JMAP. Przeskanuj pocztę w poszukiwaniu słów kluczowych, dla których nie ma tu etykiety, i dodaj je ponownie.",
+        "scan": "Szukaj etykiet",
+        "rescan": "Skanuj ponownie",
+        "scanning": "Skanowanie… {scanned} z {total} wiadomości",
+        "none": "Wszystkie etykiety w Twoich wiadomościach są już tutaj zdefiniowane.",
+        "messages": "{count, plural, one {# wiadomość} few {# wiadomości} other {# wiadomości}}",
+        "add_all": "Dodaj wszystkie ({count})",
+        "partial": "Przeskanowano tylko {scanned} najnowszych z {total} wiadomości. Etykiety używane wyłącznie w starszej poczcie mogą zostać pominięte.",
+        "error": "Nie udało się przeskanować poczty w poszukiwaniu etykiet."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Wyłączone",
         "enabled": "Szyfrowanie danych w spoczynku włączone",
         "disabled_success": "Szyfrowanie danych w spoczynku wyłączone",
-        "error": "Nie udało się zaktualizować ustawień szyfrowania"
+        "error": "Nie udało się zaktualizować ustawień szyfrowania",
+        "algorithm_label": "Algorytm szyfrowania",
+        "encrypt_on_append": "Szyfruj nowe wiadomości podczas przesyłania",
+        "allow_spam_training": "Zezwalaj na trenowanie filtra spamu przed zaszyfrowaniem wiadomości",
+        "enable_encryption": "Włącz szyfrowanie",
+        "enable_tooltip": "Włącz szyfrowanie tym kluczem",
+        "configure_title": "Włącz szyfrowanie tym kluczem",
+        "enable_button": "Włącz",
+        "disable_tooltip": "Wyłącz szyfrowanie",
+        "enabled_success": "Szyfrowanie danych w spoczynku włączone"
       },
       "email_client": {
         "title": "Konfiguracja klienta poczty",
@@ -1549,6 +1570,13 @@
         "expired": "Ten kod wygasł.",
         "generating": "Generowanie…",
         "error": "Nie udało się utworzyć kodu parowania. Spróbuj ponownie."
+      },
+      "public_keys": {
+        "name_label": "Nazwa klucza publicznego",
+        "name_placeholder": "np. Mój klucz",
+        "key_label": "Klucz publiczny (S/MIME lub PGP w formacie ASCII)",
+        "key_placeholder": "Wklej tutaj swój klucz publiczny",
+        "none": "Nie skonfigurowano żadnych kluczy publicznych"
       }
     },
     "identities": {

@@ -1044,6 +1044,18 @@
         "show": "Mostrar",
         "unread": "Mostrar se não lidas",
         "hide": "Ocultar"
+      },
+      "unrecognized": {
+        "title": "Recuperar etiquetas do servidor",
+        "description": "Os nomes e as cores das etiquetas são guardados neste navegador, mas as etiquetas em si estão nos seus e-mails como palavras-chave JMAP. Analise o seu correio à procura de palavras-chave sem etiqueta definida aqui e volte a adicioná-las.",
+        "scan": "Procurar etiquetas",
+        "rescan": "Analisar novamente",
+        "scanning": "A analisar… {scanned} de {total} e-mails",
+        "none": "Todas as etiquetas dos seus e-mails já estão definidas aqui.",
+        "messages": "{count, plural, one {# e-mail} other {# e-mails}}",
+        "add_all": "Adicionar todas ({count})",
+        "partial": "Apenas os {scanned} e-mails mais recentes de {total} foram analisados. Podem faltar etiquetas usadas apenas em correio mais antigo.",
+        "error": "Não foi possível analisar o seu correio à procura de etiquetas."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Desabilitado",
         "enabled": "Criptografia em repouso habilitada",
         "disabled_success": "Criptografia em repouso desabilitada",
-        "error": "Não foi possível atualizar as configurações de criptografia"
+        "error": "Não foi possível atualizar as configurações de criptografia",
+        "algorithm_label": "Algoritmo de criptografia",
+        "encrypt_on_append": "Criptografar novos e-mails ao carregar",
+        "allow_spam_training": "Permitir treino de spam antes de criptografar os e-mails",
+        "enable_encryption": "Ativar criptografia",
+        "enable_tooltip": "Ativar criptografia com esta chave",
+        "configure_title": "Ativar criptografia com esta chave",
+        "enable_button": "Ativar",
+        "disable_tooltip": "Desativar criptografia",
+        "enabled_success": "Criptografia em repouso habilitada"
       },
       "email_client": {
         "title": "Configuração do Cliente de E-mail",
@@ -1549,6 +1570,13 @@
         "expired": "Este código expirou.",
         "generating": "Gerando…",
         "error": "Não foi possível criar um código de pareamento. Tente novamente."
+      },
+      "public_keys": {
+        "name_label": "Nome da chave pública",
+        "name_placeholder": "ex. A minha chave",
+        "key_label": "Chave pública (S/MIME ou PGP em formato ASCII)",
+        "key_placeholder": "Cole aqui a sua chave pública",
+        "none": "Nenhuma chave pública configurada"
       }
     },
     "identities": {

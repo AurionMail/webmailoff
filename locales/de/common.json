@@ -1044,6 +1044,18 @@
         "show": "Anzeigen",
         "unread": "Bei Ungelesenen anzeigen",
         "hide": "Ausblenden"
+      },
+      "unrecognized": {
+        "title": "Labels vom Server wiederherstellen",
+        "description": "Labelnamen und -farben werden in diesem Browser gespeichert, die Labels selbst liegen jedoch als JMAP-Keywords auf Ihren E-Mails. Durchsuchen Sie Ihre E-Mails nach Keywords, zu denen es hier kein Label gibt, und fügen Sie diese wieder hinzu.",
+        "scan": "Nach Labels suchen",
+        "rescan": "Erneut suchen",
+        "scanning": "Suche läuft… {scanned} von {total} E-Mails",
+        "none": "Alle Labels auf Ihren E-Mails sind hier bereits definiert.",
+        "messages": "{count, plural, one {# E-Mail} other {# E-Mails}}",
+        "add_all": "Alle {count} hinzufügen",
+        "partial": "Es wurden nur die {scanned} neuesten von {total} E-Mails durchsucht. Labels, die nur in älteren E-Mails vorkommen, fehlen möglicherweise.",
+        "error": "Ihre E-Mails konnten nicht nach Labels durchsucht werden."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Deaktiviert",
         "enabled": "Verschlüsselung im Ruhezustand aktiviert",
         "disabled_success": "Verschlüsselung im Ruhezustand deaktiviert",
-        "error": "Verschlüsselungseinstellungen konnten nicht aktualisiert werden"
+        "error": "Verschlüsselungseinstellungen konnten nicht aktualisiert werden",
+        "algorithm_label": "Verschlüsselungsalgorithmus",
+        "encrypt_on_append": "Neue E-Mails beim Hochladen verschlüsseln",
+        "allow_spam_training": "Spam-Training zulassen, bevor E-Mails verschlüsselt werden",
+        "enable_encryption": "Verschlüsselung aktivieren",
+        "enable_tooltip": "Verschlüsselung mit diesem Schlüssel aktivieren",
+        "configure_title": "Verschlüsselung mit diesem Schlüssel aktivieren",
+        "enable_button": "Aktivieren",
+        "disable_tooltip": "Verschlüsselung deaktivieren",
+        "enabled_success": "Verschlüsselung im Ruhezustand aktiviert"
       },
       "email_client": {
         "title": "E-Mail-Client-Einrichtung",
@@ -1549,6 +1570,13 @@
         "expired": "Dieser Code ist abgelaufen.",
         "generating": "Wird erstellt…",
         "error": "Kopplungscode konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
+      },
+      "public_keys": {
+        "name_label": "Name des öffentlichen Schlüssels",
+        "name_placeholder": "z.B. Mein Schlüssel",
+        "key_label": "Öffentlicher Schlüssel (S/MIME oder PGP im ASCII-Format)",
+        "key_placeholder": "Fügen Sie hier Ihren öffentlichen Schlüssel ein",
+        "none": "Keine öffentlichen Schlüssel konfiguriert"
       }
     },
     "identities": {

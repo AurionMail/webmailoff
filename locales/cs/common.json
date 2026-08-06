@@ -1044,6 +1044,18 @@
         "show": "Zobrazit",
         "unread": "Zobrazit při nepřečtených",
         "hide": "Skrýt"
+      },
+      "unrecognized": {
+        "title": "Obnovit štítky ze serveru",
+        "description": "Názvy a barvy štítků jsou uloženy v tomto prohlížeči, ale samotné štítky jsou na vašich zprávách jako klíčová slova JMAP. Prohledejte poštu na klíčová slova, která zde žádný štítek nepokrývá, a přidejte je zpět.",
+        "scan": "Vyhledat štítky",
+        "rescan": "Hledat znovu",
+        "scanning": "Prohledávání… {scanned} z {total} zpráv",
+        "none": "Všechny štítky na vašich zprávách jsou zde už definované.",
+        "messages": "{count, plural, one {# zpráva} few {# zprávy} other {# zpráv}}",
+        "add_all": "Přidat všech {count}",
+        "partial": "Prohledáno bylo jen {scanned} nejnovějších zpráv z {total}. Štítky použité pouze ve starší poště mohou chybět.",
+        "error": "Poštu se nepodařilo prohledat na štítky."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Vypnuto",
         "enabled": "Šifrování dat v klidu zapnuto",
         "disabled_success": "Šifrování dat v klidu vypnuto",
-        "error": "Nepodařilo se aktualizovat nastavení šifrování"
+        "error": "Nepodařilo se aktualizovat nastavení šifrování",
+        "algorithm_label": "Šifrovací algoritmus",
+        "encrypt_on_append": "Šifrovat nové e-maily při nahrání",
+        "allow_spam_training": "Povolit trénování spamového filtru před zašifrováním e-mailů",
+        "enable_encryption": "Zapnout šifrování",
+        "enable_tooltip": "Zapnout šifrování tímto klíčem",
+        "configure_title": "Zapnout šifrování tímto klíčem",
+        "enable_button": "Zapnout",
+        "disable_tooltip": "Vypnout šifrování",
+        "enabled_success": "Šifrování dat v klidu zapnuto"
       },
       "email_client": {
         "title": "Konfigurace poštovního klienta",
@@ -1549,6 +1570,13 @@
         "expired": "Platnost tohoto kódu vypršela.",
         "generating": "Generování…",
         "error": "Párovací kód se nepodařilo vytvořit. Zkuste to prosím znovu."
+      },
+      "public_keys": {
+        "name_label": "Název veřejného klíče",
+        "name_placeholder": "např. Můj klíč",
+        "key_label": "Veřejný klíč (S/MIME nebo PGP ve formátu ASCII)",
+        "key_placeholder": "Sem vložte svůj veřejný klíč",
+        "none": "Nejsou nastaveny žádné veřejné klíče"
       }
     },
     "identities": {

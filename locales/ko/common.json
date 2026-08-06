@@ -1044,6 +1044,18 @@
         "show": "표시",
         "unread": "읽지 않음이 있을 때 표시",
         "hide": "숨기기"
+      },
+      "unrecognized": {
+        "title": "서버에서 태그 복구",
+        "description": "태그 이름과 색상은 이 브라우저에 저장되지만, 태그 자체는 JMAP 키워드로 메일에 저장돼요. 여기에 정의되지 않은 키워드를 메일에서 검색해서 다시 추가할 수 있어요.",
+        "scan": "태그 검색",
+        "rescan": "다시 검색",
+        "scanning": "검색 중… {total}개 중 {scanned}개",
+        "none": "메일에 있는 모든 태그가 여기에 이미 정의돼 있어요.",
+        "messages": "{count, plural, other {메일 #개}}",
+        "add_all": "{count}개 모두 추가",
+        "partial": "{total}개 중 최근 {scanned}개만 검색했어요. 오래된 메일에만 쓰인 태그는 빠져 있을 수 있어요.",
+        "error": "메일에서 태그를 검색하지 못했어요."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "사용 안 함",
         "enabled": "저장 데이터 암호화가 켜졌어요",
         "disabled_success": "저장 데이터 암호화가 꺼졌어요",
-        "error": "암호화 설정을 업데이트하지 못했어요"
+        "error": "암호화 설정을 업데이트하지 못했어요",
+        "algorithm_label": "암호화 알고리즘",
+        "encrypt_on_append": "새 메일을 업로드할 때 암호화",
+        "allow_spam_training": "메일을 암호화하기 전에 스팸 학습 허용",
+        "enable_encryption": "암호화 사용",
+        "enable_tooltip": "이 키로 암호화 사용",
+        "configure_title": "이 키로 암호화 사용",
+        "enable_button": "사용",
+        "disable_tooltip": "암호화 사용 안 함",
+        "enabled_success": "저장 데이터 암호화가 켜졌어요"
       },
       "email_client": {
         "title": "이메일 클라이언트 설정",
@@ -1549,6 +1570,13 @@
         "expired": "이 코드는 만료되었습니다.",
         "generating": "생성 중…",
         "error": "페어링 코드를 만들지 못했습니다. 다시 시도해 주세요."
+      },
+      "public_keys": {
+        "name_label": "공개 키 이름",
+        "name_placeholder": "예: 내 키",
+        "key_label": "공개 키(S/MIME 또는 PGP ASCII 형식)",
+        "key_placeholder": "여기에 공개 키를 붙여넣으세요",
+        "none": "설정된 공개 키가 없어요"
       }
     },
     "identities": {

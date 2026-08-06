@@ -1047,6 +1047,18 @@
         "show": "Afișează",
         "unread": "Afișează dacă sunt necitite",
         "hide": "Ascunde"
+      },
+      "unrecognized": {
+        "title": "Recuperați etichetele de pe server",
+        "description": "Numele și culorile etichetelor sunt stocate în acest browser, dar etichetele în sine se află pe e-mailurile dvs. sub formă de cuvinte-cheie JMAP. Scanați corespondența pentru cuvinte-cheie care nu au o etichetă aici și adăugați-le înapoi.",
+        "scan": "Căutați etichete",
+        "rescan": "Scanați din nou",
+        "scanning": "Se scanează… {scanned} din {total} e-mailuri",
+        "none": "Toate etichetele de pe e-mailurile dvs. sunt deja definite aici.",
+        "messages": "{count, plural, one {# e-mail} few {# e-mailuri} other {# de e-mailuri}}",
+        "add_all": "Adăugați toate cele {count}",
+        "partial": "Au fost scanate doar cele mai recente {scanned} din {total} e-mailuri. Etichetele folosite doar pe mesaje mai vechi pot lipsi.",
+        "error": "Corespondența nu a putut fi scanată pentru etichete."
       }
     },
     "notifications": {
@@ -1536,7 +1548,16 @@
         "inactive": "Dezactivat",
         "enabled": "Criptarea datelor stocate este activată",
         "disabled_success": "Criptarea datelor stocate este dezactivată",
-        "error": "Nu s-au putut actualiza setările de criptare"
+        "error": "Nu s-au putut actualiza setările de criptare",
+        "algorithm_label": "Algoritm de criptare",
+        "encrypt_on_append": "Criptați e-mailurile noi la încărcare",
+        "allow_spam_training": "Permiteți antrenarea filtrului de spam înainte de criptarea e-mailurilor",
+        "enable_encryption": "Activați criptarea",
+        "enable_tooltip": "Activați criptarea cu această cheie",
+        "configure_title": "Activați criptarea cu această cheie",
+        "enable_button": "Activați",
+        "disable_tooltip": "Dezactivați criptarea",
+        "enabled_success": "Criptarea datelor stocate este activată"
       },
       "email_client": {
         "title": "Configurarea clientului de e-mail",
@@ -1556,6 +1577,13 @@
         "expired": "Acest cod a expirat.",
         "generating": "Se generează…",
         "error": "Nu s-a putut crea un cod de asociere. Vă rugăm să încercați din nou."
+      },
+      "public_keys": {
+        "name_label": "Numele cheii publice",
+        "name_placeholder": "de ex. Cheia mea",
+        "key_label": "Cheie publică (S/MIME sau PGP în format ASCII)",
+        "key_placeholder": "Lipiți aici cheia dvs. publică",
+        "none": "Nicio cheie publică configurată"
       }
     },
     "identities": {

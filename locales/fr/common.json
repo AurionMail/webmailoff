@@ -1044,6 +1044,18 @@
         "show": "Afficher",
         "unread": "Afficher si non lus",
         "hide": "Masquer"
+      },
+      "unrecognized": {
+        "title": "Récupérer les étiquettes depuis le serveur",
+        "description": "Les noms et couleurs des étiquettes sont enregistrés dans ce navigateur, mais les étiquettes elles-mêmes se trouvent sur vos e-mails sous forme de mots-clés JMAP. Analysez votre messagerie à la recherche de mots-clés qu'aucune étiquette ici n'explique, puis rajoutez-les.",
+        "scan": "Rechercher des étiquettes",
+        "rescan": "Analyser à nouveau",
+        "scanning": "Analyse en cours… {scanned} e-mails sur {total}",
+        "none": "Toutes les étiquettes présentes sur vos e-mails sont déjà définies ici.",
+        "messages": "{count, plural, one {# e-mail} other {# e-mails}}",
+        "add_all": "Ajouter les {count}",
+        "partial": "Seuls les {scanned} e-mails les plus récents sur {total} ont été analysés. Les étiquettes utilisées uniquement sur des e-mails plus anciens peuvent manquer.",
+        "error": "Impossible d'analyser votre messagerie à la recherche d'étiquettes."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Désactivé",
         "enabled": "Chiffrement au repos activé",
         "disabled_success": "Chiffrement au repos désactivé",
-        "error": "Impossible de mettre à jour les paramètres de chiffrement"
+        "error": "Impossible de mettre à jour les paramètres de chiffrement",
+        "algorithm_label": "Algorithme de chiffrement",
+        "encrypt_on_append": "Chiffrer les nouveaux e-mails lors du téléversement",
+        "allow_spam_training": "Autoriser l'apprentissage antispam avant le chiffrement des e-mails",
+        "enable_encryption": "Activer le chiffrement",
+        "enable_tooltip": "Activer le chiffrement avec cette clé",
+        "configure_title": "Activer le chiffrement avec cette clé",
+        "enable_button": "Activer",
+        "disable_tooltip": "Désactiver le chiffrement",
+        "enabled_success": "Chiffrement au repos activé"
       },
       "email_client": {
         "title": "Configuration du client de messagerie",
@@ -1549,6 +1570,13 @@
         "expired": "Ce code a expiré.",
         "generating": "Génération…",
         "error": "Impossible de créer un code d'association. Veuillez réessayer."
+      },
+      "public_keys": {
+        "name_label": "Nom de la clé publique",
+        "name_placeholder": "ex. Ma clé",
+        "key_label": "Clé publique (S/MIME ou PGP au format ASCII)",
+        "key_placeholder": "Collez votre clé publique ici",
+        "none": "Aucune clé publique configurée"
       }
     },
     "identities": {

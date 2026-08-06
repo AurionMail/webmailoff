@@ -1044,6 +1044,18 @@
         "show": "Tonen",
         "unread": "Tonen bij ongelezen",
         "hide": "Verbergen"
+      },
+      "unrecognized": {
+        "title": "Labels van de server herstellen",
+        "description": "Labelnamen en -kleuren worden in deze browser bewaard, maar de labels zelf staan als JMAP-trefwoorden op uw e-mails. Doorzoek uw e-mail op trefwoorden waarvoor hier geen label bestaat en voeg ze weer toe.",
+        "scan": "Zoeken naar labels",
+        "rescan": "Opnieuw zoeken",
+        "scanning": "Bezig met zoeken… {scanned} van {total} e-mails",
+        "none": "Alle labels op uw e-mails zijn hier al gedefinieerd.",
+        "messages": "{count, plural, one {# e-mail} other {# e-mails}}",
+        "add_all": "Alle {count} toevoegen",
+        "partial": "Alleen de {scanned} meest recente van {total} e-mails zijn doorzocht. Labels die alleen op oudere e-mails staan, ontbreken mogelijk.",
+        "error": "Kan uw e-mail niet doorzoeken op labels."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Uitgeschakeld",
         "enabled": "Versleuteling in rust ingeschakeld",
         "disabled_success": "Versleuteling in rust uitgeschakeld",
-        "error": "Kan versleutelingsinstellingen niet bijwerken"
+        "error": "Kan versleutelingsinstellingen niet bijwerken",
+        "algorithm_label": "Versleutelingsalgoritme",
+        "encrypt_on_append": "Nieuwe e-mails versleutelen bij uploaden",
+        "allow_spam_training": "Spamtraining toestaan voordat e-mails worden versleuteld",
+        "enable_encryption": "Versleuteling inschakelen",
+        "enable_tooltip": "Versleuteling met deze sleutel inschakelen",
+        "configure_title": "Versleuteling met deze sleutel inschakelen",
+        "enable_button": "Inschakelen",
+        "disable_tooltip": "Versleuteling uitschakelen",
+        "enabled_success": "Versleuteling in rust ingeschakeld"
       },
       "email_client": {
         "title": "E-mailclient instellen",
@@ -1549,6 +1570,13 @@
         "expired": "Deze code is verlopen.",
         "generating": "Genereren…",
         "error": "Kon geen koppelingscode aanmaken. Probeer het opnieuw."
+      },
+      "public_keys": {
+        "name_label": "Naam van openbare sleutel",
+        "name_placeholder": "bijv. Mijn sleutel",
+        "key_label": "Openbare sleutel (S/MIME of PGP in ASCII-formaat)",
+        "key_placeholder": "Plak hier uw openbare sleutel",
+        "none": "Geen openbare sleutels geconfigureerd"
       }
     },
     "identities": {

@@ -1047,6 +1047,18 @@
         "show": "Megjelenítés",
         "unread": "Megjelenítés olvasatlanoknál",
         "hide": "Elrejtés"
+      },
+      "unrecognized": {
+        "title": "Címkék helyreállítása a szerverről",
+        "description": "A címkék nevét és színét ez a böngésző tárolja, maguk a címkék azonban JMAP kulcsszavakként az e-mailjein vannak. Keresse meg a levelein azokat a kulcsszavakat, amelyekhez itt nem tartozik címke, majd adja hozzá őket újra.",
+        "scan": "Címkék keresése",
+        "rescan": "Keresés újra",
+        "scanning": "Keresés… {total} e-mailből {scanned}",
+        "none": "Az e-mailjein szereplő összes címke már definiálva van itt.",
+        "messages": "{count, plural, one {# e-mail} other {# e-mail}}",
+        "add_all": "Mind a(z) {count} hozzáadása",
+        "partial": "A(z) {total} e-mailből csak a {scanned} legutóbbi lett átvizsgálva. A csak régebbi leveleken használt címkék hiányozhatnak.",
+        "error": "Nem sikerült átvizsgálni a leveleket címkék után."
       }
     },
     "notifications": {
@@ -1532,7 +1544,16 @@
         "inactive": "Letiltva",
         "enabled": "Titkosítás nyugalmi állapotban engedélyezve",
         "disabled_success": "Titkosítás nyugalmi állapotban letiltva",
-        "error": "Nem sikerült frissíteni a titkosítási beállításokat"
+        "error": "Nem sikerült frissíteni a titkosítási beállításokat",
+        "algorithm_label": "Titkosítási algoritmus",
+        "encrypt_on_append": "Új e-mailek titkosítása feltöltéskor",
+        "allow_spam_training": "Spam-tanítás engedélyezése az e-mailek titkosítása előtt",
+        "enable_encryption": "Titkosítás engedélyezése",
+        "enable_tooltip": "Titkosítás engedélyezése ezzel a kulccsal",
+        "configure_title": "Titkosítás engedélyezése ezzel a kulccsal",
+        "enable_button": "Engedélyezés",
+        "disable_tooltip": "Titkosítás letiltása",
+        "enabled_success": "Titkosítás nyugalmi állapotban engedélyezve"
       },
       "email_client": {
         "title": "E-mail kliens beállítás",
@@ -1552,6 +1573,13 @@
         "expired": "Ez a kód lejárt.",
         "generating": "Generálás…",
         "error": "Nem sikerült párosítási kódot létrehozni. Próbáld újra."
+      },
+      "public_keys": {
+        "name_label": "Nyilvános kulcs neve",
+        "name_placeholder": "pl. A kulcsom",
+        "key_label": "Nyilvános kulcs (S/MIME vagy PGP ASCII formátumban)",
+        "key_placeholder": "Illessze be ide a nyilvános kulcsát",
+        "none": "Nincs beállítva nyilvános kulcs"
       }
     },
     "identities": {

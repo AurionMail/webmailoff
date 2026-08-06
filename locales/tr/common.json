@@ -1044,6 +1044,18 @@
         "show": "Göster",
         "unread": "Okunmamış varsa göster",
         "hide": "Gizle"
+      },
+      "unrecognized": {
+        "title": "Etiketleri sunucudan kurtar",
+        "description": "Etiket adları ve renkleri bu tarayıcıda saklanır, ancak etiketlerin kendisi JMAP anahtar sözcükleri olarak e-postalarınızda bulunur. Burada karşılığı olmayan anahtar sözcükler için postanızı tarayın ve bunları geri ekleyin.",
+        "scan": "Etiketleri tara",
+        "rescan": "Yeniden tara",
+        "scanning": "Taranıyor… {total} e-postadan {scanned} tanesi",
+        "none": "E-postalarınızdaki tüm etiketler burada zaten tanımlı.",
+        "messages": "{count, plural, one {# e-posta} other {# e-posta}}",
+        "add_all": "{count} etiketin tümünü ekle",
+        "partial": "{total} e-postadan yalnızca en yeni {scanned} tanesi tarandı. Yalnızca eski postalarda kullanılan etiketler eksik olabilir.",
+        "error": "Postanız etiketler için taranamadı."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Devre dışı",
         "enabled": "Bekleme süresi şifrelemesi etkinleştirildi",
         "disabled_success": "Bekleme süresi şifrelemesi devre dışı bırakıldı",
-        "error": "Şifreleme ayarları güncellenemedi"
+        "error": "Şifreleme ayarları güncellenemedi",
+        "algorithm_label": "Şifreleme algoritması",
+        "encrypt_on_append": "Yeni e-postaları yüklenirken şifrele",
+        "allow_spam_training": "E-postalar şifrelenmeden önce spam eğitimine izin ver",
+        "enable_encryption": "Şifrelemeyi etkinleştir",
+        "enable_tooltip": "Bu anahtarla şifrelemeyi etkinleştir",
+        "configure_title": "Bu anahtarla şifrelemeyi etkinleştir",
+        "enable_button": "Etkinleştir",
+        "disable_tooltip": "Şifrelemeyi devre dışı bırak",
+        "enabled_success": "Bekleme süresi şifrelemesi etkinleştirildi"
       },
       "email_client": {
         "title": "E-posta İstemcisi Kurulumu",
@@ -1549,6 +1570,13 @@
         "expired": "Bu kodun süresi doldu.",
         "generating": "Oluşturuluyor…",
         "error": "Eşleştirme kodu oluşturulamadı. Lütfen tekrar deneyin."
+      },
+      "public_keys": {
+        "name_label": "Ortak anahtar adı",
+        "name_placeholder": "ör. Anahtarım",
+        "key_label": "Ortak anahtar (S/MIME veya PGP ASCII biçiminde)",
+        "key_placeholder": "Ortak anahtarınızı buraya yapıştırın",
+        "none": "Yapılandırılmış ortak anahtar yok"
       }
     },
     "identities": {

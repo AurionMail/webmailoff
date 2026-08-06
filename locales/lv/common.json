@@ -1044,6 +1044,18 @@
         "show": "Rādīt",
         "unread": "Rādīt, ja ir nelasīti",
         "hide": "Slēpt"
+      },
+      "unrecognized": {
+        "title": "Atgūt tagus no servera",
+        "description": "Tagu nosaukumi un krāsas tiek glabāti šajā pārlūkā, bet paši tagi atrodas jūsu vēstulēs kā JMAP atslēgvārdi. Pārmeklējiet pastu, lai atrastu atslēgvārdus, kuriem šeit nav taga, un pievienojiet tos atpakaļ.",
+        "scan": "Meklēt tagus",
+        "rescan": "Meklēt vēlreiz",
+        "scanning": "Notiek meklēšana… {scanned} no {total} vēstulēm",
+        "none": "Visi jūsu vēstulēs esošie tagi jau ir definēti šeit.",
+        "messages": "{count, plural, one {# vēstule} other {# vēstules}}",
+        "add_all": "Pievienot visus ({count})",
+        "partial": "Tika pārmeklētas tikai {scanned} jaunākās no {total} vēstulēm. Tagi, kas izmantoti tikai vecākās vēstulēs, var nebūt atrasti.",
+        "error": "Neizdevās pārmeklēt pastu, lai atrastu tagus."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Izslēgta",
         "enabled": "Krātuves šifrēšana ir iespējota",
         "disabled_success": "Krātuves šifrēšana ir izslēgta",
-        "error": "Neizdevās atjaunināt šifrēšanas iestatījumus"
+        "error": "Neizdevās atjaunināt šifrēšanas iestatījumus",
+        "algorithm_label": "Šifrēšanas algoritms",
+        "encrypt_on_append": "Šifrēt jaunās vēstules to augšupielādes laikā",
+        "allow_spam_training": "Atļaut mēstuļu filtra apmācību pirms vēstuļu šifrēšanas",
+        "enable_encryption": "Ieslēgt šifrēšanu",
+        "enable_tooltip": "Ieslēgt šifrēšanu ar šo atslēgu",
+        "configure_title": "Ieslēgt šifrēšanu ar šo atslēgu",
+        "enable_button": "Ieslēgt",
+        "disable_tooltip": "Izslēgt šifrēšanu",
+        "enabled_success": "Krātuves šifrēšana ir iespējota"
       },
       "email_client": {
         "title": "Pasta klienta iestatīšana",
@@ -1549,6 +1570,13 @@
         "expired": "Šī koda derīgums ir beidzies.",
         "generating": "Ģenerē…",
         "error": "Neizdevās izveidot pārošanas kodu. Lūdzu, mēģiniet vēlreiz."
+      },
+      "public_keys": {
+        "name_label": "Publiskās atslēgas nosaukums",
+        "name_placeholder": "piem., Mana atslēga",
+        "key_label": "Publiskā atslēga (S/MIME vai PGP ASCII formātā)",
+        "key_placeholder": "Ielīmējiet šeit savu publisko atslēgu",
+        "none": "Nav konfigurēta neviena publiskā atslēga"
       }
     },
     "identities": {

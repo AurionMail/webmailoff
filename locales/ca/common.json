@@ -1047,6 +1047,18 @@
         "show": "Mostra",
         "unread": "Mostra si hi ha no llegits",
         "hide": "Amaga"
+      },
+      "unrecognized": {
+        "title": "Recupera etiquetes del servidor",
+        "description": "Els noms i els colors de les etiquetes es desen en aquest navegador, però les etiquetes viuen als vostres correus com a paraules clau JMAP. Analitzeu el correu per trobar paraules clau que cap etiqueta d'aquí no expliqui i torneu-les a afegir.",
+        "scan": "Cerca etiquetes",
+        "rescan": "Torna a cercar",
+        "scanning": "S'està analitzant… {scanned} de {total} correus",
+        "none": "Totes les etiquetes dels vostres correus ja estan definides aquí.",
+        "messages": "{count, plural, one {# correu} other {# correus}}",
+        "add_all": "Afegeix-les totes ({count})",
+        "partial": "Només s'han analitzat els {scanned} correus més recents de {total}. Poden faltar etiquetes usades únicament en correus més antics.",
+        "error": "No s'ha pogut analitzar el correu per cercar etiquetes."
       }
     },
     "notifications": {
@@ -1536,7 +1548,16 @@
         "inactive": "Desactivat",
         "enabled": "Xifratge en repòs activat",
         "disabled_success": "Xifratge en repòs desactivat",
-        "error": "No s'ha pogut actualitzar la configuració de xifratge"
+        "error": "No s'ha pogut actualitzar la configuració de xifratge",
+        "algorithm_label": "Algorisme de xifratge",
+        "encrypt_on_append": "Xifra els correus nous en pujar-los",
+        "allow_spam_training": "Permet l'entrenament antispam abans de xifrar els correus",
+        "enable_encryption": "Activa el xifratge",
+        "enable_tooltip": "Activa el xifratge amb aquesta clau",
+        "configure_title": "Activa el xifratge amb aquesta clau",
+        "enable_button": "Activa",
+        "disable_tooltip": "Desactiva el xifratge",
+        "enabled_success": "Xifratge en repòs activat"
       },
       "email_client": {
         "title": "Configuració del client de correu",
@@ -1556,6 +1577,13 @@
         "expired": "Aquest codi ha caducat.",
         "generating": "Generant…",
         "error": "No s'ha pogut crear el codi d'aparellament. Torneu-ho a provar."
+      },
+      "public_keys": {
+        "name_label": "Nom de la clau pública",
+        "name_placeholder": "p. ex. La meva clau",
+        "key_label": "Clau pública (S/MIME o PGP en ASCII armor)",
+        "key_placeholder": "Enganxeu aquí la vostra clau pública",
+        "none": "No hi ha cap clau pública configurada"
       }
     },
     "identities": {

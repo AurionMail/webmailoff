@@ -1047,6 +1047,18 @@
         "show": "Zobraziť",
         "unread": "Zobraziť pri neprečítaných",
         "hide": "Skryť"
+      },
+      "unrecognized": {
+        "title": "Obnoviť štítky zo servera",
+        "description": "Názvy a farby štítkov sú uložené v tomto prehliadači, ale samotné štítky sú na vašich správach ako kľúčové slová JMAP. Prehľadajte poštu na kľúčové slová, ku ktorým tu nie je štítok, a pridajte ich späť.",
+        "scan": "Vyhľadať štítky",
+        "rescan": "Hľadať znova",
+        "scanning": "Prehľadávanie… {scanned} z {total} správ",
+        "none": "Všetky štítky na vašich správach sú tu už definované.",
+        "messages": "{count, plural, one {# správa} few {# správy} other {# správ}}",
+        "add_all": "Pridať všetkých {count}",
+        "partial": "Prehľadaných bolo iba {scanned} najnovších správ z {total}. Štítky použité len na staršej pošte môžu chýbať.",
+        "error": "Poštu sa nepodarilo prehľadať na štítky."
       }
     },
     "notifications": {
@@ -1536,7 +1548,16 @@
         "inactive": "Vypnuté",
         "enabled": "Šifrovanie dát v pokoji zapnuté",
         "disabled_success": "Šifrovanie dát v pokoji vypnuté",
-        "error": "Nepodarilo sa aktualizovať nastavenia šifrovania"
+        "error": "Nepodarilo sa aktualizovať nastavenia šifrovania",
+        "algorithm_label": "Šifrovací algoritmus",
+        "encrypt_on_append": "Šifrovať nové e-maily pri nahrávaní",
+        "allow_spam_training": "Povoliť trénovanie spamového filtra pred zašifrovaním e-mailov",
+        "enable_encryption": "Zapnúť šifrovanie",
+        "enable_tooltip": "Zapnúť šifrovanie týmto kľúčom",
+        "configure_title": "Zapnúť šifrovanie týmto kľúčom",
+        "enable_button": "Zapnúť",
+        "disable_tooltip": "Vypnúť šifrovanie",
+        "enabled_success": "Šifrovanie dát v pokoji zapnuté"
       },
       "email_client": {
         "title": "Konfigurácia poštového klienta",
@@ -1556,6 +1577,13 @@
         "expired": "Platnosť tohto kódu vypršala.",
         "generating": "Generovanie…",
         "error": "Nepodarilo sa vytvoriť párovací kód. Skúste to znova."
+      },
+      "public_keys": {
+        "name_label": "Názov verejného kľúča",
+        "name_placeholder": "napr. Môj kľúč",
+        "key_label": "Verejný kľúč (S/MIME alebo PGP vo formáte ASCII)",
+        "key_placeholder": "Sem vložte svoj verejný kľúč",
+        "none": "Nie sú nastavené žiadne verejné kľúče"
       }
     },
     "identities": {

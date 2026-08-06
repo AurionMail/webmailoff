@@ -1047,6 +1047,18 @@
         "show": "Vis",
         "unread": "Vis ved ulæste",
         "hide": "Skjul"
+      },
+      "unrecognized": {
+        "title": "Gendan tags fra serveren",
+        "description": "Tagnavne og farver gemmes i denne browser, men selve taggene ligger på dine e-mails som JMAP-nøgleord. Scan din post for nøgleord, som intet tag her forklarer, og tilføj dem igen.",
+        "scan": "Søg efter tags",
+        "rescan": "Scan igen",
+        "scanning": "Scanner… {scanned} af {total} e-mails",
+        "none": "Alle tags på dine e-mails er allerede defineret her.",
+        "messages": "{count, plural, one {# e-mail} other {# e-mails}}",
+        "add_all": "Tilføj alle {count}",
+        "partial": "Kun de {scanned} nyeste af {total} e-mails blev scannet. Tags, der kun bruges på ældre post, mangler måske.",
+        "error": "Kunne ikke scanne din post for tags."
       }
     },
     "notifications": {
@@ -1532,7 +1544,16 @@
         "inactive": "Deaktiveret",
         "enabled": "Kryptering af lagrede data aktiveret",
         "disabled_success": "Kryptering af lagrede data deaktiveret",
-        "error": "Kunne ikke opdatere krypteringsindstillinger"
+        "error": "Kunne ikke opdatere krypteringsindstillinger",
+        "algorithm_label": "Krypteringsalgoritme",
+        "encrypt_on_append": "Krypter nye e-mails ved upload",
+        "allow_spam_training": "Tillad spamtræning, før e-mails krypteres",
+        "enable_encryption": "Aktivér kryptering",
+        "enable_tooltip": "Aktivér kryptering med denne nøgle",
+        "configure_title": "Aktivér kryptering med denne nøgle",
+        "enable_button": "Aktivér",
+        "disable_tooltip": "Deaktivér kryptering",
+        "enabled_success": "Kryptering af lagrede data aktiveret"
       },
       "email_client": {
         "title": "E-mail-klientopsætning",
@@ -1552,6 +1573,13 @@
         "expired": "Denne kode er udløbet.",
         "generating": "Genererer…",
         "error": "Kunne ikke oprette en parringskode. Prøv igen."
+      },
+      "public_keys": {
+        "name_label": "Navn på offentlig nøgle",
+        "name_placeholder": "f.eks. Min nøgle",
+        "key_label": "Offentlig nøgle (S/MIME eller PGP i ASCII-format)",
+        "key_placeholder": "Indsæt din offentlige nøgle her",
+        "none": "Ingen offentlige nøgler konfigureret"
       }
     },
     "identities": {

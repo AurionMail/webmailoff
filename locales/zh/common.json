@@ -1044,6 +1044,18 @@
         "show": "显示",
         "unread": "有未读时显示",
         "hide": "隐藏"
+      },
+      "unrecognized": {
+        "title": "从服务器恢复标签",
+        "description": "标签的名称和颜色保存在此浏览器中，但标签本身以 JMAP 关键词的形式存在于邮件上。扫描邮件以查找此处没有对应标签的关键词，然后重新添加它们。",
+        "scan": "扫描标签",
+        "rescan": "重新扫描",
+        "scanning": "正在扫描… {total} 封邮件中的 {scanned} 封",
+        "none": "邮件上的所有标签均已在此定义。",
+        "messages": "{count, plural, one {# 封邮件} other {# 封邮件}}",
+        "add_all": "全部添加（{count}）",
+        "partial": "仅扫描了 {total} 封邮件中最新的 {scanned} 封。仅用于较旧邮件的标签可能会遗漏。",
+        "error": "无法扫描邮件中的标签。"
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "未启用",
         "enabled": "启用静态加密",
         "disabled_success": "静态加密已禁用",
-        "error": "无法更新加密设置"
+        "error": "无法更新加密设置",
+        "algorithm_label": "加密算法",
+        "encrypt_on_append": "上传时加密新邮件",
+        "allow_spam_training": "在加密邮件前允许垃圾邮件训练",
+        "enable_encryption": "启用加密",
+        "enable_tooltip": "使用此密钥启用加密",
+        "configure_title": "使用此密钥启用加密",
+        "enable_button": "启用",
+        "disable_tooltip": "禁用加密",
+        "enabled_success": "静态加密已启用"
       },
       "email_client": {
         "title": "邮件客户端设置",
@@ -1549,6 +1570,13 @@
         "expired": "此二维码已过期。",
         "generating": "生成中…",
         "error": "无法创建配对码。请重试。"
+      },
+      "public_keys": {
+        "name_label": "公钥名称",
+        "name_placeholder": "例如：我的密钥",
+        "key_label": "公钥（S/MIME 或 PGP ASCII 格式）",
+        "key_placeholder": "在此粘贴您的公钥",
+        "none": "未配置公钥"
       }
     },
     "identities": {

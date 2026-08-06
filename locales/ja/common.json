@@ -1044,6 +1044,18 @@
         "show": "表示する",
         "unread": "未読がある場合に表示",
         "hide": "表示しない"
+      },
+      "unrecognized": {
+        "title": "サーバーからラベルを復元",
+        "description": "ラベルの名前と色はこのブラウザーに保存されますが、ラベル自体はJMAPキーワードとしてメールに保存されています。ここに定義のないキーワードをメールから検索し、ラベルとして追加し直せます。",
+        "scan": "ラベルを検索",
+        "rescan": "再検索",
+        "scanning": "検索中… {total}件中{scanned}件",
+        "none": "メールに付いているラベルはすべてここに定義済みです。",
+        "messages": "{count, plural, one {#件} other {#件}}",
+        "add_all": "{count}件すべて追加",
+        "partial": "{total}件のうち最新の{scanned}件のみを検索しました。古いメールにのみ使われているラベルは見つからない場合があります。",
+        "error": "メールからラベルを検索できませんでした。"
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "無効",
         "enabled": "保存時の暗号化が有効になりました",
         "disabled_success": "保存時の暗号化が無効になりました",
-        "error": "暗号化設定を更新できませんでした"
+        "error": "暗号化設定を更新できませんでした",
+        "algorithm_label": "暗号化アルゴリズム",
+        "encrypt_on_append": "アップロード時に新しいメールを暗号化",
+        "allow_spam_training": "メールを暗号化する前に迷惑メール学習を許可",
+        "enable_encryption": "暗号化を有効にする",
+        "enable_tooltip": "この鍵で暗号化を有効にする",
+        "configure_title": "この鍵で暗号化を有効にする",
+        "enable_button": "有効にする",
+        "disable_tooltip": "暗号化を無効にする",
+        "enabled_success": "保存時の暗号化が有効になりました"
       },
       "email_client": {
         "title": "メールクライアントの設定",
@@ -1549,6 +1570,13 @@
         "expired": "このコードは期限切れです。",
         "generating": "生成中…",
         "error": "ペアリングコードを作成できませんでした。もう一度お試しください。"
+      },
+      "public_keys": {
+        "name_label": "公開鍵の名前",
+        "name_placeholder": "例：マイキー",
+        "key_label": "公開鍵（S/MIME または PGP の ASCII 形式）",
+        "key_placeholder": "ここに公開鍵を貼り付けてください",
+        "none": "公開鍵が設定されていません"
       }
     },
     "identities": {

@@ -1044,6 +1044,18 @@
         "show": "Mostrar",
         "unread": "Mostrar si hay no leídos",
         "hide": "Ocultar"
+      },
+      "unrecognized": {
+        "title": "Recuperar etiquetas del servidor",
+        "description": "Los nombres y colores de las etiquetas se guardan en este navegador, pero las etiquetas en sí están en tus correos como palabras clave JMAP. Analiza tu correo en busca de palabras clave que ninguna etiqueta de aquí explique y vuelve a añadirlas.",
+        "scan": "Buscar etiquetas",
+        "rescan": "Analizar de nuevo",
+        "scanning": "Analizando… {scanned} de {total} correos",
+        "none": "Todas las etiquetas de tus correos ya están definidas aquí.",
+        "messages": "{count, plural, one {# correo} other {# correos}}",
+        "add_all": "Añadir las {count}",
+        "partial": "Solo se analizaron los {scanned} correos más recientes de {total}. Puede que falten etiquetas usadas únicamente en correos más antiguos.",
+        "error": "No se pudo analizar tu correo en busca de etiquetas."
       }
     },
     "notifications": {
@@ -1529,7 +1541,16 @@
         "inactive": "Deshabilitado",
         "enabled": "Cifrado en reposo habilitado",
         "disabled_success": "Cifrado en reposo deshabilitado",
-        "error": "No se pudieron actualizar las configuraciones de cifrado"
+        "error": "No se pudieron actualizar las configuraciones de cifrado",
+        "algorithm_label": "Algoritmo de cifrado",
+        "encrypt_on_append": "Cifrar los correos nuevos al subirlos",
+        "allow_spam_training": "Permitir el entrenamiento antispam antes de cifrar los correos",
+        "enable_encryption": "Habilitar el cifrado",
+        "enable_tooltip": "Habilitar el cifrado con esta clave",
+        "configure_title": "Habilitar el cifrado con esta clave",
+        "enable_button": "Habilitar",
+        "disable_tooltip": "Deshabilitar el cifrado",
+        "enabled_success": "Cifrado en reposo habilitado"
       },
       "email_client": {
         "title": "Configuración del cliente de correo",
@@ -1549,6 +1570,13 @@
         "expired": "Este código ha caducado.",
         "generating": "Generando…",
         "error": "No se pudo crear un código de vinculación. Inténtelo de nuevo."
+      },
+      "public_keys": {
+        "name_label": "Nombre de la clave pública",
+        "name_placeholder": "ej. Mi clave",
+        "key_label": "Clave pública (S/MIME o PGP en formato ASCII)",
+        "key_placeholder": "Pega aquí tu clave pública",
+        "none": "No hay claves públicas configuradas"
       }
     },
     "identities": {
