@@ -21,7 +21,16 @@ type ScheduledSubmissionMetadata = {
 
 const VIRTUAL_SCHEDULED_MAILBOX_ID = '__scheduled__';
 
-type PendingUndoSend = { submissionId: string; emailId?: string; identityId?: string; sendAt: string; isSmime: boolean };
+type PendingUndoSend = {
+  submissionId: string;
+  emailId?: string;
+  identityId?: string;
+  sendAt: string;
+  isSmime: boolean;
+  /** Local account that owns the submission, when the message was sent from
+   *  an identity belonging to a non-active account (#461). */
+  localAccountId?: string;
+};
 
 interface EmailStore {
   emails: Email[];
@@ -156,7 +165,7 @@ interface EmailStore {
   loadMoreEmails: (client: IJMAPClient) => Promise<void>;
   fetchEmailContent: (client: IJMAPClient, emailId: string) => Promise<Email | null>;
   fetchQuota: (client: IJMAPClient) => Promise<void>;
-  sendEmail: (client: IJMAPClient, to: string[], subject: string, body: string, cc?: string[], bcc?: string[], identityId?: string, fromEmail?: string, draftId?: string, fromName?: string, htmlBody?: string, attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>, inReplyTo?: string[], references?: string[], delayedUntil?: string, envelopeMailFrom?: string, options?: { requestReadReceipt?: boolean }) => Promise<SendEmailResult>;
+  sendEmail: (client: IJMAPClient, to: string[], subject: string, body: string, cc?: string[], bcc?: string[], identityId?: string, fromEmail?: string, draftId?: string, fromName?: string, htmlBody?: string, attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>, inReplyTo?: string[], references?: string[], delayedUntil?: string, envelopeMailFrom?: string, options?: { requestReadReceipt?: boolean; localAccountId?: string }) => Promise<SendEmailResult>;
   sendRawEmail: (client: IJMAPClient, rawMimeBlob: Blob, identityId: string, delayedUntil?: string, envelopeRecipients?: string[]) => Promise<SendEmailResult>;
   deleteEmail: (client: IJMAPClient, emailId: string, forceDelete?: boolean) => Promise<void>;
   markAsRead: (client: IJMAPClient, emailId: string, read: boolean) => Promise<void>;
@@ -1362,7 +1371,16 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       set({
         isLoading: false,
         pendingUndoSend: result.scheduled && result.emailSubmissionId && result.sendAt
-          ? { submissionId: result.emailSubmissionId, emailId: result.emailId, identityId, sendAt: result.sendAt, isSmime: false }
+          ? {
+              submissionId: result.emailSubmissionId,
+              emailId: result.emailId,
+              identityId,
+              sendAt: result.sendAt,
+              isSmime: false,
+              // Cross-account send: undo/send-now must talk to the account that
+              // holds the submission, not the active one (#461).
+              localAccountId: options?.localAccountId,
+            }
           : get().pendingUndoSend,
       });
       return result;

@@ -1979,7 +1979,10 @@ export function EmailComposer({
       const sendHandledByPlugin = (await emailHooks.onComposeSend.intercept(composeSendRequest)) === false;
       if (sendHandledByPlugin) {
         if (finalDraftId) {
-          client?.deleteEmail(finalDraftId).catch((err) => {
+          // The draft was created through the identity's owning account
+          // (see saveDraft), so clean it up there too - not on the active
+          // account, where the id doesn't resolve (#461).
+          composerClient?.deleteEmail(finalDraftId).catch((err) => {
             debug.warn('email', 'Plugin handled the send, but draft cleanup failed:', err);
           });
         }

@@ -1415,6 +1415,9 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     fromEmail?: string;
     fromName?: string;
     identityId?: string;
+    /** Local account owning the selected identity, when it came from the
+     *  cross-account From dropdown (Pro / embedded multi-account). */
+    localAccountId?: string;
     envelopeMailFrom?: string;
     attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>;
     inReplyTo?: string[];
@@ -1423,6 +1426,15 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     requestReadReceipt?: boolean;
   }) => {
     if (!client) return;
+
+    // Sending from an identity that belongs to another connected account has
+    // to go through that account's own client: the identity id is only valid
+    // on its own server, and an unknown id makes the server fall back to the
+    // active account's primary identity - which then signs the message with
+    // the wrong DKIM key (#461). The draft was saved against the same account.
+    const sendClient = data.localAccountId
+      ? (useAuthStore.getState().getClientForAccount(data.localAccountId) ?? client)
+      : client;
 
     // Separates "the submission failed" from "a follow-up step failed". Only the
     // former may propagate: the composer treats a resolved onSend as a delivered
@@ -1434,7 +1446,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       const effectiveMode = pendingDraft?.mode ?? composerMode;
       const originalEmailId = selectedEmail?.id;
 
-      const result = await sendEmail(client, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.delayedUntil, data.envelopeMailFrom, { requestReadReceipt: data.requestReadReceipt });
+      const result = await sendEmail(sendClient, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.delayedUntil, data.envelopeMailFrom, { requestReadReceipt: data.requestReadReceipt, localAccountId: data.localAccountId });
       submitted = true;
       setShowComposer(false);
       if (result.filingError) {
@@ -1664,6 +1676,11 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
     lastUndoToastSubmissionRef.current = pendingUndoSend.submissionId;
     const pending = pendingUndoSend;
+    // The submission lives on the account that owns the sending identity,
+    // which is not always the active one in the multi-account shell (#461).
+    const undoClient = pending.localAccountId
+      ? (useAuthStore.getState().getClientForAccount(pending.localAccountId) ?? client)
+      : client;
     const undoDurationMs = Math.max(sendDelaySeconds, 8) * 1000;
 
     toast.success(t('email_viewer.scheduled_send_created'), {
@@ -1674,7 +1691,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
             onClick: () => {
               void (async () => {
                 try {
-                  await client.rescheduleEmailSubmission(
+                  await undoClient.rescheduleEmailSubmission(
                     pending.submissionId,
                     pending.emailId!,
                     pending.identityId!,
@@ -1694,7 +1711,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
         onClick: () => {
           void (async () => {
             try {
-              const restored = await cancelUndoSend(client, pending);
+              const restored = await cancelUndoSend(undoClient, pending);
               if (restored && !pending.isSmime) {
                 await handleEditDraft(restored);
               }
