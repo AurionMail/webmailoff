@@ -232,6 +232,23 @@ export class DemoJMAPClient implements IJMAPClient {
     return result;
   }
 
+  async discoverKeywords(options?: {
+    limit?: number;
+    onProgress?: (scanned: number, total: number) => void;
+    signal?: AbortSignal;
+  }): Promise<{ keywords: Record<string, number>; scanned: number; total: number; complete: boolean }> {
+    const total = this.data.emails.length;
+    const scanned = Math.min(total, Math.max(0, options?.limit ?? total));
+    const keywords: Record<string, number> = {};
+    for (const email of this.data.emails.slice(0, scanned)) {
+      for (const [keyword, isSet] of Object.entries(email.keywords || {})) {
+        if (isSet) keywords[keyword] = (keywords[keyword] ?? 0) + 1;
+      }
+    }
+    options?.onProgress?.(scanned, total);
+    return { keywords, scanned, total, complete: scanned >= total };
+  }
+
   async getCategoryUnreadCounts(mailboxId: string, tabs: Array<{ id: string; filter: Record<string, unknown> | null }>, _accountId?: string): Promise<Record<string, number>> {
     const inBox = this.data.emails.filter(e => e.mailboxIds[mailboxId] && !e.keywords.$seen);
     const result: Record<string, number> = {};

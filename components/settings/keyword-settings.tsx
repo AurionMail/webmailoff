@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   useSettingsStore,
@@ -13,9 +13,10 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
 import { SettingsSection, SettingItem, ToggleSwitch, Select } from "./settings-section";
-import { Plus, Pencil, Trash2, GripVertical, Check, X, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, Check, X, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KEYWORD_PREFIX } from "@/lib/thread-utils";
+import { findUnrecognizedKeywords, type UnrecognizedKeyword } from "@/lib/keyword-discovery";
 import {
   buildKeywordTree,
   composeKeywordId,
@@ -285,6 +286,236 @@ function KeywordEditForm({
   );
 }
 
+/**
+ * One found keyword, with the name and colour it would be adopted under.
+ *
+ * The id is shown but not editable. It is what the messages already say, and
+ * rewording it would create a tag pointing at nothing while leaving the real
+ * one just as invisible as before - which is the whole problem being fixed.
+ */
+function UnrecognizedKeywordRow({
+  entry,
+  draft,
+  onChange,
+  onAdd,
+}: {
+  entry: UnrecognizedKeyword;
+  draft: { label: string; color: string };
+  onChange: (draft: { label: string; color: string }) => void;
+  onAdd: () => void;
+}) {
+  const t = useTranslations("settings.keywords");
+  const [pickingColor, setPickingColor] = useState(false);
+  const canAdd = draft.label.trim().length > 0;
+
+  return (
+    <div className="space-y-2 py-2.5 px-3 rounded-md border border-border bg-background">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPickingColor((open) => !open)}
+          className={cn(
+            "w-5 h-5 shrink-0 rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            KEYWORD_PALETTE[draft.color]?.dot ?? KEYWORD_PALETTE.gray.dot,
+          )}
+          aria-label={t("color_field")}
+          aria-expanded={pickingColor}
+        />
+        <input
+          type="text"
+          value={draft.label}
+          onChange={(e) => onChange({ ...draft, label: e.target.value })}
+          className="min-w-0 flex-1 px-2.5 py-1.5 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          placeholder={t("label_placeholder")}
+          maxLength={30}
+          aria-label={t("label_field")}
+          onKeyDown={(e) => e.key === "Enter" && canAdd && onAdd()}
+        />
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={!canAdd}
+          className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          {t("add")}
+        </button>
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="min-w-0 truncate font-mono" title={entry.keyword}>
+          {entry.keyword}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span className="shrink-0">{t("unrecognized.messages", { count: entry.count })}</span>
+      </div>
+      {pickingColor && (
+        <KeywordColorPicker
+          value={draft.color}
+          onChange={(color) => {
+            onChange({ ...draft, color });
+            setPickingColor(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Tags that exist on the server but not in these settings.
+ *
+ * A tag is a keyword on the messages plus a name and colour held only here, so
+ * losing this browser's settings hides tags that are still perfectly intact on
+ * the server: the mail keeps its `$label:q3-invoices`, and nothing left knows
+ * that keyword was ever called anything. Scanning finds those keywords and
+ * offers them back, named as well as an id can be read, so recovering a tag
+ * does not depend on the user remembering its exact spelling.
+ *
+ * The scan is on demand rather than automatic. It walks the message list a page
+ * at a time - the only way to find keywords in JMAP - which is far too much
+ * work to spend on merely opening a settings page.
+ */
+function UnrecognizedKeywords() {
+  const t = useTranslations("settings.keywords");
+  const { emailKeywords, nestedTags, addKeyword } = useSettingsStore();
+  const { client } = useAuthStore();
+  const { fetchTagCounts } = useEmailStore();
+  const [isScanning, setIsScanning] = useState(false);
+  const [progress, setProgress] = useState({ scanned: 0, total: 0 });
+  const [scan, setScan] = useState<{ found: UnrecognizedKeyword[]; complete: boolean; scanned: number; total: number } | null>(null);
+  const [error, setError] = useState(false);
+  // Edits keyed by tag id, so a name typed into one row survives the others
+  // being added and the list re-rendering without it.
+  const [drafts, setDrafts] = useState<Record<string, { label: string; color: string }>>({});
+  const abortRef = useRef<AbortController | null>(null);
+
+  // A scan in flight has no reason to keep paging once nobody is watching.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const handleScan = async () => {
+    if (!client) return;
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+    setIsScanning(true);
+    setError(false);
+    setProgress({ scanned: 0, total: 0 });
+    try {
+      const result = await client.discoverKeywords({
+        signal: controller.signal,
+        onProgress: (scanned, total) => {
+          if (!controller.signal.aborted) setProgress({ scanned, total });
+        },
+      });
+      if (controller.signal.aborted) return;
+      setScan({
+        found: findUnrecognizedKeywords(result.keywords, emailKeywords, nestedTags),
+        complete: result.complete,
+        scanned: result.scanned,
+        total: result.total,
+      });
+    } catch (err) {
+      console.error("Failed to scan for unrecognized keywords:", err);
+      if (!controller.signal.aborted) setError(true);
+    } finally {
+      if (!controller.signal.aborted) setIsScanning(false);
+    }
+  };
+
+  const handleAdd = (entries: UnrecognizedKeyword[]) => {
+    for (const entry of entries) {
+      const draft = drafts[entry.id] ?? entry;
+      const label = draft.label.trim();
+      if (!label) continue;
+      addKeyword({ id: entry.id, label, color: draft.color });
+    }
+    if (client) fetchTagCounts(client);
+  };
+
+  // Anything added - here or by hand while the results sat on screen - stops
+  // being unrecognized, so the list is filtered against the definitions on every
+  // render rather than spliced when a row is used.
+  const known = new Set(emailKeywords.map((keyword) => keyword.id.toLowerCase()));
+  const pending = (scan?.found ?? []).filter((entry) => !known.has(entry.id.toLowerCase()));
+  const addable = pending.filter((entry) => (drafts[entry.id]?.label ?? entry.label).trim().length > 0);
+
+  return (
+    <div className="space-y-3 pt-4 mt-4 border-t border-border">
+      <div>
+        <h4 className="text-sm font-medium">{t("unrecognized.title")}</h4>
+        <p className="text-xs text-muted-foreground mt-0.5">{t("unrecognized.description")}</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={handleScan}
+          disabled={isScanning || !client}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-muted transition-colors disabled:opacity-50"
+        >
+          {isScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+          {scan && !isScanning ? t("unrecognized.rescan") : t("unrecognized.scan")}
+        </button>
+        {isScanning && (
+          <span className="text-xs text-muted-foreground" role="status">
+            {t("unrecognized.scanning", { scanned: progress.scanned, total: progress.total })}
+          </span>
+        )}
+        {isScanning && (
+          <button
+            type="button"
+            onClick={() => {
+              abortRef.current?.abort();
+              setIsScanning(false);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-muted transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+            {t("cancel")}
+          </button>
+        )}
+        {pending.length > 1 && !isScanning && (
+          <button
+            type="button"
+            onClick={() => handleAdd(addable)}
+            disabled={addable.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {t("unrecognized.add_all", { count: addable.length })}
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-xs text-destructive">{t("unrecognized.error")}</p>}
+
+      {scan && !isScanning && !scan.complete && (
+        <p className="text-xs text-muted-foreground">
+          {t("unrecognized.partial", { scanned: scan.scanned, total: scan.total })}
+        </p>
+      )}
+
+      {scan && !isScanning && pending.length === 0 && !error && (
+        <p className="text-xs text-muted-foreground">{t("unrecognized.none")}</p>
+      )}
+
+      {pending.length > 0 && (
+        <div className="space-y-2">
+          {pending.map((entry) => (
+            <UnrecognizedKeywordRow
+              key={entry.id}
+              entry={entry}
+              draft={drafts[entry.id] ?? { label: entry.label, color: entry.color }}
+              onChange={(draft) => setDrafts((current) => ({ ...current, [entry.id]: draft }))}
+              onAdd={() => handleAdd([entry])}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function KeywordSettings() {
   const t = useTranslations("settings.keywords");
   const { emailKeywords, nestedTags, addKeyword, updateKeyword, renameKeyword, removeKeyword, reorderKeywords, updateSetting } =
@@ -442,6 +673,8 @@ export function KeywordSettings() {
           </div>
         )}
       </div>
+
+      <UnrecognizedKeywords />
     </SettingsSection>
   );
 }

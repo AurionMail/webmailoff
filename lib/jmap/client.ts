@@ -172,6 +172,15 @@ const EMAIL_LIST_PROPERTIES = [
   "blobId",
 ] as const;
 
+/**
+ * How many messages `discoverKeywords` walks before it gives up and reports an
+ * incomplete scan. A keyword only has to sit on one message to be worth
+ * recovering, so there is no cheaper place to stop than "all of them" - the cap
+ * exists so a very large account cannot turn a settings page into an unbounded
+ * page-by-page crawl, not because the tail is uninteresting.
+ */
+export const DEFAULT_KEYWORD_SCAN_LIMIT = 25000;
+
 // Stalwart's default property list for Calendar/get omits shareWith, isVisible,
 // includeInAvailability, and the default-alerts properties. Without an explicit
 // `properties` list the share indicator and share dialog can't see existing
@@ -1402,6 +1411,93 @@ export class JMAPClient implements IJMAPClient {
     }
 
     return result;
+  }
+
+  /**
+   * Every keyword the account's messages actually carry, and how many messages
+   * carry each.
+   *
+   * JMAP has no "list the keywords in use" call - a keyword exists only as a
+   * property of the messages bearing it - so the only way to find them is to
+   * walk the message list and union what turns up. Each page is one request:
+   * an Email/query for the next slice of ids and an Email/get back-referencing
+   * it, asking for nothing but `keywords`.
+   *
+   * Counting here rather than following up with `getTagCounts` costs nothing
+   * extra - the messages are already in hand - and counts whatever spelling the
+   * keyword actually has, which a `$label:`-shaped count query cannot do for a
+   * keyword still written the legacy way. The trade is that a count is only
+   * over the messages walked, so it is a floor rather than a total whenever
+   * `complete` is false.
+   *
+   * The walk is capped at `limit` messages because an account can hold far more
+   * mail than is worth paging through for this; `complete` says whether the cap
+   * (or an abort) cut the scan short, so a caller can say so rather than
+   * present a partial answer as the whole truth. Reading is all this does, and
+   * it stops at the first failed page instead of retrying - a scan that ends
+   * early is reported as incomplete, which is exactly what it is.
+   */
+  async discoverKeywords(options?: {
+    limit?: number;
+    onProgress?: (scanned: number, total: number) => void;
+    signal?: AbortSignal;
+  }): Promise<{ keywords: Record<string, number>; scanned: number; total: number; complete: boolean }> {
+    const cap = Math.max(0, options?.limit ?? DEFAULT_KEYWORD_SCAN_LIMIT);
+    const pageSize = Math.max(1, Math.min(500, this.getMaxObjectsInGet()));
+    const keywords: Record<string, number> = {};
+    let scanned = 0;
+    let total = 0;
+    let complete = false;
+
+    while (scanned < cap) {
+      if (options?.signal?.aborted) break;
+
+      try {
+        const response = await this.request([
+          ["Email/query", {
+            accountId: this.accountId,
+            sort: [{ property: "receivedAt", isAscending: false }],
+            limit: Math.min(pageSize, cap - scanned),
+            position: scanned,
+            calculateTotal: scanned === 0,
+          }, "0"],
+          ["Email/get", {
+            accountId: this.accountId,
+            "#ids": { resultOf: "0", name: "Email/query", path: "/ids" },
+            properties: ["keywords"],
+          }, "1"],
+        ]);
+
+        const queryResponse = response.methodResponses?.[0]?.[1];
+        const getResponse = response.methodResponses?.[1]?.[1];
+        const ids: string[] = queryResponse?.ids || [];
+        if (scanned === 0) total = queryResponse?.total ?? 0;
+
+        const list = (getResponse?.list || []) as Array<{ keywords?: Record<string, boolean> }>;
+        for (const email of list) {
+          for (const [keyword, isSet] of Object.entries(email.keywords || {})) {
+            if (isSet) keywords[keyword] = (keywords[keyword] ?? 0) + 1;
+          }
+        }
+
+        // Page by what the query returned, not by what the get did: a message
+        // destroyed between the two lands in `notFound` and would otherwise
+        // shift every later page by one and skip a message per gap.
+        scanned += ids.length;
+        options?.onProgress?.(scanned, Math.max(total, scanned));
+
+        // A short page is the end of the list, however much `total` claimed.
+        if (ids.length === 0 || ids.length < Math.min(pageSize, cap - (scanned - ids.length))) {
+          complete = true;
+          break;
+        }
+      } catch (error) {
+        console.error('Failed to scan keywords:', error);
+        break;
+      }
+    }
+
+    return { keywords, scanned, total: Math.max(total, scanned), complete };
   }
 
   /**

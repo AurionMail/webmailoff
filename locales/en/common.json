@@ -1046,6 +1046,18 @@
         "show": "Show",
         "unread": "Show if unread",
         "hide": "Hide"
+      },
+      "unrecognized": {
+        "title": "Recover tags from the server",
+        "description": "Tag names and colors are stored in this browser, but the tags themselves live on your messages as JMAP keywords. Scan your mail for keywords no tag here explains, then add them back.",
+        "scan": "Scan for tags",
+        "rescan": "Scan again",
+        "scanning": "Scanning… {scanned} of {total} messages",
+        "none": "Every tag on your messages is already defined here.",
+        "messages": "{count, plural, one {# message} other {# messages}}",
+        "add_all": "Add all {count}",
+        "partial": "Only the {scanned} most recent of {total} messages were scanned. Tags used solely on older mail may be missing.",
+        "error": "Could not scan your mail for tags."
       }
     },
     "notifications": {
