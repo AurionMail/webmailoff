@@ -17,7 +17,7 @@ import { isFilePreviewable } from "@/lib/file-preview";
 import { isEditableEventTarget } from "@/lib/keyboard";
 import { buildQuotedHtmlBlock, serializeEditorContent } from "@/components/email/quoted-html";
 import { buildSignatureBlock } from "@/components/email/signature-block";
-import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
+import { emailHooks, contactHooks, isExternalAttachmentResult } from "@/lib/plugin-hooks";
 import type { AlmostSavedDraft, OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
 import { useIdentityStore } from "@/stores/identity-store";
@@ -1234,7 +1234,19 @@ export function EmailComposer({
         const fileId = generateUUID();
         await fileStorage.saveFile(fileId, file);
         
-        const newFileId = await emailHooks.onBeforeBlobUpload.transform(fileId);
+        const transformed = await emailHooks.onBeforeBlobUpload.transform<unknown>(fileId);
+
+        // A handler can offload the file elsewhere and hand back replacement
+        // content instead of a file id. Drop the binary attachment and append
+        // the replacement to the body.
+        if (isExternalAttachmentResult(transformed)) {
+          await fileStorage.deleteFile(fileId);
+          setAttachments(prev => prev.filter(att => att.file !== file));
+          setBody(previous => previous + (plainTextMode ? transformed.text : transformed.html));
+          continue;
+        }
+
+        const newFileId = typeof transformed === 'string' ? transformed : fileId;
 
         const newFile = await fileStorage.getFile(newFileId) || file;
         await fileStorage.deleteFile(newFileId);
@@ -1269,7 +1281,7 @@ export function EmailComposer({
         );
       }
     }
-  }, [client, t]);
+  }, [client, t, plainTextMode]);
 
   const handleImageUpload = useCallback(async (
     file: File,

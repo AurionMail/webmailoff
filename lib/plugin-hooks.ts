@@ -168,6 +168,34 @@ export class HookBus<T extends (...args: any[]) => any> {
   }
 }
 
+// ─── Attachment Offload Result ───────────────────────────────
+
+/**
+ * Structured value an `onBeforeBlobUpload` handler may return instead of a
+ * file id. It asks the composer to drop the staged binary attachment and
+ * append replacement content to the message body, so a plugin can offload the
+ * file somewhere else (an external file drop, object storage, a share link)
+ * and leave a link behind.
+ *
+ * Returning a string keeps the stock behaviour: it is treated as the id of the
+ * (possibly rewritten) file to upload.
+ */
+export interface ExternalAttachmentResult {
+  externalAttachment: true;
+  /** Appended to the body when the composer is in rich-text mode. */
+  html: string;
+  /** Appended to the body when the composer is in plain-text mode. */
+  text: string;
+}
+
+export function isExternalAttachmentResult(value: unknown): value is ExternalAttachmentResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<ExternalAttachmentResult>;
+  return candidate.externalAttachment === true
+    && typeof candidate.html === 'string'
+    && typeof candidate.text === 'string';
+}
+
 // ─── All Hook Buses (one per hook across all 20 domains) ─────
 
 // §7.1 Email Hooks
@@ -243,7 +271,10 @@ export const emailHooks = {
   // It is fired after onBeforeAttachmentUpload.
   // Handler receive the {file: File, blobId: 'undefined'} object. 
   // If it uploaded, it must return the object with true blobId. 
-  // Here, the raw file sended is exposed and can be modified or replaced. 
+  // Here, the raw file sended is exposed and can be modified or replaced.
+  // A handler may also return an ExternalAttachmentResult to drop the
+  // attachment entirely and append replacement html/text to the body, which
+  // lets a plugin offload the file elsewhere and leave a link behind.
   onBeforeBlobUpload: new HookBus(),
   // Observer fired after an attachment has been uploaded and its blobId is
   // available. Handler receives AttachmentInfo with `blobId` populated.
