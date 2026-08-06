@@ -17,6 +17,7 @@ import { awaitDialog, awaitPrompt, type PromptField } from './host-dialog';
 import { fileStorage } from '../plugin-storage';
 import { generateUUID } from '../utils';
 import { ContactCard, Identity } from '../jmap/types';
+import { EncryptionAtRestConfig, PublicKeyInfo, PublicKeyInput, useAccountSecurityStore } from '@/stores/account-security-store';
 
 /**
  * Methods only callable from the privileged (same-origin) tier. These expose
@@ -30,7 +31,12 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.submitRaw',
   'jmap.importRaw',
   'upfiles.get',
-  'webauthn.getOrCreate',
+  'crypto.getOrCreateWebAuthn',
+  'crypto.getPublicKeys',
+  'crypto.createPublicKey',
+  'crypto.removePublicKey',
+  'crypto.getEncryptionAtRest',
+  'crypto.setEncryptionAtRest',
   'upfiles.set',
 ]);
 
@@ -58,7 +64,12 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // To just read, use jmap.fetchBlob.
   'upfiles.get' : 'email:blob-write',
   'upfiles.save' : 'email:blob-write',
-  'webauthn.getOrCreate': 'crypto:full',
+  'crypto.getOrCreateWebAuthn': 'crypto:full',
+  'crypto.getPublicKeys': 'crypto:full',
+  'crypto.createPublicKey': 'crypto:full',
+  'crypto.removePublicKey': 'crypto:full',
+  'crypto.getEncryptionAtRest': 'crypto:full',
+  'crypto.setEncryptionAtRest': 'crypto:full',
   // contact
   'contact.get': 'contacts:read',
   'contact.update': 'contacts:write',
@@ -473,7 +484,7 @@ async function doContactCreate(contact: ContactCard): Promise<ContactCard> {
   return await client.createContact(contact);
 }
 
-// ─── WebAuthn (privileged tier) ─────────────────────────────────────────────
+// ─── Crypto (privileged tier) ─────────────────────────────────────────────
 
 /**
  * Retrieves or creates a WebAuthn passkey and extracts its PRF secret.
@@ -581,6 +592,29 @@ async function doGetOrCreatePRF(
     else {
       throw new Error("Provide name and display name if you want to create a new PRF.");
     }
+}
+
+async function getPublicKeys(): Promise<PublicKeyInfo[]> {
+  const store = useAccountSecurityStore.getState();
+  await store.fetchPublicKeys();
+  return store.publicKeys;
+}
+async function doCreatePublicKey(input: PublicKeyInput): Promise<string> {
+  const store = useAccountSecurityStore.getState();
+  return await store.createPublicKey(input);
+}
+async function doRemovePublicKey(keyId: string): Promise<void> {
+  const store = useAccountSecurityStore.getState();
+  return await store.removePublicKey(keyId);
+}
+async function doGetEncryptionAtRest(): Promise<EncryptionAtRestConfig> {
+  const store = useAccountSecurityStore.getState();
+  await store.fetchCryptoInfo();
+  return store.encryptionConfig;
+}
+async function doSetEncryptionAtRest(config: EncryptionAtRestConfig): Promise<void> {
+  const store = useAccountSecurityStore.getState();
+  return await store.updateEncryptionAtRest(config);
 }
 
 // ─── Uploaded files in IndexedDB (privileged tier) ──────────────────────────
@@ -782,8 +816,15 @@ export async function dispatchApiCall(
     );
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
-    case 'webauthn.getOrCreate': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string, args[2] as string | undefined, args[3] as string | undefined);
-    
+
+    case 'crypto.getOrCreateWebAuthn': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string, args[2] as string | undefined, args[3] as string | undefined);
+    case 'crypto.getPublicKeys': return getPublicKeys();
+    case 'crypto.createPublicKey': return doCreatePublicKey(args[0] as PublicKeyInput);
+    case 'crypto.removePublicKey': return doRemovePublicKey(args[0] as string);
+    case 'crypto.getEncryptionAtRest': return doGetEncryptionAtRest();
+    case 'crypto.setEncryptionAtRest': return doSetEncryptionAtRest(args[0] as EncryptionAtRestConfig);
+
+
     case 'contact.get': return doContactGet(args[0] as string);
     case 'contact.update': return doContactUpdate(args[0] as string, args[1] as Partial<ContactCard>);
     case 'contact.create': return doContactCreate(args[0] as ContactCard);
