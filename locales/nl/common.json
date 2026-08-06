@@ -633,7 +633,6 @@
     "save_as_template": "Opslaan als sjabloon",
     "validation": {
       "recipient_required": "Voeg een ontvanger toe om te verzenden",
-      "subject_required": "Voeg een onderwerp toe",
       "body_required": "Schrijf een bericht of voeg een bestand toe",
       "attachments_uploading": "Bijlagen worden nog geüpload — wordt verzonden zodra dit klaar is",
       "attachment_upload_failed": "Niet verzonden - een bijlage kon niet worden geüpload. Verwijder deze en probeer het opnieuw."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Bent u een bijlage vergeten?",
       "message": "Uw bericht vermeldt \"{keyword}\" maar er is geen bestand bijgevoegd. Toch verzenden?",
+      "send_anyway": "Toch verzenden",
+      "back": "Terug naar bewerken"
+    },
+    "empty_subject": {
+      "title": "Verzenden zonder onderwerp?",
+      "message": "Dit bericht heeft geen onderwerp. Toch verzenden?",
+      "dont_ask_again": "Niet meer vragen",
       "send_anyway": "Toch verzenden",
       "back": "Terug naar bewerken"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Trefwoord toevoegen...",
         "add": "Add",
         "remove": "Verwijderen"
+      },
+      "empty_subject_warning": {
+        "label": "Waarschuwing bij leeg onderwerp",
+        "description": "Vraag om bevestiging voordat een bericht zonder onderwerp wordt verzonden."
       },
       "hide_inline_image_attachments": {
         "label": "Inline-afbeeldingen verbergen uit bijlagenlijst",

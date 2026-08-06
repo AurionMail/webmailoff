@@ -636,7 +636,6 @@
     "save_as_template": "Şablon Olarak Kaydet",
     "validation": {
       "recipient_required": "Göndermek için bir alıcı ekleyin",
-      "subject_required": "Bir konu ekleyin",
       "body_required": "Bir ileti yazın veya dosya ekleyin",
       "attachments_uploading": "Ekler hâlâ yükleniyor — yükleme bitince gönderilecek",
       "attachment_upload_failed": "Gönderilmedi - bir ek yüklenemedi. Eki kaldırıp tekrar deneyin."
@@ -663,6 +662,13 @@
     "forgot_attachment": {
       "title": "Ek eklemeyi unuttunuz mu?",
       "message": "İletinizde \"{keyword}\" geçiyor ancak hiçbir dosya eklenmemiş. Yine de gönderilsin mi?",
+      "send_anyway": "Yine de gönder",
+      "back": "Düzenlemeye dön"
+    },
+    "empty_subject": {
+      "title": "Konu olmadan gönderilsin mi?",
+      "message": "Bu iletinin konusu yok. Yine de gönderilsin mi?",
+      "dont_ask_again": "Bir daha sorma",
       "send_anyway": "Yine de gönder",
       "back": "Düzenlemeye dön"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Anahtar sözcük ekle...",
         "add": "Ekle",
         "remove": "Kaldır"
+      },
+      "empty_subject_warning": {
+        "label": "Boş konu uyarısı",
+        "description": "Konusu olmayan bir ileti gönderilmeden önce onay iste."
       },
       "hide_inline_image_attachments": {
         "label": "Satır içi görüntüleri eklerden gizle",

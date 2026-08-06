@@ -633,7 +633,6 @@
     "save_as_template": "Zapisz jako szablon",
     "validation": {
       "recipient_required": "Dodaj odbiorcę, aby wysłać",
-      "subject_required": "Dodaj temat",
       "body_required": "Napisz wiadomość lub załącz plik",
       "attachments_uploading": "Załączniki wciąż się przesyłają — wiadomość zostanie wysłana po zakończeniu",
       "attachment_upload_failed": "Nie wysłano - nie udało się przesłać załącznika. Usuń go i spróbuj ponownie."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Czy zapomniałeś o załączniku?",
       "message": "Twoja wiadomość wspomina o \"{keyword}\", ale nie załączono żadnego pliku. Wysłać mimo to?",
+      "send_anyway": "Wyślij mimo to",
+      "back": "Wróć do edycji"
+    },
+    "empty_subject": {
+      "title": "Wysłać bez tematu?",
+      "message": "Ta wiadomość nie ma tematu. Wysłać mimo to?",
+      "dont_ask_again": "Nie pytaj ponownie",
       "send_anyway": "Wyślij mimo to",
       "back": "Wróć do edycji"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Dodaj słowo kluczowe...",
         "add": "Add",
         "remove": "Usuń"
+      },
+      "empty_subject_warning": {
+        "label": "Ostrzeżenie o pustym temacie",
+        "description": "Poproś o potwierdzenie przed wysłaniem wiadomości bez tematu."
       },
       "hide_inline_image_attachments": {
         "label": "Ukryj obrazy osadzone z listy załączników",

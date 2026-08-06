@@ -279,6 +279,8 @@ export function EmailComposer({
   const autoSelectReplyIdentity = useSettingsStore((state) => state.autoSelectReplyIdentity);
   const attachmentReminderEnabled = useSettingsStore((state) => state.attachmentReminderEnabled);
   const attachmentReminderKeywords = useSettingsStore((state) => state.attachmentReminderKeywords);
+  const emptySubjectWarningEnabled = useSettingsStore((state) => state.emptySubjectWarningEnabled);
+  const updateSetting = useSettingsStore((state) => state.updateSetting);
   const sendDelaySeconds = useSettingsStore((state) => state.sendDelaySeconds);
   const signaturePosition = useSettingsStore((state) => state.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((state) => state.signatureSeparatorEnabled);
@@ -530,7 +532,7 @@ export function EmailComposer({
   });
   const inlineImagesRef = useRef<Array<{ cid: string; blobId: string; type: string; name: string; size: number; dataUrl: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [validationErrors, setValidationErrors] = useState<{ to?: boolean; subject?: boolean; body?: boolean }>({});
+  const [validationErrors, setValidationErrors] = useState<{ to?: boolean; body?: boolean }>({});
   const [shakeField, setShakeField] = useState<string | null>(null);
   const [selectedIdentityId, setSelectedIdentityId] = useState<string | null>(initialData?.selectedIdentityId ?? null);
   const [subAddressTag, setSubAddressTag] = useState<string>(initialData?.subAddressTag ?? '');
@@ -545,6 +547,9 @@ export function EmailComposer({
   const [showAttachmentWarning, setShowAttachmentWarning] = useState(false);
   const [attachmentWarningKeyword, setAttachmentWarningKeyword] = useState('');
   const [attachmentWarningDelayedUntil, setAttachmentWarningDelayedUntil] = useState<string | undefined>();
+  const [showEmptySubjectWarning, setShowEmptySubjectWarning] = useState(false);
+  const [emptySubjectDelayedUntil, setEmptySubjectDelayedUntil] = useState<string | undefined>();
+  const [emptySubjectDontAskAgain, setEmptySubjectDontAskAgain] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [scheduleValue, setScheduleValue] = useState('');
   const [scheduleError, setScheduleError] = useState('');
@@ -566,6 +571,12 @@ export function EmailComposer({
   const attachmentWarningRef = useFocusTrap({
     isActive: showAttachmentWarning,
     onEscape: () => setShowAttachmentWarning(false),
+    restoreFocus: true,
+  });
+
+  const emptySubjectWarningRef = useFocusTrap({
+    isActive: showEmptySubjectWarning,
+    onEscape: () => setShowEmptySubjectWarning(false),
     restoreFocus: true,
   });
 
@@ -1616,13 +1627,14 @@ export function EmailComposer({
   const toAddresses = expandRecipients(withInput(to, toInput));
   const bodyPlainText = plainTextMode ? body.trim() : htmlToPlainText(body).trim();
   const hasContent = bodyPlainText || attachments.some(att => att.blobId && !att.uploading);
-  const canSend = toAddresses.length > 0 && !!subject && hasContent;
+  // A missing subject no longer blocks Send (#684) - users hit the disabled
+  // button without understanding why. It is confirmed in a dialog instead.
+  const canSend = toAddresses.length > 0 && hasContent;
 
   const getSendTooltip = (): string | undefined => {
     if (isWaitingForUploads) return t('validation.attachments_uploading');
     if (canSend) return undefined;
     if (toAddresses.length === 0) return t('validation.recipient_required');
-    if (!subject) return t('validation.subject_required');
     if (!hasContent) return t('validation.body_required');
     return undefined;
   };
@@ -1718,7 +1730,11 @@ export function EmailComposer({
   const [isWaitingForUploads, setIsWaitingForUploads] = useState(false);
   const sendCancelledRef = useRef(false);
 
-  const handleSend = async (skipAttachmentCheck = false, delayedUntil?: string) => {
+  const handleSend = async ({ skipAttachmentCheck = false, skipSubjectCheck = false, delayedUntil }: {
+    skipAttachmentCheck?: boolean;
+    skipSubjectCheck?: boolean;
+    delayedUntil?: string;
+  } = {}) => {
     if (isSendingRef.current) return;
 
     if (attachmentsRef.current.some(att => att.uploading)) {
@@ -1746,9 +1762,8 @@ export function EmailComposer({
     const bccAddresses = expandRecipients(withInput(bcc, bccInput));
 
     if (!canSend) {
-      const errors: { to?: boolean; subject?: boolean; body?: boolean } = {};
+      const errors: { to?: boolean; body?: boolean } = {};
       if (toAddresses.length === 0) errors.to = true;
-      if (!subject) errors.subject = true;
       if (!hasContent) errors.body = true;
       setValidationErrors(errors);
 
@@ -1757,6 +1772,14 @@ export function EmailComposer({
         setTimeout(() => setShakeField(null), 400);
         toInputRef.current?.focus();
       }
+      return;
+    }
+
+    // Empty subject confirmation (#684)
+    if (!skipSubjectCheck && emptySubjectWarningEnabled && !subject.trim()) {
+      setEmptySubjectDontAskAgain(false);
+      setEmptySubjectDelayedUntil(delayedUntil);
+      setShowEmptySubjectWarning(true);
       return;
     }
 
@@ -2039,7 +2062,7 @@ export function EmailComposer({
       setScheduleError(error);
       return;
     }
-    handleSend(false, new Date(scheduleValue).toISOString());
+    handleSend({ delayedUntil: new Date(scheduleValue).toISOString() });
   };
 
   // Ctrl+Enter (Win/Linux) / Cmd+Enter (macOS) sends the open compose
@@ -2050,7 +2073,7 @@ export function EmailComposer({
   // on a single keystroke. handleSend is rebound every render, so we
   // route through a ref to keep the listener stable.
   const composerRootRef = useRef<HTMLDivElement | null>(null);
-  const handleSendRef = useRef<((skipAttachmentCheck?: boolean) => Promise<void>) | undefined>(undefined);
+  const handleSendRef = useRef<typeof handleSend | undefined>(undefined);
   handleSendRef.current = handleSend;
   useEffect(() => {
     const handleSendShortcut = (e: KeyboardEvent) => {
@@ -2151,6 +2174,7 @@ export function EmailComposer({
       showSaveAsTemplate ||
       showScheduleDialog ||
       showAttachmentWarning ||
+      showEmptySubjectWarning ||
       showCloseDialog
     ) return;
 
@@ -2516,21 +2540,14 @@ export function EmailComposer({
               type="text"
               placeholder={t('subject_placeholder')}
               value={subject}
-              onChange={(e) => {
-                setSubject(e.target.value);
-                if (validationErrors.subject) setValidationErrors(prev => ({ ...prev, subject: false }));
-              }}
+              onChange={(e) => setSubject(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Tab' && !e.shiftKey) {
                   e.preventDefault();
                   focusBody();
                 }
               }}
-              className={cn(
-                "flex-1 border-0 focus-visible:ring-0 h-8 px-0 text-sm",
-                validationErrors.subject && "ring-2 ring-red-500 dark:ring-red-400"
-              )}
-              aria-invalid={validationErrors.subject || undefined}
+              className="flex-1 border-0 focus-visible:ring-0 h-8 px-0 text-sm"
             />
           </div>
         </div>
@@ -2866,8 +2883,61 @@ export function EmailComposer({
               <Button variant="outline" onClick={() => setShowAttachmentWarning(false)}>
                 {t('forgot_attachment.back')}
               </Button>
-              <Button onClick={() => { setShowAttachmentWarning(false); handleSend(true, attachmentWarningDelayedUntil); setAttachmentWarningDelayedUntil(undefined); }}>
+              <Button onClick={() => { setShowAttachmentWarning(false); handleSend({ skipAttachmentCheck: true, skipSubjectCheck: true, delayedUntil: attachmentWarningDelayedUntil }); setAttachmentWarningDelayedUntil(undefined); }}>
                 {t('forgot_attachment.send_anyway')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmptySubjectWarning && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-[60] p-4 animate-in fade-in duration-150"
+          onClick={() => setShowEmptySubjectWarning(false)}
+        >
+          <div
+            ref={emptySubjectWarningRef}
+            role="alertdialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-background border border-border rounded-lg shadow-xl w-full max-w-md animate-in zoom-in-95 duration-200"
+          >
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-foreground">{t('empty_subject.title')}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{t('empty_subject.message')}</p>
+              <label className="mt-4 flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={emptySubjectDontAskAgain}
+                  onChange={(e) => setEmptySubjectDontAskAgain(e.target.checked)}
+                  className="rounded border-input"
+                />
+                {t('empty_subject.dont_ask_again')}
+              </label>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 pb-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowEmptySubjectWarning(false);
+                  setEmptySubjectDelayedUntil(undefined);
+                  // After the focus trap tears down it restores focus to the
+                  // Send button, so claim the subject field on the next tick.
+                  setTimeout(() => subjectInputRef.current?.focus(), 0);
+                }}
+              >
+                {t('empty_subject.back')}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (emptySubjectDontAskAgain) updateSetting('emptySubjectWarningEnabled', false);
+                  setShowEmptySubjectWarning(false);
+                  handleSend({ skipSubjectCheck: true, delayedUntil: emptySubjectDelayedUntil });
+                  setEmptySubjectDelayedUntil(undefined);
+                }}
+              >
+                {t('empty_subject.send_anyway')}
               </Button>
             </div>
           </div>

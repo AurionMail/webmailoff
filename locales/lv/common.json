@@ -633,7 +633,6 @@
     "save_as_template": "Saglabāt kā veidni",
     "validation": {
       "recipient_required": "Norādiet vismaz vienu saņēmēju",
-      "subject_required": "Norādiet tematu",
       "body_required": "Ierakstiet ziņojumu vai pievienojiet failu",
       "attachments_uploading": "Pielikumi joprojām tiek augšupielādēti — nosūtīs, tiklīdz tas pabeigts",
       "attachment_upload_failed": "Nav nosūtīts - pielikumu neizdevās augšupielādēt. Noņemiet to un mēģiniet vēlreiz."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Vai aizmirsāt pielikumu?",
       "message": "Jūsu ziņojumā minēts \"{keyword}\", bet nav pievienots neviens fails. Vai tomēr sūtīt?",
+      "send_anyway": "Sūtīt tik un tā",
+      "back": "Atpakaļ pie rediģēšanas"
+    },
+    "empty_subject": {
+      "title": "Sūtīt bez temata?",
+      "message": "Šai ziņai nav temata. Vai tomēr sūtīt?",
+      "dont_ask_again": "Vairs nejautāt",
       "send_anyway": "Sūtīt tik un tā",
       "back": "Atpakaļ pie rediģēšanas"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Pievienot atslēgvārdu...",
         "add": "Add",
         "remove": "Noņemt"
+      },
+      "empty_subject_warning": {
+        "label": "Brīdinājums par tukšu tematu",
+        "description": "Pieprasīt apstiprinājumu pirms ziņas sūtīšanas bez temata."
       },
       "hide_inline_image_attachments": {
         "label": "Slēpt iegultos attēlus no pielikumu saraksta",

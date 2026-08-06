@@ -633,7 +633,6 @@
     "save_as_template": "템플릿으로 저장",
     "validation": {
       "recipient_required": "보내려면 받는 사람을 추가해 주세요",
-      "subject_required": "제목을 입력해 주세요",
       "body_required": "메시지를 작성하거나 파일을 첨부해 주세요",
       "attachments_uploading": "첨부 파일을 업로드하는 중입니다. 완료되면 자동으로 전송됩니다",
       "attachment_upload_failed": "전송되지 않았습니다. 첨부 파일 업로드에 실패했습니다. 해당 파일을 제거하고 다시 시도하세요."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "첨부 파일을 잊으셨나요?",
       "message": "메시지에 \"{keyword}\"이(가) 언급되어 있지만 파일이 첨부되지 않았습니다. 그래도 보내시겠습니까?",
+      "send_anyway": "그래도 보내기",
+      "back": "편집으로 돌아가기"
+    },
+    "empty_subject": {
+      "title": "제목 없이 보낼까요?",
+      "message": "이 메시지에는 제목이 없습니다. 그래도 보낼까요?",
+      "dont_ask_again": "다시 묻지 않기",
       "send_anyway": "그래도 보내기",
       "back": "편집으로 돌아가기"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "키워드 추가...",
         "add": "Add",
         "remove": "삭제"
+      },
+      "empty_subject_warning": {
+        "label": "빈 제목 경고",
+        "description": "제목 없는 메시지를 보내기 전에 확인을 요청합니다."
       },
       "hide_inline_image_attachments": {
         "label": "첨부 파일 목록에서 인라인 이미지 숨기기",

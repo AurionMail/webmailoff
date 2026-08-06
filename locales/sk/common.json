@@ -636,7 +636,6 @@
     "save_as_template": "Uložiť ako šablónu",
     "validation": {
       "recipient_required": "Pridajte príjemcu na odoslanie",
-      "subject_required": "Pridajte predmet",
       "body_required": "Napíšte správu alebo priložte súbor",
       "attachments_uploading": "Prílohy sa stále nahrávajú - odošle sa hneď po ich dokončení",
       "attachment_upload_failed": "Neodoslané - prílohu sa nepodarilo nahrať. Odstráňte ju a skúste to znova."
@@ -663,6 +662,13 @@
     "forgot_attachment": {
       "title": "Nezabudli ste na prílohu?",
       "message": "Vaša správa spíaňuje \"{keyword}\", ale nie je priložený žiadny súbor. Odoslať aj tak?",
+      "send_anyway": "Odoslať aj tak",
+      "back": "Späť na úpravu"
+    },
+    "empty_subject": {
+      "title": "Odoslať bez predmetu?",
+      "message": "Táto správa nemá predmet. Odoslať aj tak?",
+      "dont_ask_again": "Znova sa nepýtať",
       "send_anyway": "Odoslať aj tak",
       "back": "Späť na úpravu"
     },
@@ -1320,6 +1326,10 @@
         "add_placeholder": "Pridať kľúčové slovo...",
         "add": "Pridať",
         "remove": "Odstrániť"
+      },
+      "empty_subject_warning": {
+        "label": "Upozornenie na prázdny predmet",
+        "description": "Pred odoslaním správy bez predmetu požiadať o potvrdenie."
       },
       "hide_inline_image_attachments": {
         "label": "Skryť vložené obrázky zo zoznamu príloh",

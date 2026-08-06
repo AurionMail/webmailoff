@@ -636,7 +636,6 @@
     "save_as_template": "Desa com a plantilla",
     "validation": {
       "recipient_required": "Afegiu un destinatari per enviar",
-      "subject_required": "Afegiu un assumpte",
       "body_required": "Escriviu un missatge o adjunteu un fitxer",
       "attachments_uploading": "Els fitxers adjunts encara s'estan pujant — s'enviarà en acabar",
       "attachment_upload_failed": "No s'ha enviat — no s'ha pogut pujar un fitxer adjunt. Elimineu-lo i torneu-ho a provar."
@@ -663,6 +662,13 @@
     "forgot_attachment": {
       "title": "Us heu oblidat d'un fitxer adjunt?",
       "message": "El vostre missatge esmenta «{keyword}», però no hi ha cap fitxer adjunt. Voleu enviar-lo igualment?",
+      "send_anyway": "Envia igualment",
+      "back": "Torna a l'edició"
+    },
+    "empty_subject": {
+      "title": "Voleu enviar-lo sense assumpte?",
+      "message": "Aquest missatge no té assumpte. Voleu enviar-lo igualment?",
+      "dont_ask_again": "No ho tornis a preguntar",
       "send_anyway": "Envia igualment",
       "back": "Torna a l'edició"
     },
@@ -1320,6 +1326,10 @@
         "add_placeholder": "Afegeix una paraula clau...",
         "add": "Afegeix",
         "remove": "Elimina"
+      },
+      "empty_subject_warning": {
+        "label": "Avís d'assumpte buit",
+        "description": "Demana confirmació abans d'enviar un missatge sense assumpte."
       },
       "hide_inline_image_attachments": {
         "label": "Amaga les imatges incrustades dels fitxers adjunts",

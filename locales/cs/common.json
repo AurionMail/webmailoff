@@ -633,7 +633,6 @@
     "save_as_template": "Uložit jako šablonu",
     "validation": {
       "recipient_required": "Chcete-li zprávu odeslat, přidejte příjemce",
-      "subject_required": "Přidejte předmět",
       "body_required": "Napište zprávu nebo připojte soubor",
       "attachments_uploading": "Přílohy se stále nahrávají – odeslání proběhne po dokončení",
       "attachment_upload_failed": "Neodesláno - přílohu se nepodařilo nahrát. Odeberte ji a zkuste to znovu."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Nezapomněli jste na přílohu?",
       "message": "Vaše zpráva obsahuje slovo \"{keyword}\", ale není k ní připojen žádný soubor. Přesto odeslat?",
+      "send_anyway": "Přesto odeslat",
+      "back": "Zpět k úpravám"
+    },
+    "empty_subject": {
+      "title": "Odeslat bez předmětu?",
+      "message": "Tato zpráva nemá předmět. Přesto odeslat?",
+      "dont_ask_again": "Znovu se neptat",
       "send_anyway": "Přesto odeslat",
       "back": "Zpět k úpravám"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Přidat klíčové slovo...",
         "add": "Přidat",
         "remove": "Odstranit"
+      },
+      "empty_subject_warning": {
+        "label": "Upozornění na prázdný předmět",
+        "description": "Před odesláním zprávy bez předmětu požádat o potvrzení."
       },
       "hide_inline_image_attachments": {
         "label": "Skrýt vložené obrázky ze seznamu příloh",

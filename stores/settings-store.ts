@@ -376,6 +376,9 @@ interface SettingsState {
   attachmentReminderEnabled: boolean;
   attachmentReminderKeywords: string[];
 
+  // Ask for confirmation when sending a message with an empty subject
+  emptySubjectWarningEnabled: boolean;
+
   // Hide inline images (images referenced by cid in the HTML body) from the
   // attachment list shown above the message body.
   hideInlineImageAttachments: boolean;
@@ -602,6 +605,8 @@ const DEFAULT_SETTINGS = {
     'pielikumā',
   ] as string[],
 
+  emptySubjectWarningEnabled: true,
+
   hideInlineImageAttachments: true,
   attachmentImagePreviewsEnabled: true,
 
@@ -749,6 +754,7 @@ export const useSettingsStore = create<SettingsState>()(
           nestedTags: state.nestedTags,
           attachmentReminderEnabled: state.attachmentReminderEnabled,
           attachmentReminderKeywords: state.attachmentReminderKeywords,
+          emptySubjectWarningEnabled: state.emptySubjectWarningEnabled,
           hideInlineImageAttachments: state.hideInlineImageAttachments,
           attachmentImagePreviewsEnabled: state.attachmentImagePreviewsEnabled,
           sidebarApps: state.sidebarApps,

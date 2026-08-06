@@ -633,7 +633,6 @@
     "save_as_template": "保存为模板",
     "validation": {
       "recipient_required": "请添加收件人",
-      "subject_required": "请添加主题",
       "body_required": "请输入邮件内容或添加附件",
       "attachments_uploading": "附件仍在上传中，上传完成后将自动发送",
       "attachment_upload_failed": "未发送 - 附件上传失败。请移除该附件后重试。"
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "忘记添加附件了吗？",
       "message": "您的消息中提到了“{keyword}”，但未附加任何文件。仍然发送吗？",
+      "send_anyway": "仍然发送",
+      "back": "返回编辑"
+    },
+    "empty_subject": {
+      "title": "没有主题就发送吗？",
+      "message": "此邮件没有主题。仍要发送吗？",
+      "dont_ask_again": "不再提示",
       "send_anyway": "仍然发送",
       "back": "返回编辑"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "添加关键词...",
         "add": "Add",
         "remove": "删除"
+      },
+      "empty_subject_warning": {
+        "label": "空主题提醒",
+        "description": "发送没有主题的邮件前请求确认。"
       },
       "hide_inline_image_attachments": {
         "label": "在附件列表中隐藏内嵌图片",

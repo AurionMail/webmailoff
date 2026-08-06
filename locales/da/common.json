@@ -635,7 +635,6 @@
     "save_as_template": "Gem som skabelon",
     "validation": {
       "recipient_required": "Tilføj en modtager for at sende",
-      "subject_required": "Tilføj et emne",
       "body_required": "Skriv en besked eller vedhæft en fil",
       "attachments_uploading": "Vedhæftninger uploades stadig — sendes, når de er færdige",
       "attachment_upload_failed": "Ikke sendt - en vedhæftet fil kunne ikke uploades. Fjern den, og prøv igen."
@@ -662,6 +661,13 @@
     "forgot_attachment": {
       "title": "Har du glemt en vedhæftning?",
       "message": "Din besked nævner \"{keyword}\" men ingen fil er vedhæftet. Send alligevel?",
+      "send_anyway": "Send alligevel",
+      "back": "Tilbage til redigering"
+    },
+    "empty_subject": {
+      "title": "Send uden emne?",
+      "message": "Denne besked har intet emne. Send alligevel?",
+      "dont_ask_again": "Spørg ikke igen",
       "send_anyway": "Send alligevel",
       "back": "Tilbage til redigering"
     },
@@ -1320,6 +1326,10 @@
         "add_placeholder": "Tilføj nøgleord...",
         "add": "Tilføj",
         "remove": "Fjern"
+      },
+      "empty_subject_warning": {
+        "label": "Advarsel om tomt emne",
+        "description": "Bed om bekræftelse, før en besked uden emne sendes."
       },
       "hide_inline_image_attachments": {
         "label": "Skjul indlejrede billeder fra vedhæftninger",

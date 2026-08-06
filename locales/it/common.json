@@ -633,7 +633,6 @@
     "save_as_template": "Salva come modello",
     "validation": {
       "recipient_required": "Aggiungi un destinatario per inviare",
-      "subject_required": "Aggiungi un oggetto",
       "body_required": "Scrivi un messaggio o allega un file",
       "attachments_uploading": "Gli allegati sono ancora in fase di caricamento: verrà inviato al termine",
       "attachment_upload_failed": "Non inviato: caricamento di un allegato non riuscito. Rimuovilo e riprova."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Hai dimenticato un allegato?",
       "message": "Il tuo messaggio menziona \"{keyword}\" ma nessun file è allegato. Inviare comunque?",
+      "send_anyway": "Invia comunque",
+      "back": "Torna alla modifica"
+    },
+    "empty_subject": {
+      "title": "Inviare senza oggetto?",
+      "message": "Questo messaggio non ha un oggetto. Inviarlo comunque?",
+      "dont_ask_again": "Non chiedere più",
       "send_anyway": "Invia comunque",
       "back": "Torna alla modifica"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Aggiungi parola chiave...",
         "add": "Add",
         "remove": "Rimuovi"
+      },
+      "empty_subject_warning": {
+        "label": "Avviso oggetto vuoto",
+        "description": "Chiedi conferma prima di inviare un messaggio senza oggetto."
       },
       "hide_inline_image_attachments": {
         "label": "Nascondi le immagini inline dagli allegati",

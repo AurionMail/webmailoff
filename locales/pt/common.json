@@ -633,7 +633,6 @@
     "save_as_template": "Salvar como modelo",
     "validation": {
       "recipient_required": "Adicione um destinatário para enviar",
-      "subject_required": "Adicione um assunto",
       "body_required": "Escreva uma mensagem ou anexe um arquivo",
       "attachments_uploading": "Os anexos ainda estão sendo enviados — será enviado assim que terminar",
       "attachment_upload_failed": "Não enviado - falha ao carregar um anexo. Remova-o e tente novamente."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Esqueceu um anexo?",
       "message": "A sua mensagem menciona \"{keyword}\" mas nenhum arquivo está anexado. Enviar mesmo assim?",
+      "send_anyway": "Enviar mesmo assim",
+      "back": "Voltar à edição"
+    },
+    "empty_subject": {
+      "title": "Enviar sem assunto?",
+      "message": "Esta mensagem não tem assunto. Enviar mesmo assim?",
+      "dont_ask_again": "Não perguntar novamente",
       "send_anyway": "Enviar mesmo assim",
       "back": "Voltar à edição"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Adicionar palavra-chave...",
         "add": "Add",
         "remove": "Remover"
+      },
+      "empty_subject_warning": {
+        "label": "Aviso de assunto vazio",
+        "description": "Pedir confirmação antes de enviar uma mensagem sem assunto."
       },
       "hide_inline_image_attachments": {
         "label": "Ocultar imagens incorporadas dos anexos",

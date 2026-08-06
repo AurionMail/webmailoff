@@ -636,7 +636,6 @@
     "save_as_template": "ذخیره به عنوان قالب",
     "validation": {
       "recipient_required": "یک گیرنده اضافه کنید",
-      "subject_required": "یک موضوع اضافه کنید",
       "body_required": "پیامی بنویسید یا فایلی پیوست کنید",
       "attachments_uploading": "پیوست‌ها هنوز در حال بارگذاری هستند — پس از اتمام ارسال می‌شود",
       "attachment_upload_failed": "ارسال نشد - بارگذاری یک پیوست ناموفق بود. آن را حذف کنید و دوباره تلاش کنید."
@@ -663,6 +662,13 @@
     "forgot_attachment": {
       "title": "آیا پیوست را فراموش کرده‌اید؟",
       "message": "پیام شما به \"{keyword}\" اشاره دارد اما فایلی پیوست نشده.",
+      "send_anyway": "ارسال به هر حال",
+      "back": "بازگشت به ویرایش"
+    },
+    "empty_subject": {
+      "title": "بدون موضوع ارسال شود؟",
+      "message": "این پیام موضوعی ندارد. با این حال ارسال شود؟",
+      "dont_ask_again": "دیگر نپرس",
       "send_anyway": "ارسال به هر حال",
       "back": "بازگشت به ویرایش"
     },
@@ -1320,6 +1326,10 @@
         "add_placeholder": "افزودن...",
         "add": "افزودن",
         "remove": "حذف"
+      },
+      "empty_subject_warning": {
+        "label": "هشدار موضوع خالی",
+        "description": "پیش از ارسال پیام بدون موضوع تأیید بگیرید."
       },
       "hide_inline_image_attachments": {
         "label": "مخفی کردن تصاویر داخلی",

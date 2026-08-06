@@ -214,6 +214,7 @@ const tabSearchPaths: Record<Tab, string[]> = {
     'settings.email_behavior.auto_select_reply_identity',
     'settings.email_behavior.plain_text_mode',
     'settings.email_behavior.default_mail_program',
+    'settings.email_behavior.empty_subject_warning',
     'settings.email_behavior.signature_position',
     'settings.email_behavior.sub_address_delimiter',
   ],

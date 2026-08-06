@@ -26,6 +26,7 @@ export function ComposingSettings() {
     rtlEditingSupport,
     attachmentReminderEnabled,
     attachmentReminderKeywords,
+    emptySubjectWarningEnabled,
     sendDelaySeconds,
     subAddressDelimiter,
     signaturePosition,
@@ -156,6 +157,13 @@ export function ComposingSettings() {
             />
           )}
         </div>
+      </SettingItem>
+
+      <SettingItem label={t('empty_subject_warning.label')} description={t('empty_subject_warning.description')}>
+        <ToggleSwitch
+          checked={emptySubjectWarningEnabled}
+          onChange={(checked) => updateSetting('emptySubjectWarningEnabled', checked)}
+        />
       </SettingItem>
 
       <SettingItem label={t('attachment_reminder.label')} description={t('attachment_reminder.description')}>

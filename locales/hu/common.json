@@ -636,7 +636,6 @@
     "save_as_template": "Mentés sablonként",
     "validation": {
       "recipient_required": "Adj meg egy címzettet a küldéshez",
-      "subject_required": "Adj meg egy tárgyat",
       "body_required": "Írj üzenetet vagy csatolj fájlt",
       "attachments_uploading": "A mellékletek még feltöltés alatt vannak – küldés a feltöltés befejezése után",
       "attachment_upload_failed": "Nincs elküldve - egy melléklet feltöltése nem sikerült. Távolítsa el, és próbálja újra."
@@ -663,6 +662,13 @@
     "forgot_attachment": {
       "title": "Elfelejtettél egy csatolmányt?",
       "message": "Az üzeneted említi a \"{keyword}\" kifejezést, de nincs fájl csatolva. Elküldöd így is?",
+      "send_anyway": "Küldés így is",
+      "back": "Vissza a szerkesztéshez"
+    },
+    "empty_subject": {
+      "title": "Küldés tárgy nélkül?",
+      "message": "Ennek az üzenetnek nincs tárgya. Mégis elküldi?",
+      "dont_ask_again": "Ne kérdezze többé",
       "send_anyway": "Küldés így is",
       "back": "Vissza a szerkesztéshez"
     },
@@ -1320,6 +1326,10 @@
         "add_placeholder": "Kulcsszó hozzáadása...",
         "add": "Hozzáadás",
         "remove": "Eltávolítás"
+      },
+      "empty_subject_warning": {
+        "label": "Figyelmeztetés üres tárgy esetén",
+        "description": "Megerősítés kérése tárgy nélküli üzenet küldése előtt."
       },
       "hide_inline_image_attachments": {
         "label": "Beágyazott képek elrejtése a csatolmányok közül",

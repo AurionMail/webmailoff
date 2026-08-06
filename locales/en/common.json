@@ -636,7 +636,6 @@
     "save_as_template": "Save as Template",
     "validation": {
       "recipient_required": "Add a recipient to send",
-      "subject_required": "Add a subject",
       "body_required": "Write a message or attach a file",
       "attachments_uploading": "Attachments are still uploading — sending as soon as they finish",
       "attachment_upload_failed": "Not sent — an attachment failed to upload. Remove it and try again."
@@ -662,6 +661,13 @@
     "forgot_attachment": {
       "title": "Did you forget an attachment?",
       "message": "Your message mentions \"{keyword}\" but no file is attached. Send anyway?",
+      "send_anyway": "Send anyway",
+      "back": "Back to editing"
+    },
+    "empty_subject": {
+      "title": "Send without a subject?",
+      "message": "This message has no subject. Send it anyway?",
+      "dont_ask_again": "Don't ask again",
       "send_anyway": "Send anyway",
       "back": "Back to editing"
     },
@@ -1319,6 +1325,10 @@
         "add_placeholder": "Add keyword...",
         "add": "Add",
         "remove": "Remove"
+      },
+      "empty_subject_warning": {
+        "label": "Empty subject warning",
+        "description": "Ask for confirmation before sending a message with no subject."
       },
       "hide_inline_image_attachments": {
         "label": "Hide inline images from attachments",

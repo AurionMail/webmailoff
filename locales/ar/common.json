@@ -636,7 +636,6 @@
     "save_as_template": "حفظ كقالب",
     "validation": {
       "recipient_required": "أضف مستلمًا للإرسال",
-      "subject_required": "أضف موضوعًا",
       "body_required": "اكتب رسالة أو أرفق ملفًا",
       "attachments_uploading": "المرفقات لا تزال قيد الرفع — سيتم الإرسال فور انتهائها",
       "attachment_upload_failed": "لم يتم الإرسال — فشل رفع أحد المرفقات. أزله وحاول مرة أخرى."
@@ -663,6 +662,13 @@
     "forgot_attachment": {
       "title": "هل نسيت مرفقًا؟",
       "message": "رسالتك تذكر \"{keyword}\" لكن لا يوجد ملف مرفق. هل تريد الإرسال على أي حال؟",
+      "send_anyway": "الإرسال على أي حال",
+      "back": "العودة إلى التعديل"
+    },
+    "empty_subject": {
+      "title": "إرسال بدون موضوع؟",
+      "message": "لا يحتوي هذا البريد على موضوع. هل تريد إرساله على أي حال؟",
+      "dont_ask_again": "عدم السؤال مرة أخرى",
       "send_anyway": "الإرسال على أي حال",
       "back": "العودة إلى التعديل"
     },
@@ -1320,6 +1326,10 @@
         "add_placeholder": "إضافة كلمة مفتاحية...",
         "add": "إضافة",
         "remove": "إزالة"
+      },
+      "empty_subject_warning": {
+        "label": "تحذير الموضوع الفارغ",
+        "description": "طلب تأكيد قبل إرسال رسالة بدون موضوع."
       },
       "hide_inline_image_attachments": {
         "label": "إخفاء الصور المضمّنة من المرفقات",

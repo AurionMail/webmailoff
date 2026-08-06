@@ -633,7 +633,6 @@
     "save_as_template": "Enregistrer comme modèle",
     "validation": {
       "recipient_required": "Ajoutez un destinataire pour envoyer",
-      "subject_required": "Ajoutez un objet",
       "body_required": "Rédigez un message ou joignez un fichier",
       "attachments_uploading": "Les pièces jointes sont en cours d'envoi — le message partira une fois terminé",
       "attachment_upload_failed": "Non envoyé - le téléversement d'une pièce jointe a échoué. Supprimez-la et réessayez."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "Avez-vous oublié une pièce jointe ?",
       "message": "Votre message mentionne \"{keyword}\" mais aucun fichier n'est joint. Envoyer quand même ?",
+      "send_anyway": "Envoyer quand même",
+      "back": "Retour à l'édition"
+    },
+    "empty_subject": {
+      "title": "Envoyer sans objet ?",
+      "message": "Ce message n'a pas d'objet. L'envoyer quand même ?",
+      "dont_ask_again": "Ne plus me demander",
       "send_anyway": "Envoyer quand même",
       "back": "Retour à l'édition"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Ajouter un mot-clé...",
         "add": "Add",
         "remove": "Supprimer"
+      },
+      "empty_subject_warning": {
+        "label": "Avertissement d'objet vide",
+        "description": "Demander confirmation avant d'envoyer un message sans objet."
       },
       "hide_inline_image_attachments": {
         "label": "Masquer les images intégrées des pièces jointes",

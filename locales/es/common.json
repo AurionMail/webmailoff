@@ -633,7 +633,6 @@
     "save_as_template": "Guardar como plantilla",
     "validation": {
       "recipient_required": "Agregue un destinatario para enviar",
-      "subject_required": "Agregue un asunto",
       "body_required": "Escriba un mensaje o adjunte un archivo",
       "attachments_uploading": "Los archivos adjuntos aún se están subiendo; se enviará en cuanto terminen",
       "attachment_upload_failed": "No enviado: no se pudo subir un adjunto. Elimínalo e inténtalo de nuevo."
@@ -660,6 +659,13 @@
     "forgot_attachment": {
       "title": "¿Olvidaste un archivo adjunto?",
       "message": "Tu mensaje menciona \"{keyword}\" pero no hay ningún archivo adjunto. ¿Enviar de todos modos?",
+      "send_anyway": "Enviar de todos modos",
+      "back": "Volver a editar"
+    },
+    "empty_subject": {
+      "title": "¿Enviar sin asunto?",
+      "message": "Este mensaje no tiene asunto. ¿Enviarlo de todos modos?",
+      "dont_ask_again": "No volver a preguntar",
       "send_anyway": "Enviar de todos modos",
       "back": "Volver a editar"
     },
@@ -1317,6 +1323,10 @@
         "add_placeholder": "Añadir palabra clave...",
         "add": "Add",
         "remove": "Eliminar"
+      },
+      "empty_subject_warning": {
+        "label": "Aviso de asunto vacío",
+        "description": "Pedir confirmación antes de enviar un mensaje sin asunto."
       },
       "hide_inline_image_attachments": {
         "label": "Ocultar imágenes incrustadas de los adjuntos",

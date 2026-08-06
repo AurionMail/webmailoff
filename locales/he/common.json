@@ -585,7 +585,6 @@
     "save_as_template": "שמור כתבנית",
     "validation": {
       "recipient_required": "הוסף נמען לשליחה",
-      "subject_required": "הוסף נושא",
       "body_required": "כתוב הודעה או צרף קובץ",
       "attachments_uploading": "קבצים מצורפים עדיין בהעלאה - ההודעה תישלח מיד בסיום",
       "attachment_upload_failed": "לא נשלח - העלאת קובץ מצורף נכשלה. הסירו אותו ונסו שוב."
@@ -628,6 +627,13 @@
     "forgot_attachment": {
       "title": "נשכחת קובץ מצורף?",
       "message": "ההודעה שלך מתייחסת ל״{keyword}״ אך לא צורף קובץ. שלח בכל זאת?",
+      "send_anyway": "שלח בכל זאת",
+      "back": "חזור לעריכה"
+    },
+    "empty_subject": {
+      "title": "לשלוח ללא נושא?",
+      "message": "להודעה זו אין נושא. לשלוח בכל זאת?",
+      "dont_ask_again": "אל תשאל שוב",
       "send_anyway": "שלח בכל זאת",
       "back": "חזור לעריכה"
     },
@@ -1282,6 +1288,10 @@
         "add_placeholder": "הוסף מילת חיוג…",
         "add": "הוסף",
         "remove": "הסר"
+      },
+      "empty_subject_warning": {
+        "label": "אזהרה על נושא ריק",
+        "description": "בקש אישור לפני שליחת הודעה ללא נושא."
       },
       "hide_inline_image_attachments": {
         "label": "הסתר תמונות מוטבעות מקבצים מצורפים",
