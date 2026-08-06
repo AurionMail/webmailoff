@@ -144,6 +144,20 @@ export function sanitizeSignatureHtmlForDisplay(html: string): string {
 }
 
 /**
+ * Sanitizer for HTML a plugin asks the composer to insert into the message
+ * being written - today the link block an `onBeforeBlobUpload` handler returns
+ * when it offloads an attachment (see `ExternalAttachmentResult`).
+ *
+ * An untrusted plugin runs in a null-origin iframe, but whatever it returns
+ * here lands in the host document and in the message the user then sends, so
+ * it gets the same allowlist as a user-authored signature: formatting, links,
+ * images and tables, no script, no event handlers, no external URI schemes.
+ */
+export function sanitizePluginBodyHtml(html: string): string {
+  return sanitizeSignatureHtml(html);
+}
+
+/**
  * Sanitizer for translation strings that contain inline markup (e.g. a
  * documentation link). The translation catalog is trusted today, but using
  * dangerouslySetInnerHTML on a translation makes that trust permanent and

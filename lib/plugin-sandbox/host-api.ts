@@ -30,18 +30,24 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.sendRaw',
   'jmap.submitRaw',
   'jmap.importRaw',
-  // NOTE: upfiles.get is deliberately NOT tier-gated. It only reads back a
-  // file the user just attached in this session, by an unguessable UUID the
-  // composer itself hands to the onBeforeBlobUpload hook - not arbitrary
-  // message bytes from the server (those stay behind jmap.fetchBlob above).
-  // It remains behind the email:blob-read permission.
+  // NOTE: upfiles.get is deliberately NOT tier-gated. It reads back a file the
+  // user just attached in this session - not arbitrary message bytes from the
+  // server (those stay behind jmap.fetchBlob above). Note that the id is not a
+  // secret from the plugin: onBeforeBlobUpload hands it to every registered
+  // handler, so any untrusted plugin granted email:blob-read can read the
+  // bytes of every file the user attaches. That grant is what the consent
+  // dialog for email:blob-read now says out loud.
   'crypto.getOrCreateWebAuthn',
   'crypto.getPublicKeys',
   'crypto.createPublicKey',
   'crypto.removePublicKey',
   'crypto.getEncryptionAtRest',
   'crypto.setEncryptionAtRest',
-  'upfiles.set',
+  // Replacing the bytes of a file the user is about to send is strictly more
+  // dangerous than reading them, so the write stays privileged-only.
+  // This entry used to read `upfiles.set`, which matches no dispatched method
+  // and therefore gated nothing - the dispatcher calls it `upfiles.save`.
+  'upfiles.save',
 ]);
 
 const PERM_PER_METHOD: Record<string, Permission | null> = {
@@ -66,8 +72,8 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // uploaded files :
   // upfiles.get reads back a just-attached file (see onBeforeBlobUpload) and
   // is a read - it sits behind email:blob-read. To read a stored message
-  // blob, use jmap.fetchBlob. upfiles.save rewrites the staged file and
-  // stays behind email:blob-write.
+  // blob, use jmap.fetchBlob. upfiles.save rewrites the staged file: it stays
+  // behind email:blob-write AND the privileged tier.
   'upfiles.get' : 'email:blob-read',
   'upfiles.save' : 'email:blob-write',
   'crypto.getOrCreateWebAuthn': 'crypto:full',
