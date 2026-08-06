@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 import { useCalendarStore } from "@/stores/calendar-store";
 import { isCalendarViewMode } from "@/stores/calendar-store";
-import { useAuthStore, redirectToLogin } from "@/stores/auth-store";
+import { useAuthStore, redirectToLogin, saveRedirectAfterLogin } from '@/stores/auth-store';
 import { useEmailStore } from "@/stores/email-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useIdentityStore } from "@/stores/identity-store";
@@ -65,6 +65,10 @@ import { sharedCalendarColorKey, pickUnusedCalendarColor } from "@/lib/shared-ca
 import { debug } from "@/lib/debug";
 import { consumePendingWebcal, hasPendingWebcal, subscribeToPendingWebcal } from "@/lib/protocol-handlers/session";
 import type { ParsedWebcal } from "@/lib/protocol-handlers/webcal";
+import { appPath, buildCalendarPath, parseCalendarPath } from "@/lib/deep-links";
+import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
+import { useDeepLinkUrl } from "@/hooks/use-deep-link-url";
+import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 
 type PendingScopeAction =
   | { type: "edit"; event: CalendarEvent; updates: Partial<CalendarEvent>; sendScheduling?: boolean }
@@ -74,10 +78,16 @@ function isRecurringEvent(event: CalendarEvent): boolean {
   return (event.recurrenceRules?.length ?? 0) > 0 || event.recurrenceId != null;
 }
 
-export default function CalendarPage() {
+export interface CalendarAppProps {
+  /** Path segments after `/calendar` (`['day', '2026-08-06']`). */
+  linkSegments?: string[];
+}
+
+export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
   const router = useRouter();
   const t = useTranslations("calendar");
   const tWebcalAction = useTranslations("calendar.webcal_action");
+  const tDeepLink = useTranslations("deep_link");
   const isMobile = useIsMobile();
   const isDesktop = useIsDesktop();
   const isEmbedded = useIsEmbedded();
@@ -179,7 +189,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (initialCheckDone && !isAuthenticated && !authLoading) {
-      try { sessionStorage.setItem('redirect_after_login', window.location.pathname); } catch { /* ignore */ }
+      saveRedirectAfterLogin();
       redirectToLogin();
     } else if (client && !calendarEnabled) {
       // Calendar disabled by admin policy - send the user back to mail.
@@ -562,6 +572,58 @@ export default function CalendarPage() {
       setDetailAnchorRect(null);
     }, 300);
   }, []);
+
+  // ---- Deep links (#733) ---------------------------------------------------
+  // `/calendar/<view>/<date>` moves the grid; `/calendar/event/<id>` opens the
+  // event's sidebar and parks the grid on the day it starts. Applied once the
+  // JMAP session is up, then the URL becomes an output of the view (below).
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    if (!isAuthenticated || !client) return;
+
+    const segments = linkSegments ?? consumePendingDeepLink('calendar') ?? [];
+    const link = parseCalendarPath(segments, new URLSearchParams(window.location.search));
+    deepLinkHandledRef.current = true;
+    if (!link) return;
+
+    if (link.kind === 'view') {
+      setViewMode(link.view);
+      if (link.date) setSelectedDate(link.date);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const event = await client.getCalendarEvent(link.id, link.accountId);
+        if (!event) {
+          toast.error(tDeepLink('event_not_found'));
+          return;
+        }
+        const start = getEventStartDate(event);
+        if (start) setSelectedDate(start);
+        openEditModal(event);
+      } catch (err) {
+        debug.error('Failed to open calendar deep link:', err);
+        toast.error(tDeepLink('event_not_found'));
+      }
+    })();
+  }, [isAuthenticated, client, linkSegments, setViewMode, setSelectedDate, openEditModal, tDeepLink]);
+
+  // The permalink for what the calendar is currently showing. Suppressed in
+  // the Pro shell, where /pro owns the address bar.
+  const proInterfaceActive = useProInterfaceActive();
+  const eventLinkId = showEventModal && editEvent ? editEvent.id : null;
+  useDeepLinkUrl(
+    isEmbedded || proInterfaceActive
+      ? null
+      : appPath(buildCalendarPath({
+          view: normalizedViewMode,
+          date: selectedDate,
+          eventId: eventLinkId,
+          accountId: eventLinkId ? editEvent?.accountId : null,
+        })),
+  );
 
   const handleEditFromDetail = useCallback(() => {
     if (detailEvent) {

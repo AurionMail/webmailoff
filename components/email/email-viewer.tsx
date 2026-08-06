@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, useId } from "react";
 import DOMPurify from "dompurify";
 import { Email, ContactCard, Mailbox } from "@/lib/jmap/types";
 import { emailExportFilename, attachmentDownloadFilename, attachmentsBundleFilename, DEFAULT_EMAIL_TEMPLATE, DEFAULT_ATTACHMENT_TEMPLATE } from "@/lib/download-filename";
@@ -9,6 +9,8 @@ import { EMAIL_IFRAME_SANITIZE_CONFIG, applyNewTabToAnchor, blockExternalResourc
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
 import { collapsePlainTextQuotes, setupQuoteCollapse } from "@/lib/quote-collapse";
 import { withBasePath } from "@/lib/browser-navigation";
+import { buildContactsPath, buildMailPath } from "@/lib/deep-links";
+import { useCopyLink } from "@/hooks/use-copy-link";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { formatFileSize, cn, buildMailboxTree, MailboxNode, formatDateTime, generateUUID } from "@/lib/utils";
@@ -75,6 +77,7 @@ import {
   PlayCircle,
   PenSquare,
   CalendarClock,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
@@ -95,6 +98,7 @@ import { ReadReceiptBanner } from "./read-receipt-banner";
 import { stripCrossAccountIdentityPrefix } from "@/hooks/use-pro-multi-account-identities";
 import { useTour } from "@/components/tour/tour-provider";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
+import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { findCalendarAttachment, isCalendarMimeType } from "@/lib/calendar-invitation";
 import { RecipientPopover } from "./recipient-popover";
 import { MailtoLink } from "@/components/ui/mailto-link";
@@ -649,6 +653,8 @@ export function EmailViewer({
   const tCommon = useTranslations('common');
   const tFiles = useTranslations('files');
   const tDemoWelcome = useTranslations('demo_welcome');
+  const tDeepLink = useTranslations('deep_link');
+  const copyLink = useCopyLink();
   const tWelcome = useTranslations('welcome');
   const externalContentPolicy = useSettingsStore((state) => state.externalContentPolicy);
   const messageSpacing = useSettingsStore((state) => state.messageSpacing);
@@ -805,7 +811,31 @@ export function EmailViewer({
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const tagMenuRef = useRef<HTMLDivElement>(null);
   const moveMenuRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moveButtonRef = useRef<HTMLButtonElement>(null);
+  // Pro can mount two reading panes side by side, so the menu id has to be
+  // per-instance for aria-controls to point at the right one.
+  const moreMenuId = useId();
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const closeMoreMenu = useCallback(() => { setMoreMenuOpen(false); setMoreMenuSub(null); }, []);
+  const closeMoveMenu = useCallback(() => setMoveMenuOpen(false), []);
+  // Both menus render away from their trigger (a dropdown on desktop, an
+  // off-canvas panel on mobile), so focus has to be driven explicitly (#720).
+  const { menuRef: moreMenuListRef, onKeyDown: onMoreMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: moreMenuOpen && !isMobile,
+    onClose: closeMoreMenu,
+    triggerRef: moreButtonRef,
+  });
+  const { menuRef: mobileMoreRef, onKeyDown: onMobileMoreKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: moreMenuOpen && isMobile,
+    onClose: closeMoreMenu,
+    triggerRef: moreButtonRef,
+  });
+  const { menuRef: moveMenuListRef, onKeyDown: onMoveMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: moveMenuOpen,
+    onClose: closeMoveMenu,
+    triggerRef: moveButtonRef,
+  });
   const [hiddenPriorities, setHiddenPriorities] = useState<Set<number>>(new Set());
   const currentTagIds = getEmailTagIds(email?.keywords);
   const sortedTagIds = sortTagIds(currentTagIds);
@@ -1041,15 +1071,18 @@ export function EmailViewer({
       const recipientName = allRecipients.find(
         (r) => r.email.toLowerCase() === recipientEmail.toLowerCase()
       )?.name;
-      const params = new URLSearchParams();
+      // Canonical contact permalink (#733); `from=email` keeps the mobile back
+      // button pointing at the message the user came from.
+      const params = new URLSearchParams({ from: 'email' });
+      let path: string;
       if (contact) {
-        params.set('contactId', contact.id);
+        path = buildContactsPath({ contactId: contact.id });
       } else {
-        params.set('addEmail', recipientEmail);
-        if (recipientName) params.set('addName', recipientName);
+        path = '/contacts/new';
+        params.set('email', recipientEmail);
+        if (recipientName) params.set('name', recipientName);
       }
-      params.set('from', 'email');
-      router.push(`/contacts?${params.toString()}`);
+      router.push(`${path}?${params.toString()}`);
       return;
     }
     setContactSidebarEmail(recipientEmail);
@@ -2935,17 +2968,27 @@ export function EmailViewer({
         {moveTree.length > 0 && onMoveToMailbox && (
           <div ref={moveMenuRef} data-overflow-item data-overflow-priority="5" className="relative">
             <Button
+              ref={moveButtonRef}
               variant="ghost"
               size="sm"
               onClick={() => { setMoveMenuOpen(!moveMenuOpen); setMoreMenuOpen(false); setTagMenuOpen(false); }}
               className="flex-col items-center gap-0.5 h-auto py-1.5 px-2 sm:flex-row sm:h-8 sm:gap-1.5 sm:py-0"
               title={t('move_to')}
+              aria-label={t('move_to')}
+              aria-haspopup="menu"
+              aria-expanded={moveMenuOpen}
             >
               <FolderInput className="w-4 h-4" />
               {showToolbarLabels && <span className="text-[10px] leading-tight sm:text-sm">{t('move')}</span>}
             </Button>
             {moveMenuOpen && (
-              <div className="absolute end-0 top-full mt-1 py-1 w-48 max-h-72 overflow-y-auto bg-background rounded-lg shadow-lg border border-border z-10">
+              <div
+                ref={moveMenuListRef}
+                onKeyDown={onMoveMenuKeyDown}
+                role="menu"
+                aria-label={t('move_to')}
+                className="absolute end-0 top-full mt-1 py-1 w-48 max-h-72 overflow-y-auto bg-background rounded-lg shadow-lg border border-border z-10"
+              >
                 {(() => {
                   const renderNodes = (nodes: MailboxNode[], depth = 0) => {
                     return nodes.map((node) => {
@@ -2955,6 +2998,7 @@ export function EmailViewer({
                         <div key={node.id}>
                           {isTarget ? (
                             <button
+                              role="menuitem"
                               onClick={() => { onMoveToMailbox(node.id); setMoveMenuOpen(false); }}
                               className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2"
                               style={{ paddingLeft: `${0.75 + depth * 1}rem` }}
@@ -2990,6 +3034,9 @@ export function EmailViewer({
             onClick={() => { setTagMenuOpen(!tagMenuOpen); setMoreMenuOpen(false); setMoveMenuOpen(false); }}
             className="h-8 rounded hover:bg-muted flex items-center gap-1.5 px-2"
             title={t('set_tag')}
+            aria-label={t('set_tag')}
+            aria-haspopup="true"
+            aria-expanded={tagMenuOpen}
           >
             <Tag className="w-4 h-4" />
             {showToolbarLabels && <span className="text-[10px] leading-tight sm:text-sm">{t('tag')}</span>}
@@ -3087,19 +3134,32 @@ export function EmailViewer({
         {/* More menu - click-based */}
         <div ref={moreMenuRef} className="relative">
           <Button
+            ref={moreButtonRef}
             variant="ghost"
             size="sm"
             className="flex-col items-center gap-0.5 h-auto py-1.5 px-2 sm:flex-row sm:h-8 sm:w-8 sm:gap-0 sm:py-0 sm:px-0"
             title={t('more_actions')}
+            aria-label={t('more_actions')}
+            aria-haspopup="menu"
+            aria-expanded={moreMenuOpen}
+            aria-controls={moreMenuOpen ? moreMenuId : undefined}
             onClick={() => { setMoreMenuOpen(!moreMenuOpen); setMoreMenuSub(null); setTagMenuOpen(false); setMoveMenuOpen(false); }}
           >
             <MoreVertical className="w-4 h-4 text-muted-foreground" />
             <span className="text-[10px] leading-tight sm:hidden">{t('more_actions')}</span>
           </Button>
           {moreMenuOpen && !isMobile && (
-            <div className="absolute end-0 top-full mt-1 w-48 bg-background rounded-md shadow-lg border border-border z-10 py-1">
+            <div
+              ref={moreMenuListRef}
+              onKeyDown={onMoreMenuKeyDown}
+              id={moreMenuId}
+              role="menu"
+              aria-label={t('more_actions')}
+              className="absolute end-0 top-full mt-1 w-48 bg-background rounded-md shadow-lg border border-border z-10 py-1"
+            >
               {/* Star toggle */}
               <button
+                role="menuitem"
                 onClick={() => { onToggleStar?.(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
               >
@@ -3108,6 +3168,7 @@ export function EmailViewer({
               </button>
               {/* Overflow: reply */}
               <button
+                role="menuitem"
                 onClick={() => { onReply?.(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(1) ? "" : "sm:hidden")}
               >
@@ -3116,6 +3177,7 @@ export function EmailViewer({
               </button>
               {/* Overflow: reply all */}
               <button
+                role="menuitem"
                 onClick={() => { onReplyAll?.(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(2) ? "" : "sm:hidden")}
               >
@@ -3124,6 +3186,7 @@ export function EmailViewer({
               </button>
               {/* Overflow: forward */}
               <button
+                role="menuitem"
                 onClick={() => { onForward?.(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(3) ? "" : "sm:hidden")}
               >
@@ -3132,6 +3195,7 @@ export function EmailViewer({
               </button>
               {/* Overflow: archive */}
               <button
+                role="menuitem"
                 onClick={() => { onArchive?.(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(4) ? "" : "sm:hidden")}
               >
@@ -3145,6 +3209,9 @@ export function EmailViewer({
                   onMouseLeave={() => setMoreMenuSub(null)}
                 >
                   <button
+                    role="menuitem"
+                    aria-haspopup="menu"
+                    aria-expanded={moreMenuSub === 'move'}
                     onClick={() => setMoreMenuSub(moreMenuSub === 'move' ? null : 'move')}
                     className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
                   >
@@ -3163,6 +3230,7 @@ export function EmailViewer({
                               <div key={node.id}>
                                 {isTarget ? (
                                   <button
+                                    role="menuitem"
                                     onClick={() => { onMoveToMailbox(node.id); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                                     className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2"
                                     style={{ paddingLeft: `${0.75 + depth * 1}rem` }}
@@ -3197,6 +3265,9 @@ export function EmailViewer({
                   onMouseLeave={() => setMoreMenuSub(null)}
                 >
                   <button
+                    role="menuitem"
+                    aria-haspopup="menu"
+                    aria-expanded={moreMenuSub === 'tag'}
                     onClick={() => setMoreMenuSub(moreMenuSub === 'tag' ? null : 'tag')}
                     className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
                   >
@@ -3217,6 +3288,7 @@ export function EmailViewer({
               {/* Overflow: spam */}
               {spamApplicable && (onMarkAsSpam || onUndoSpam) && (
                 <button
+                  role="menuitem"
                   onClick={() => { (isInJunkFolder ? onUndoSpam : onMarkAsSpam)?.(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                   className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(7) ? "" : "sm:hidden")}
                 >
@@ -3230,6 +3302,7 @@ export function EmailViewer({
               )}
               {/* Overflow: toggle read */}
               <button
+                role="menuitem"
                 onClick={() => { onMarkAsRead?.(email.id, isUnread); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(8) ? "" : "sm:hidden")}
               >
@@ -3238,6 +3311,7 @@ export function EmailViewer({
               </button>
               {/* Overflow: print */}
               <button
+                role="menuitem"
                 onClick={() => { handlePrint(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(9) ? "" : "sm:hidden")}
               >
@@ -3246,6 +3320,7 @@ export function EmailViewer({
               </button>
               {/* Overflow: view source */}
               <button
+                role="menuitem"
                 onClick={() => { setShowSourceModal(true); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(10) ? "" : "sm:hidden")}
               >
@@ -3255,6 +3330,7 @@ export function EmailViewer({
               {/* Overflow: dark/light mode toggle */}
               {effectiveEmailContent.isHtml && (
                 <button
+                  role="menuitem"
                   onClick={() => { setEmailViewDarkOverride(prev => prev === null ? !(resolvedTheme === 'dark') : !prev); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                   className={cn("w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2", hiddenPriorities.has(11) ? "" : "sm:hidden")}
                 >
@@ -3263,9 +3339,25 @@ export function EmailViewer({
                 </button>
               )}
               <div className="h-px bg-border my-1" />
+              {/* Permalink to this message (#733) */}
+              {email && (
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    void copyLink(buildMailPath({ mailboxId: null, emailId: email.id, threadId: null }));
+                    setMoreMenuOpen(false);
+                    setMoreMenuSub(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  {tDeepLink('copy_message')}
+                </button>
+              )}
               {/* Forward as attachment */}
               {onForwardAsAttachment && email?.blobId && (
                 <button
+                  role="menuitem"
                   onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                   className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
                 >
@@ -3275,6 +3367,7 @@ export function EmailViewer({
               )}
               {/* Export email */}
               <button
+                role="menuitem"
                 onClick={() => { handleExportEmail(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
               >
@@ -3283,6 +3376,7 @@ export function EmailViewer({
               </button>
               {/* Import email */}
               <button
+                role="menuitem"
                 onClick={() => { handleImportEmail(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                 className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
               >
@@ -3291,6 +3385,7 @@ export function EmailViewer({
               </button>
               {onShowShortcuts && (
                 <button
+                  role="menuitem"
                   onClick={() => { onShowShortcuts(); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                   className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
                 >
@@ -3319,7 +3414,17 @@ export function EmailViewer({
       />
     )}
     {!isScheduled && isMobile && (
-      <div className={cn(
+      <div
+        ref={mobileMoreRef}
+        onKeyDown={onMobileMoreKeyDown}
+        id={moreMenuId}
+        role="menu"
+        aria-label={t('more_actions')}
+        /* The panel is only slid off-screen, so without `inert` every action in
+           it stays permanently exposed to screen readers - and lands near the
+           top of the reading order, far from the toolbar it belongs to (#720). */
+        inert={!moreMenuOpen}
+        className={cn(
         "fixed inset-y-0 right-0 w-72 bg-background border-s border-border z-[70] sm:hidden",
         "transform transition-transform duration-300 ease-in-out",
         "flex flex-col",
@@ -3328,6 +3433,7 @@ export function EmailViewer({
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           {moreMenuSub ? (
             <button
+              role="menuitem"
               onClick={() => setMoreMenuSub(null)}
               className="flex items-center gap-1 -ms-2 px-2 py-1 rounded hover:bg-muted text-sm font-semibold text-foreground"
             >
@@ -3337,7 +3443,14 @@ export function EmailViewer({
           ) : (
             <span className="text-sm font-semibold text-foreground">{t('more_actions')}</span>
           )}
-          <Button variant="ghost" size="icon" onClick={() => { setMoreMenuOpen(false); setMoreMenuSub(null); }} className="h-9 w-9">
+          <Button
+            variant="ghost"
+            size="icon"
+            role="menuitem"
+            aria-label={tCommon('close')}
+            onClick={() => { setMoreMenuOpen(false); setMoreMenuSub(null); }}
+            className="h-9 w-9"
+          >
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -3346,6 +3459,7 @@ export function EmailViewer({
             <>
               {/* Star toggle */}
               <button
+                role="menuitem"
                 onClick={() => { onToggleStar?.(); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
               >
@@ -3355,6 +3469,9 @@ export function EmailViewer({
               {/* Tag (opens sub-view) */}
               {(emailKeywords.length > 0 || currentTagIds.length > 0) && (
                 <button
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  aria-expanded={moreMenuSub === 'tag'}
                   onClick={() => setMoreMenuSub('tag')}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
                 >
@@ -3374,6 +3491,7 @@ export function EmailViewer({
                 </button>
               )}
               <button
+                role="menuitem"
                 onClick={() => { handlePrint(); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
               >
@@ -3381,6 +3499,7 @@ export function EmailViewer({
                 {t('print')}
               </button>
               <button
+                role="menuitem"
                 onClick={() => { setShowSourceModal(true); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
               >
@@ -3389,6 +3508,7 @@ export function EmailViewer({
               </button>
               {effectiveEmailContent.isHtml && (
                 <button
+                  role="menuitem"
                   onClick={() => { setEmailViewDarkOverride(prev => prev === null ? !(resolvedTheme === 'dark') : !prev); setMoreMenuOpen(false); }}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
                 >
@@ -3399,6 +3519,7 @@ export function EmailViewer({
               <div className="h-px bg-border my-1" />
               {onForwardAsAttachment && email?.blobId && (
                 <button
+                  role="menuitem"
                   onClick={() => { onForwardAsAttachment(); setMoreMenuOpen(false); }}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
                 >
@@ -3407,6 +3528,7 @@ export function EmailViewer({
                 </button>
               )}
               <button
+                role="menuitem"
                 onClick={() => { handleExportEmail(); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
               >
@@ -3414,6 +3536,7 @@ export function EmailViewer({
                 {t('export_email')}
               </button>
               <button
+                role="menuitem"
                 onClick={() => { handleImportEmail(); setMoreMenuOpen(false); }}
                 className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
               >
@@ -3422,6 +3545,7 @@ export function EmailViewer({
               </button>
               {onShowShortcuts && (
                 <button
+                  role="menuitem"
                   onClick={() => { onShowShortcuts(); setMoreMenuOpen(false); }}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
                 >
@@ -3440,6 +3564,7 @@ export function EmailViewer({
                   <div key={node.id}>
                     {isTarget ? (
                       <button
+                        role="menuitem"
                         onClick={() => { onMoveToMailbox(node.id); setMoreMenuOpen(false); setMoreMenuSub(null); }}
                         className="w-full px-4 py-2.5 min-h-[44px] text-sm text-start hover:bg-muted flex items-center gap-3"
                         style={{ paddingLeft: `${1 + depth * 1}rem` }}
@@ -5065,7 +5190,7 @@ export function EmailViewer({
         })()}
         onClose={() => setContactSidebarEmail(null)}
         onEditContact={sidebarContact ? () => {
-          router.push(`/contacts?contactId=${sidebarContact.id}&view=edit`);
+          router.push(buildContactsPath({ contactId: sidebarContact.id, editing: true }));
           setContactSidebarEmail(null);
         } : undefined}
         onAddToContacts={(addr, name) => {

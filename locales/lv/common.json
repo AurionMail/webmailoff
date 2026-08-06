@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Meklēt",
       "compose": "Rakstīt",
-      "go_back": "Atpakaļ"
+      "go_back": "Atpakaļ",
+      "toggle_menu": "Pārslēgt izvēlni"
     },
     "clear_search": "Notīrīt meklēšanu",
     "vacation_active": "Atvaļinājuma atbilde ir aktīva",
@@ -3326,5 +3327,18 @@
     "install": "Instalēt",
     "dont_remind": "Vairs man neatgādināt",
     "dismiss_aria": "Aizvērt instalēšanas paziņojumu"
+  },
+  "deep_link": {
+    "message_not_found": "Šī ziņa vairs nav pieejama.",
+    "thread_not_found": "Šī sarakste vairs nav pieejama.",
+    "folder_not_found": "Šī mape vairs nav pieejama.",
+    "event_not_found": "Šis notikums vairs nav pieejams.",
+    "file_not_found": "Šis fails vairs nav pieejams.",
+    "account_unavailable": "Piesakieties šajā kontā, lai atvērtu saiti.",
+    "copy_message": "Kopēt saiti uz ziņu",
+    "copy_conversation": "Kopēt saiti uz saraksti",
+    "copy_event": "Kopēt saiti uz notikumu",
+    "copied": "Saite nokopēta",
+    "copy_failed": "Neizdevās nokopēt saiti"
   }
 }

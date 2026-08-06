@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Rechercher",
       "compose": "Composer",
-      "go_back": "Retour"
+      "go_back": "Retour",
+      "toggle_menu": "Afficher/masquer le menu"
     },
     "clear_search": "Effacer la recherche",
     "vacation_active": "Répondeur d'absence activé",
@@ -3326,5 +3327,18 @@
     "install": "Installer",
     "dont_remind": "Ne plus me le rappeler",
     "dismiss_aria": "Fermer l'invite d'installation"
+  },
+  "deep_link": {
+    "message_not_found": "Ce message n'est plus disponible.",
+    "thread_not_found": "Cette conversation n'est plus disponible.",
+    "folder_not_found": "Ce dossier n'est plus disponible.",
+    "event_not_found": "Cet événement n'est plus disponible.",
+    "file_not_found": "Ce fichier n'est plus disponible.",
+    "account_unavailable": "Connectez-vous à ce compte pour ouvrir ce lien.",
+    "copy_message": "Copier le lien du message",
+    "copy_conversation": "Copier le lien de la conversation",
+    "copy_event": "Copier le lien de l'événement",
+    "copied": "Lien copié",
+    "copy_failed": "Impossible de copier le lien"
   }
 }

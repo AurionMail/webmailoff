@@ -122,7 +122,8 @@
     "mobile": {
       "search": "بحث",
       "compose": "إنشاء رسالة",
-      "go_back": "العودة"
+      "go_back": "العودة",
+      "toggle_menu": "تبديل القائمة"
     },
     "clear_search": "مسح البحث",
     "vacation_active": "الرد التلقائي أثناء الغياب مفعّل",
@@ -3326,5 +3327,18 @@
     "install": "تثبيت",
     "dont_remind": "عدم التذكير مرة أخرى",
     "dismiss_aria": "تجاهل مطالبة التثبيت"
+  },
+  "deep_link": {
+    "message_not_found": "لم تعد هذه الرسالة متاحة.",
+    "thread_not_found": "لم تعد هذه المحادثة متاحة.",
+    "folder_not_found": "لم يعد هذا المجلد متاحًا.",
+    "event_not_found": "لم يعد هذا الحدث متاحًا.",
+    "file_not_found": "لم يعد هذا الملف متاحًا.",
+    "account_unavailable": "سجّل الدخول إلى ذلك الحساب لفتح هذا الرابط.",
+    "copy_message": "نسخ رابط الرسالة",
+    "copy_conversation": "نسخ رابط المحادثة",
+    "copy_event": "نسخ رابط الحدث",
+    "copied": "تم نسخ الرابط",
+    "copy_failed": "تعذّر نسخ الرابط"
   }
 }

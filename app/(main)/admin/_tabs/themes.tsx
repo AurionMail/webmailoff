@@ -358,7 +358,8 @@ export function ThemesTab() {
               <span className="text-sm text-foreground">Themes Enabled</span>
               <p className="text-xs text-muted-foreground mt-0.5">Allow users to select and apply themes</p>
             </div>
-            <button onClick={toggleThemesEnabled}
+            <button type="button" role="switch" aria-checked={themesEnabled} aria-label="Themes Enabled"
+              onClick={toggleThemesEnabled}
               className={`shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${themesEnabled ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}>
               <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow transition-transform ${themesEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
             </button>
@@ -369,7 +370,8 @@ export function ThemesTab() {
               <span className="text-sm text-foreground">User Theme Uploads</span>
               <p className="text-xs text-muted-foreground mt-0.5">Allow users to upload their own theme files</p>
             </div>
-            <button onClick={toggleUserThemeUploads}
+            <button type="button" role="switch" aria-checked={userThemesEnabled} aria-label="User Theme Uploads"
+              onClick={toggleUserThemeUploads}
               className={`shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${userThemesEnabled ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}>
               <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow transition-transform ${userThemesEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
             </button>
@@ -440,7 +442,8 @@ export function ThemesTab() {
                 return (
                   <div key={theme.id} className="flex items-center justify-between gap-4">
                     <span className="text-sm text-foreground">{theme.name}</span>
-                    <button onClick={() => toggleBuiltinTheme(theme.id)}
+                    <button type="button" role="switch" aria-checked={!disabled} aria-label={theme.name}
+                      onClick={() => toggleBuiltinTheme(theme.id)}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${!disabled ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}>
                       <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow transition-transform ${!disabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
                     </button>
@@ -459,7 +462,8 @@ export function ThemesTab() {
                   return (
                     <div key={theme.id} className="flex items-center justify-between gap-4">
                       <span className="text-sm text-foreground">{theme.name}</span>
-                      <button onClick={() => toggleAdminTheme(theme.id)}
+                      <button type="button" role="switch" aria-checked={!disabled} aria-label={theme.name}
+                        onClick={() => toggleAdminTheme(theme.id)}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${!disabled ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}>
                         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow transition-transform ${!disabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
                       </button>

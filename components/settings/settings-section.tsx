@@ -1,6 +1,15 @@
-import { ReactNode } from 'react';
+'use client';
+
+import { ReactNode, createContext, useContext, useId } from 'react';
 import { Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/**
+ * Lets the controls inside a SettingItem borrow the row's visible label as
+ * their accessible name. Without it a bare toggle announces as an unnamed
+ * switch, since the row label is a <label> with nothing to point at (#722).
+ */
+const SettingLabelContext = createContext<string | undefined>(undefined);
 
 interface SettingsSectionProps {
   title: string;
@@ -30,6 +39,7 @@ interface SettingItemProps {
 }
 
 export function SettingItem({ label, description, children, locked }: SettingItemProps) {
+  const labelId = useId();
   return (
     <div
       data-search-label={label}
@@ -37,14 +47,16 @@ export function SettingItem({ label, description, children, locked }: SettingIte
     >
       <div className="flex-1 min-w-0 sm:pe-4">
         <div className="flex items-center gap-1.5">
-          <label className="text-sm font-medium text-foreground">{label}</label>
+          <label id={labelId} className="text-sm font-medium text-foreground">{label}</label>
           {locked && <Lock className="w-3 h-3 text-muted-foreground" aria-label="Managed by administrator" />}
         </div>
         {description && (
           <p className="text-xs text-muted-foreground mt-1">{description}</p>
         )}
       </div>
-      <div className={cn("flex-shrink-0", locked && "pointer-events-none")}>{children}</div>
+      <SettingLabelContext.Provider value={labelId}>
+        <div className={cn("flex-shrink-0", locked && "pointer-events-none")}>{children}</div>
+      </SettingLabelContext.Provider>
     </div>
   );
 }
@@ -53,14 +65,19 @@ interface ToggleSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  /** Overrides the enclosing SettingItem label as the accessible name. */
+  ariaLabel?: string;
 }
 
-export function ToggleSwitch({ checked, onChange, disabled }: ToggleSwitchProps) {
+export function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchProps) {
+  const labelledBy = useContext(SettingLabelContext);
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabel ? undefined : labelledBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
@@ -86,12 +103,14 @@ interface RadioGroupProps {
 }
 
 export function RadioGroup({ value, onChange, options }: RadioGroupProps) {
+  const labelledBy = useContext(SettingLabelContext);
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1.5" role="group" aria-labelledby={labelledBy}>
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
             'px-3 py-1.5 text-xs rounded-md transition-colors duration-150',
@@ -117,12 +136,14 @@ interface SelectProps {
 }
 
 export function Select({ value, onChange, options, disabled, className, ariaLabel }: SelectProps) {
+  const labelledBy = useContext(SettingLabelContext);
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-labelledby={ariaLabel ? undefined : labelledBy}
       dir="auto"
       className={cn(
         "px-3 py-1.5 text-sm rounded-md bg-muted border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors duration-150",

@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Suchen",
       "compose": "Verfassen",
-      "go_back": "Zurück"
+      "go_back": "Zurück",
+      "toggle_menu": "Menü umschalten"
     },
     "clear_search": "Suche löschen",
     "vacation_active": "Abwesenheitsnotiz ist aktiv",
@@ -3326,5 +3327,18 @@
     "install": "Installieren",
     "dont_remind": "Nicht mehr erinnern",
     "dismiss_aria": "Installationshinweis schließen"
+  },
+  "deep_link": {
+    "message_not_found": "Diese Nachricht ist nicht mehr verfügbar.",
+    "thread_not_found": "Diese Unterhaltung ist nicht mehr verfügbar.",
+    "folder_not_found": "Dieser Ordner ist nicht mehr verfügbar.",
+    "event_not_found": "Dieser Termin ist nicht mehr verfügbar.",
+    "file_not_found": "Diese Datei ist nicht mehr verfügbar.",
+    "account_unavailable": "Melde dich bei diesem Konto an, um den Link zu öffnen.",
+    "copy_message": "Link zur Nachricht kopieren",
+    "copy_conversation": "Link zur Unterhaltung kopieren",
+    "copy_event": "Link zum Termin kopieren",
+    "copied": "Link kopiert",
+    "copy_failed": "Link konnte nicht kopiert werden"
   }
 }

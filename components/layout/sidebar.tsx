@@ -67,6 +67,7 @@ import { toast } from "@/stores/toast-store";
 import { debug } from "@/lib/debug";
 import { AccountSwitcher } from "./account-switcher";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
+import { buildSettingsPath } from "@/lib/deep-links";
 import { useTour } from "@/components/tour/tour-provider";
 
 interface SidebarProps {
@@ -1078,14 +1079,11 @@ export function Sidebar({
     });
   };
 
-  const openFolderSettings = () => {
-    try { sessionStorage.setItem('settings-deep-link-tab', 'folders'); } catch { /* */ }
-    router.push('/settings');
-  };
-  const openKeywordSettings = () => {
-    try { sessionStorage.setItem('settings-deep-link-tab', 'keywords'); } catch { /* */ }
-    router.push('/settings');
-  };
+  // The tab now travels in the URL (#733) rather than through sessionStorage,
+  // so a gear click is a link the user can also bookmark or share. It still
+  // steers only this one open - the persisted default is written on tab click.
+  const openFolderSettings = () => { router.push(buildSettingsPath('folders')); };
+  const openKeywordSettings = () => { router.push(buildSettingsPath('keywords')); };
 
   const {
     contextMenu: mailboxContextMenu,

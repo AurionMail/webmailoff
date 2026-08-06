@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Szukaj",
       "compose": "Napisz",
-      "go_back": "Wróć"
+      "go_back": "Wróć",
+      "toggle_menu": "Przełącz menu"
     },
     "clear_search": "Wyczyść wyszukiwanie",
     "vacation_active": "Autoresponder wakacyjny jest aktywny",
@@ -3326,5 +3327,18 @@
     "install": "Zainstaluj",
     "dont_remind": "Nie przypominaj mi więcej",
     "dismiss_aria": "Zamknij monit instalacji"
+  },
+  "deep_link": {
+    "message_not_found": "Ta wiadomość nie jest już dostępna.",
+    "thread_not_found": "Ta rozmowa nie jest już dostępna.",
+    "folder_not_found": "Ten folder nie jest już dostępny.",
+    "event_not_found": "To wydarzenie nie jest już dostępne.",
+    "file_not_found": "Ten plik nie jest już dostępny.",
+    "account_unavailable": "Zaloguj się na to konto, aby otworzyć ten link.",
+    "copy_message": "Kopiuj link do wiadomości",
+    "copy_conversation": "Kopiuj link do rozmowy",
+    "copy_event": "Kopiuj link do wydarzenia",
+    "copied": "Link skopiowany",
+    "copy_failed": "Nie udało się skopiować linku"
   }
 }

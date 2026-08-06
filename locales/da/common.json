@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Søg",
       "compose": "Ny besked",
-      "go_back": "Gå tilbage"
+      "go_back": "Gå tilbage",
+      "toggle_menu": "Slå menu til/fra"
     },
     "clear_search": "Ryd søgning",
     "vacation_active": "Fraværsbeskeder er aktive",
@@ -3326,5 +3327,18 @@
     "install": "Installer",
     "dont_remind": "Påmind mig ikke igen",
     "dismiss_aria": "Afvis installationsprompt"
+  },
+  "deep_link": {
+    "message_not_found": "Denne besked er ikke længere tilgængelig.",
+    "thread_not_found": "Denne samtale er ikke længere tilgængelig.",
+    "folder_not_found": "Denne mappe er ikke længere tilgængelig.",
+    "event_not_found": "Denne begivenhed er ikke længere tilgængelig.",
+    "file_not_found": "Denne fil er ikke længere tilgængelig.",
+    "account_unavailable": "Log ind på den konto for at åbne dette link.",
+    "copy_message": "Kopier link til besked",
+    "copy_conversation": "Kopier link til samtale",
+    "copy_event": "Kopier link til begivenhed",
+    "copied": "Link kopieret",
+    "copy_failed": "Kunne ikke kopiere linket"
   }
 }

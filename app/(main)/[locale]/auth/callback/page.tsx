@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuthStore } from "@/stores/auth-store";
 import { apiFetch, getPathPrefix, toRouterPath } from "@/lib/browser-navigation";
+import { buildSettingsPath } from "@/lib/deep-links";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useParams } from "next/navigation";
@@ -56,11 +57,13 @@ function OAuthCallbackInner() {
           }
           try {
             sessionStorage.setItem("pair_reauth_done", "1");
-            // Land back on the Security tab (readPersistedTab reads this key).
-            sessionStorage.setItem("settings-deep-link-tab", "security");
           } catch { /* ignore */ }
+          // Land back on the Security tab. The tab is part of the URL now
+          // (#733), so the redirect target says where it is going.
           const prefix = getPathPrefix(params.locale as string);
-          router.push(toRouterPath(`${prefix}/${params.locale}/settings`));
+          router.push(toRouterPath(
+            `${prefix}/${params.locale}${buildSettingsPath("security")}`,
+          ));
         } catch {
           setError("token_exchange_failed");
         }

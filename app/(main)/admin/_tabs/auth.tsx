@@ -349,7 +349,8 @@ function Toggle({ label, description, configKey, value, source, onChange, onReve
         {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button onClick={() => onChange(configKey, !value)}
+        <button type="button" role="switch" aria-checked={value} aria-label={label}
+          onClick={() => onChange(configKey, !value)}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${value ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}>
           <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow transition-transform ${value ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
         </button>

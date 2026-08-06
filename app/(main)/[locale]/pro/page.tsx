@@ -18,20 +18,23 @@ import { useProTabStore, type ProTab, type ProTabKind, type ProPaneId } from "@/
 import { cn } from "@/lib/utils";
 import { getPathPrefix } from "@/lib/browser-navigation";
 
-import MailPage from "@/app/(main)/[locale]/page";
-import CalendarPage from "@/app/(main)/[locale]/calendar/page";
-import ContactsPage from "@/app/(main)/[locale]/contacts/page";
-import FilesPage from "@/app/(main)/[locale]/files/page";
-import SettingsPage from "@/app/(main)/[locale]/settings/page";
+import { MailApp } from "@/components/mail/mail-app";
+import { CalendarApp } from "@/components/calendar/calendar-app";
+import { ContactsApp } from "@/components/contacts/contacts-app";
+import { FilesApp } from "@/components/files/files-app";
+import { SettingsApp } from "@/components/settings/settings-app";
 import { ProComposeTabBody } from "@/components/pro/pro-compose-tab-body";
 import { ProEmailTabBody } from "@/components/pro/pro-email-tab-body";
 
+// Each surface renders the same component the standard routes do. Deep links
+// reach them through the handoff ProInterfaceRedirect parks (#733), not as
+// props - Pro tabs have no route of their own.
 const APP_TAB_COMPONENTS: Partial<Record<ProTabKind, ComponentType>> = {
-  mail: MailPage,
-  calendar: CalendarPage,
-  contacts: ContactsPage,
-  files: FilesPage,
-  settings: SettingsPage,
+  mail: MailApp,
+  calendar: CalendarApp,
+  contacts: ContactsApp,
+  files: FilesApp,
+  settings: SettingsApp,
 };
 
 type DropTarget = 'left' | 'right' | null;

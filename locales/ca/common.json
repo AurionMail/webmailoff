@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Cerca",
       "compose": "Redacta",
-      "go_back": "Torna enrere"
+      "go_back": "Torna enrere",
+      "toggle_menu": "Commuta el menú"
     },
     "clear_search": "Neteja la cerca",
     "vacation_active": "La resposta automàtica està activa",
@@ -3326,5 +3327,18 @@
     "install": "Instal·la",
     "dont_remind": "No m'ho tornis a recordar",
     "dismiss_aria": "Descarta l'avís d'instal·lació"
+  },
+  "deep_link": {
+    "message_not_found": "Aquest missatge ja no està disponible.",
+    "thread_not_found": "Aquesta conversa ja no està disponible.",
+    "folder_not_found": "Aquesta carpeta ja no està disponible.",
+    "event_not_found": "Aquest esdeveniment ja no està disponible.",
+    "file_not_found": "Aquest fitxer ja no està disponible.",
+    "account_unavailable": "Inicia la sessió en aquest compte per obrir l'enllaç.",
+    "copy_message": "Copia l'enllaç del missatge",
+    "copy_conversation": "Copia l'enllaç de la conversa",
+    "copy_event": "Copia l'enllaç de l'esdeveniment",
+    "copied": "Enllaç copiat",
+    "copy_failed": "No s'ha pogut copiar l'enllaç"
   }
 }

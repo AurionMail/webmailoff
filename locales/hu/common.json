@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Keresés",
       "compose": "Új levél",
-      "go_back": "Vissza"
+      "go_back": "Vissza",
+      "toggle_menu": "Menü be/ki"
     },
     "clear_search": "Keresés törlése",
     "vacation_active": "Automatikus válasz aktív",
@@ -3326,5 +3327,18 @@
     "install": "Telepítés",
     "dont_remind": "Ne emlékeztess többet",
     "dismiss_aria": "Telepítési ablak elutasítása"
+  },
+  "deep_link": {
+    "message_not_found": "Ez az üzenet már nem érhető el.",
+    "thread_not_found": "Ez a beszélgetés már nem érhető el.",
+    "folder_not_found": "Ez a mappa már nem érhető el.",
+    "event_not_found": "Ez az esemény már nem érhető el.",
+    "file_not_found": "Ez a fájl már nem érhető el.",
+    "account_unavailable": "Jelentkezz be ebbe a fiókba a link megnyitásához.",
+    "copy_message": "Üzenet linkjének másolása",
+    "copy_conversation": "Beszélgetés linkjének másolása",
+    "copy_event": "Esemény linkjének másolása",
+    "copied": "Link másolva",
+    "copy_failed": "Nem sikerült másolni a linket"
   }
 }

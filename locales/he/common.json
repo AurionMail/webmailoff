@@ -114,7 +114,8 @@
     "mobile": {
       "search": "לְחַפֵּשׂ",
       "compose": "לְהַלחִין",
-      "go_back": "לַחֲזוֹר"
+      "go_back": "לַחֲזוֹר",
+      "toggle_menu": "החלף תפריט"
     },
     "clear_search": "נקה חיפוש",
     "vacation_active": "משיב חופשה פעיל",
@@ -3327,5 +3328,18 @@
     "install": "התקן",
     "dont_remind": "אל תזכיר לי שוב",
     "dismiss_aria": "בטל הודעת התקנה"
+  },
+  "deep_link": {
+    "message_not_found": "הודעה זו אינה זמינה עוד.",
+    "thread_not_found": "שיחה זו אינה זמינה עוד.",
+    "folder_not_found": "תיקייה זו אינה זמינה עוד.",
+    "event_not_found": "אירוע זה אינו זמין עוד.",
+    "file_not_found": "קובץ זה אינו זמין עוד.",
+    "account_unavailable": "היכנס לחשבון הזה כדי לפתוח את הקישור.",
+    "copy_message": "העתק קישור להודעה",
+    "copy_conversation": "העתק קישור לשיחה",
+    "copy_event": "העתק קישור לאירוע",
+    "copied": "הקישור הועתק",
+    "copy_failed": "לא ניתן להעתיק את הקישור"
   }
 }

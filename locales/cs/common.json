@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Hledat",
       "compose": "Napsat",
-      "go_back": "Zpět"
+      "go_back": "Zpět",
+      "toggle_menu": "Přepnout nabídku"
     },
     "clear_search": "Vymazat hledání",
     "vacation_active": "Automatická odpověď je aktivní",
@@ -3326,5 +3327,18 @@
     "install": "Nainstalovat",
     "dont_remind": "Už mi to nepřipomínat",
     "dismiss_aria": "Zavřít výzvu k instalaci"
+  },
+  "deep_link": {
+    "message_not_found": "Tato zpráva už není dostupná.",
+    "thread_not_found": "Tato konverzace už není dostupná.",
+    "folder_not_found": "Tato složka už není dostupná.",
+    "event_not_found": "Tato událost už není dostupná.",
+    "file_not_found": "Tento soubor už není dostupný.",
+    "account_unavailable": "Přihlaste se k tomuto účtu, abyste odkaz otevřeli.",
+    "copy_message": "Kopírovat odkaz na zprávu",
+    "copy_conversation": "Kopírovat odkaz na konverzaci",
+    "copy_event": "Kopírovat odkaz na událost",
+    "copied": "Odkaz zkopírován",
+    "copy_failed": "Odkaz se nepodařilo zkopírovat"
   }
 }

@@ -12,9 +12,12 @@ import {
   Download,
   ClipboardCopy,
   Link as LinkIcon,
+  CalendarArrowUp as CalendarLinkIcon,
   Trash2,
 } from "lucide-react";
 import type { CalendarEvent } from "@/lib/jmap/types";
+import { buildCalendarPath } from "@/lib/deep-links";
+import { useCopyLink } from "@/hooks/use-copy-link";
 
 interface Position {
   x: number;
@@ -49,6 +52,8 @@ export function EventContextMenu({
   onDelete,
 }: EventContextMenuProps) {
   const t = useTranslations("calendar");
+  const tDeepLink = useTranslations("deep_link");
+  const copyLink = useCopyLink();
 
   const handle = (fn: () => void) => () => {
     fn();
@@ -81,6 +86,20 @@ export function EventContextMenu({
           onClick={handle(onCopyMeetingLink)}
         />
       )}
+      {/* Permalink into Bulwark (#733) - distinct from the meeting URL above,
+          which points at whatever conferencing tool the organiser used. */}
+      <ContextMenuItem
+        icon={CalendarLinkIcon}
+        label={tDeepLink("copy_event")}
+        onClick={handle(() => {
+          void copyLink(buildCalendarPath({
+            view: "month",
+            date: null,
+            eventId: event.id,
+            accountId: event.accountId,
+          }));
+        })}
+      />
       <ContextMenuSeparator />
       <ContextMenuItem
         icon={Trash2}

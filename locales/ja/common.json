@@ -122,7 +122,8 @@
     "mobile": {
       "search": "検索",
       "compose": "作成",
-      "go_back": "戻る"
+      "go_back": "戻る",
+      "toggle_menu": "メニューを切り替え"
     },
     "clear_search": "検索をクリア",
     "vacation_active": "不在応答が有効です",
@@ -3326,5 +3327,18 @@
     "install": "インストール",
     "dont_remind": "今後表示しない",
     "dismiss_aria": "インストールプロンプトを閉じる"
+  },
+  "deep_link": {
+    "message_not_found": "このメッセージは利用できなくなりました。",
+    "thread_not_found": "この会話は利用できなくなりました。",
+    "folder_not_found": "このフォルダーは利用できなくなりました。",
+    "event_not_found": "この予定は利用できなくなりました。",
+    "file_not_found": "このファイルは利用できなくなりました。",
+    "account_unavailable": "このリンクを開くには、そのアカウントにサインインしてください。",
+    "copy_message": "メッセージのリンクをコピー",
+    "copy_conversation": "会話のリンクをコピー",
+    "copy_event": "予定のリンクをコピー",
+    "copied": "リンクをコピーしました",
+    "copy_failed": "リンクをコピーできませんでした"
   }
 }

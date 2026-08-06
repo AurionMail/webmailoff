@@ -122,7 +122,8 @@
     "mobile": {
       "search": "搜索",
       "compose": "撰写邮件",
-      "go_back": "返回"
+      "go_back": "返回",
+      "toggle_menu": "切换菜单"
     },
     "clear_search": "清除搜索",
     "vacation_active": "假期自动回复已开启",
@@ -3326,5 +3327,18 @@
     "install": "安装",
     "dont_remind": "不再提醒",
     "dismiss_aria": "关闭安装提示"
+  },
+  "deep_link": {
+    "message_not_found": "此邮件已不可用。",
+    "thread_not_found": "此会话已不可用。",
+    "folder_not_found": "此文件夹已不可用。",
+    "event_not_found": "此日程已不可用。",
+    "file_not_found": "此文件已不可用。",
+    "account_unavailable": "请登录该账户以打开此链接。",
+    "copy_message": "复制邮件链接",
+    "copy_conversation": "复制会话链接",
+    "copy_event": "复制日程链接",
+    "copied": "链接已复制",
+    "copy_failed": "无法复制链接"
   }
 }

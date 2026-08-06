@@ -69,7 +69,11 @@ import { PluginsSettings } from '@/components/settings/plugins-settings';
 import { PluginIframeSlot } from '@/components/plugins/plugin-iframe-slot';
 import { offersForSlot as pluginOffersForSlot, subscribe as pluginRegistrySubscribe, get as getActivePlugin } from '@/lib/plugin-sandbox/registry';
 import { ProtocolHandlerSettings } from '@/components/settings/protocol-handler-settings';
-import { useAuthStore, redirectToLogin } from '@/stores/auth-store';
+import { appPath, buildSettingsPath, parseSettingsPath } from '@/lib/deep-links';
+import { consumePendingDeepLink } from '@/lib/deep-link-handoff';
+import { useDeepLinkUrl } from '@/hooks/use-deep-link-url';
+import { useProInterfaceActive } from '@/components/pro/pro-interface-redirect';
+import { useAuthStore, redirectToLogin, saveRedirectAfterLogin } from '@/stores/auth-store';
 import { useEmailStore } from '@/stores/email-store';
 import { usePluginStore } from '@/stores/plugin-store';
 import { useThemeStore } from '@/stores/theme-store';
@@ -361,7 +365,27 @@ function readPersistedTab(): SettingsTabId {
   }
 }
 
-export default function SettingsPage() {
+/**
+ * The tab a `/settings/<tab>` deep link names (#733), or null when the URL
+ * names nothing we recognise - an old link to a tab that has since been
+ * renamed falls back to the persisted tab rather than rendering an empty pane.
+ * Legacy ids are migrated the same way the stored value is.
+ */
+function tabFromDeepLink(segments: string[] | null | undefined): SettingsTabId | null {
+  const raw = parseSettingsPath(segments ?? []);
+  if (!raw) return null;
+  const migrated = raw in LEGACY_TAB_MAP ? LEGACY_TAB_MAP[raw] : raw;
+  if (migrated in tabIcons) return migrated as SettingsTabId;
+  if (migrated.startsWith('plugin:')) return migrated as SettingsTabId;
+  return null;
+}
+
+export interface SettingsAppProps {
+  /** Path segments after `/settings` - `['<tabId>']`. */
+  linkSegments?: string[];
+}
+
+export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
   const router = useRouter();
   const t = useTranslations('settings');
   const tSidebar = useTranslations('sidebar');
@@ -372,7 +396,10 @@ export default function SettingsPage() {
   const { quota, isPushConnected } = useEmailStore();
   const { stalwartFeaturesEnabled } = useConfig();
   const { isFeatureEnabled } = usePolicyStore();
-  const [activeTab, setActiveTab] = useState<SettingsTabId>(readPersistedTab);
+  // A tab in the URL wins over the persisted one; without it, nothing changes.
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(
+    () => tabFromDeepLink(linkSegments) ?? readPersistedTab(),
+  );
   // Active plugins that expose a `settings-section` slot — each becomes its own
   // Settings menu entry. Referentially stable per registry mutation, so it is
   // safe to feed useSyncExternalStore directly.
@@ -386,6 +413,13 @@ export default function SettingsPage() {
   useEffect(() => {
     try { sessionStorage.removeItem('settings-deep-link-tab'); } catch { /* ignore */ }
   }, []);
+  // Inside the Pro shell there is no route to read the tab from, so it arrives
+  // through the handoff the redirect parked (#733).
+  useEffect(() => {
+    if (linkSegments) return;
+    const tab = tabFromDeepLink(consumePendingDeepLink('settings'));
+    if (tab) setActiveTab(tab);
+  }, [linkSegments]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingHighlight, setPendingHighlight] = useState<{ tab: SettingsTabId; label: string; pluginId?: string } | null>(null);
@@ -512,7 +546,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (initialCheckDone && !isAuthenticated && !authLoading) {
-      try { sessionStorage.setItem('redirect_after_login', window.location.pathname); } catch { /* ignore */ }
+      saveRedirectAfterLogin();
       redirectToLogin();
     }
   }, [initialCheckDone, isAuthenticated, authLoading]);
@@ -598,6 +632,17 @@ export default function SettingsPage() {
       if (highlightedEl) highlightedEl.classList.remove('settings-search-highlight');
     };
   }, [pendingHighlight, activeTab]);
+
+  // The permalink for the open tab (#733). Suppressed inside the Pro shell,
+  // where /pro owns the address bar. On mobile the tab list is its own screen,
+  // so the tab is only in the URL once the user is looking at its content.
+  // Must sit above the early return below - it is a hook.
+  const proInterfaceActive = useProInterfaceActive();
+  useDeepLinkUrl(
+    !isAuthenticated || isEmbedded || proInterfaceActive
+      ? null
+      : appPath(buildSettingsPath(!isDesktop && !mobileShowContent ? null : activeTab)),
+  );
 
   if (!isAuthenticated) {
     return null;

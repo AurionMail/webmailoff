@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Zoeken",
       "compose": "Opstellen",
-      "go_back": "Terug"
+      "go_back": "Terug",
+      "toggle_menu": "Menu wisselen"
     },
     "clear_search": "Zoekopdracht wissen",
     "vacation_active": "Afwezigheidsmelder is actief",
@@ -3326,5 +3327,18 @@
     "install": "Installeren",
     "dont_remind": "Niet meer herinneren",
     "dismiss_aria": "Installatiemelding sluiten"
+  },
+  "deep_link": {
+    "message_not_found": "Dit bericht is niet meer beschikbaar.",
+    "thread_not_found": "Dit gesprek is niet meer beschikbaar.",
+    "folder_not_found": "Deze map is niet meer beschikbaar.",
+    "event_not_found": "Deze afspraak is niet meer beschikbaar.",
+    "file_not_found": "Dit bestand is niet meer beschikbaar.",
+    "account_unavailable": "Log in op dat account om deze link te openen.",
+    "copy_message": "Link naar bericht kopiëren",
+    "copy_conversation": "Link naar gesprek kopiëren",
+    "copy_event": "Link naar afspraak kopiëren",
+    "copied": "Link gekopieerd",
+    "copy_failed": "Kon de link niet kopiëren"
   }
 }

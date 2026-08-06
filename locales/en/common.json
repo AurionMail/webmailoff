@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Search",
       "compose": "Compose",
-      "go_back": "Go back"
+      "go_back": "Go back",
+      "toggle_menu": "Toggle menu"
     },
     "clear_search": "Clear search",
     "vacation_active": "Vacation responder is active",
@@ -3341,5 +3342,18 @@
     "install": "Install",
     "dont_remind": "Don't remind me again",
     "dismiss_aria": "Dismiss install prompt"
+  },
+  "deep_link": {
+    "message_not_found": "This message is no longer available.",
+    "thread_not_found": "This conversation is no longer available.",
+    "folder_not_found": "This folder is no longer available.",
+    "event_not_found": "This event is no longer available.",
+    "file_not_found": "This file is no longer available.",
+    "account_unavailable": "Sign in to that account to open this link.",
+    "copy_message": "Copy link to message",
+    "copy_conversation": "Copy link to conversation",
+    "copy_event": "Copy link to event",
+    "copied": "Link copied",
+    "copy_failed": "Couldn't copy the link"
   }
 }

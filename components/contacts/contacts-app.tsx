@@ -21,7 +21,7 @@ import { AppTopBannerSlot } from "@/components/plugins/app-top-banner-slot";
 import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "@/stores/contact-store";
 import { savePendingMailto } from "@/lib/protocol-handlers/session";
 import { formatRecipient, formatRecipientEntry, type Recipient } from "@/lib/email-composer-utils";
-import { useAuthStore, redirectToLogin } from "@/stores/auth-store";
+import { useAuthStore, redirectToLogin, saveRedirectAfterLogin } from '@/stores/auth-store';
 import { useEmailStore } from "@/stores/email-store";
 import { usePolicyStore } from "@/stores/policy-store";
 import { toast } from "@/stores/toast-store";
@@ -37,6 +37,10 @@ import { useIsDesktop, useIsMobile } from "@/hooks/use-media-query";
 import { useRefreshGesture } from "@/hooks/use-refresh-gesture";
 import type { ContactCard, AddressBook, AddressBookRights } from "@/lib/jmap/types";
 import { ShareCollectionDialog } from "@/components/settings/share-collection-dialog";
+import { appPath, buildContactsPath, parseContactsPath } from "@/lib/deep-links";
+import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
+import { useDeepLinkUrl } from "@/hooks/use-deep-link-url";
+import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 
 type View =
   | "list"
@@ -48,7 +52,12 @@ type View =
   | "group-edit"
   | "bulk-add-to-group";
 
-export default function ContactsPage() {
+export interface ContactsAppProps {
+  /** Path segments after `/contacts` (`['<contactId>', 'edit']`). */
+  linkSegments?: string[];
+}
+
+export function ContactsApp({ linkSegments }: ContactsAppProps = {}) {
   const t = useTranslations("contacts");
   const contactsEnabled = usePolicyStore((s) => s.isFeatureEnabled('contactsEnabled'));
   const { client, isAuthenticated, logout, checkAuth, isLoading: authLoading } = useAuthStore();
@@ -150,7 +159,7 @@ export default function ContactsPage() {
 
   useEffect(() => {
     if (initialCheckDone && !isAuthenticated && !authLoading) {
-      try { sessionStorage.setItem('redirect_after_login', window.location.pathname); } catch { /* ignore */ }
+      saveRedirectAfterLogin();
       redirectToLogin();
     }
   }, [initialCheckDone, isAuthenticated, authLoading]);
@@ -168,29 +177,41 @@ export default function ContactsPage() {
     }
   }, [client, supportsSync, fetchContacts, isEmbedded]);
 
-  // Consume one-shot URL params (set by the mobile recipient popover when no
-  // sidebar is available) and strip them so a refresh doesn't replay the
-  // intent. `from=email` flips the mobile back button to `router.back()`.
+  // Apply the deep link once (#733): `/contacts/<id>[/edit]` and `/contacts/new`,
+  // plus the older one-shot query form the mobile recipient popover emits
+  // (`?contactId=`, `?addEmail=`). `from=email` flips the mobile back button to
+  // `router.back()`. After this the URL is an output of the view, not an input.
   useEffect(() => {
     if (intentAppliedRef.current) return;
-    const contactId = searchParams.get('contactId');
-    const addEmail = searchParams.get('addEmail');
-    const addName = searchParams.get('addName');
-    const from = searchParams.get('from');
-    const viewParam = searchParams.get('view');
-    if (!contactId && !addEmail && !from) return;
+    const segments = linkSegments ?? consumePendingDeepLink('contacts') ?? [];
+    const link = parseContactsPath(
+      segments,
+      new URLSearchParams(searchParams.toString()),
+    );
     intentAppliedRef.current = true;
-    if (from === 'email') setReturnToEmail(true);
-    if (contactId) {
-      setSelectedContact(contactId);
-      setView(viewParam === 'edit' ? 'edit' : 'detail');
-    } else if (addEmail) {
-      setCreatePrefill({ email: addEmail, name: addName ?? undefined });
+    if (!link) return;
+    if (link.fromEmail) setReturnToEmail(true);
+    if (link.kind === 'contact') {
+      setSelectedContact(link.id);
+      setView(link.edit ? 'edit' : 'detail');
+    } else {
+      setCreatePrefill({ email: link.email, name: link.name });
       setSelectedContact(null);
       setView('create');
     }
-    router.replace('/contacts');
-  }, [searchParams, router, setSelectedContact]);
+  }, [searchParams, linkSegments, setSelectedContact]);
+
+  // The permalink for the contact on screen. Suppressed inside the Pro shell,
+  // where /pro owns the address bar.
+  const proInterfaceActive = useProInterfaceActive();
+  useDeepLinkUrl(
+    isEmbedded || proInterfaceActive
+      ? null
+      : appPath(buildContactsPath({
+          contactId: view === 'detail' || view === 'edit' ? selectedContactId : null,
+          editing: view === 'edit',
+        })),
+  );
 
   // Intercept browser refresh gestures (F5, Ctrl/Cmd+R, pull-to-refresh)
   // and refresh contacts via JMAP instead of reloading the page.

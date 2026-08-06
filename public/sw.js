@@ -322,10 +322,32 @@ async function findReusableWindowClientEntry(sourceClientId, requireMailtoReady)
   return candidates[0];
 }
 
+/**
+ * Whether a client's path is the mail section. Since #733 the mail client
+ * keeps a permalink in the address bar, so an open inbox reads as
+ * `/mail/folder/inbox` (optionally behind a mount prefix and a locale
+ * segment) rather than a bare "/".
+ *
+ * Deliberately duplicated from lib/deep-links.ts: this file is served raw, not
+ * bundled, so it cannot import from the app. The locale segment is matched by
+ * shape (two lowercase letters) because the worker has no locale list - and no
+ * app route is a bare two-letter segment.
+ */
+function isMailSectionPath(path) {
+  if (!path) return true;
+  let rest = path;
+  if (BASE_PATH && (rest === BASE_PATH || rest.startsWith(`${BASE_PATH}/`))) {
+    rest = rest.slice(BASE_PATH.length);
+  }
+  const segments = rest.split("/").filter(Boolean);
+  if (segments.length > 0 && /^[a-z]{2}$/.test(segments[0])) segments.shift();
+  return segments.length === 0 || segments[0] === "mail";
+}
+
 function getReusableClientScore(state) {
   if (!state) return 4;
 
-  const isMailSection = state.path === "/" || state.path === "";
+  const isMailSection = isMailSectionPath(state.path);
   if (state.standalone && isMailSection) return 0;
   if (isMailSection) return 1;
   if (state.standalone) return 2;
@@ -335,7 +357,9 @@ function getReusableClientScore(state) {
 function buildClickUrl(data) {
   if (!data) return `${BASE_PATH}/`;
   if (data.kind === "email" && data.emailId) {
-    return `${BASE_PATH}/?email=${encodeURIComponent(data.emailId)}`;
+    // Permalink (#733). Under NEXT_PUBLIC_LOCALE_PREFIX=always the proxy
+    // redirects this to the localised path; the worker has no locale to add.
+    return `${BASE_PATH}/mail/message/${encodeURIComponent(data.emailId)}`;
   }
   // Generic "New mail" toast (preview API failed or returned no email): land
   // the user on the latest unread message in their Inbox rather than just the

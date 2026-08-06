@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Căutare",
       "compose": "Compune",
-      "go_back": "Înapoi"
+      "go_back": "Înapoi",
+      "toggle_menu": "Comută meniul"
     },
     "clear_search": "Șterge căutarea",
     "vacation_active": "Răspunsul automat de vacanță este activ",
@@ -3326,5 +3327,18 @@
     "install": "Instalați",
     "dont_remind": "Nu-mi mai reaminti",
     "dismiss_aria": "Ignorați solicitarea de instalare"
+  },
+  "deep_link": {
+    "message_not_found": "Acest mesaj nu mai este disponibil.",
+    "thread_not_found": "Această conversație nu mai este disponibilă.",
+    "folder_not_found": "Acest folder nu mai este disponibil.",
+    "event_not_found": "Acest eveniment nu mai este disponibil.",
+    "file_not_found": "Acest fișier nu mai este disponibil.",
+    "account_unavailable": "Conectați-vă la acel cont pentru a deschide linkul.",
+    "copy_message": "Copiați linkul mesajului",
+    "copy_conversation": "Copiați linkul conversației",
+    "copy_event": "Copiați linkul evenimentului",
+    "copied": "Link copiat",
+    "copy_failed": "Linkul nu a putut fi copiat"
   }
 }

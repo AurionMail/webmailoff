@@ -281,7 +281,12 @@ function getLocaleLoginPath(): string {
   return `${prefix}/${locale}/login`;
 }
 
-function saveRedirectAfterLogin(): void {
+/**
+ * Remembers where the user was so login can send them back. Stores the query
+ * and hash too, not just the path - a deep link's disambiguators (#733) live
+ * there, and dropping them silently lands the user on the wrong thing.
+ */
+export function saveRedirectAfterLogin(): void {
   if (typeof window === 'undefined') return;
 
   try {

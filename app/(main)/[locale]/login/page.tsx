@@ -11,6 +11,7 @@ import { useAccountStore } from "@/stores/account-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useShallow } from "zustand/react/shallow";
 import { useConfig } from "@/hooks/use-config";
+import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { apiFetch, getPathPrefix, toRouterPath, withBasePath } from "@/lib/browser-navigation";
 import { cn } from "@/lib/utils";
 import { AlertCircle, Loader2, X, Info, Eye, EyeOff, LogIn, Sun, Moon, Monitor, Check, Shield, Play, Copy } from "lucide-react";
@@ -183,6 +184,13 @@ export default function LoginPage() {
   const totpInputRef = useRef<HTMLInputElement>(null);
   const prevError = useRef<string | null>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const themeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeThemeMenu = useCallback(() => setShowThemeMenu(false), []);
+  const { menuRef: themeListRef, onKeyDown: onThemeMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: showThemeMenu,
+    onClose: closeThemeMenu,
+    triggerRef: themeButtonRef,
+  });
   // Captured by handleSubmit when in mobile handoff mode; consumed by the
   // isAuthenticated effect to build the deep-link fragment.
   const mobileHandoffPayloadRef = useRef<{ server_url: string; username: string; password: string } | null>(null);
@@ -689,6 +697,7 @@ export default function LoginPage() {
         <div className="absolute top-5 right-5" ref={themeMenuRef} suppressHydrationWarning>
           <button
             type="button"
+            ref={themeButtonRef}
             onClick={() => setShowThemeMenu(!showThemeMenu)}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-200",
@@ -698,7 +707,7 @@ export default function LoginPage() {
             )}
             aria-label={`Theme: ${currentThemeOption.label}`}
             aria-expanded={showThemeMenu}
-            aria-haspopup="listbox"
+            aria-haspopup="menu"
           >
             <CurrentThemeIcon className="w-4 h-4" />
             <span className="hidden sm:inline" suppressHydrationWarning>{currentThemeOption.label}</span>
@@ -706,8 +715,10 @@ export default function LoginPage() {
 
           {showThemeMenu && (
             <div
+              ref={themeListRef}
+              onKeyDown={onThemeMenuKeyDown}
               className="absolute right-0 top-full mt-2 w-40 rounded-xl border border-border bg-background shadow-lg overflow-hidden animate-fade-in z-50"
-              role="listbox"
+              role="menu"
               aria-label="Theme selection"
             >
               {THEME_OPTIONS.map((option) => {
@@ -717,8 +728,8 @@ export default function LoginPage() {
                   <button
                     key={option.value}
                     type="button"
-                    role="option"
-                    aria-selected={isActive}
+                    role="menuitemradio"
+                    aria-checked={isActive}
                     onClick={() => handleThemeSelect(option.value)}
                     className={cn(
                       "w-full flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors",
@@ -838,6 +849,7 @@ export default function LoginPage() {
       <div className="absolute top-5 right-5" ref={themeMenuRef} suppressHydrationWarning>
         <button
           type="button"
+          ref={themeButtonRef}
           onClick={() => setShowThemeMenu(!showThemeMenu)}
           className={cn(
             "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-200",
@@ -847,7 +859,7 @@ export default function LoginPage() {
           )}
           aria-label={`Theme: ${currentThemeOption.label}`}
           aria-expanded={showThemeMenu}
-          aria-haspopup="listbox"
+          aria-haspopup="menu"
         >
           <CurrentThemeIcon className="w-4 h-4" />
           <span className="hidden sm:inline" suppressHydrationWarning>{currentThemeOption.label}</span>
@@ -855,8 +867,10 @@ export default function LoginPage() {
 
         {showThemeMenu && (
           <div
+            ref={themeListRef}
+            onKeyDown={onThemeMenuKeyDown}
             className="absolute right-0 top-full mt-2 w-40 rounded-xl border border-border bg-background shadow-lg overflow-hidden animate-fade-in z-50"
-            role="listbox"
+            role="menu"
             aria-label="Theme selection"
           >
             {THEME_OPTIONS.map((option) => {
@@ -866,8 +880,8 @@ export default function LoginPage() {
                 <button
                   key={option.value}
                   type="button"
-                  role="option"
-                  aria-selected={isActive}
+                  role="menuitemradio"
+                  aria-checked={isActive}
                   onClick={() => handleThemeSelect(option.value)}
                   className={cn(
                     "w-full flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors",

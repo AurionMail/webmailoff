@@ -33,7 +33,11 @@ import {
   CalendarClock,
   XCircle,
   Paperclip,
+  Link as LinkIcon,
+  MessagesSquare,
 } from "lucide-react";
+import { buildMailPath } from "@/lib/deep-links";
+import { useCopyLink } from "@/hooks/use-copy-link";
 import { buildMailboxTree, MailboxNode } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
 import { getEmailTagIds } from "@/lib/thread-utils";
@@ -138,6 +142,8 @@ export function EmailContextMenu({
   const t = useTranslations("context_menu");
   const tSidebar = useTranslations("sidebar");
   const tEmailViewer = useTranslations("email_viewer");
+  const tDeepLink = useTranslations("deep_link");
+  const copyLink = useCopyLink();
   const isUnread = !email.keywords?.$seen;
   const isStarred = email.keywords?.$flagged;
   const isPinned = email.keywords?.['$pinned'] === true;
@@ -263,6 +269,30 @@ export function EmailContextMenu({
             onClick={() => handleAction(onForwardAsAttachment!)}
             disabled={!onForwardAsAttachment || !email.blobId}
           />
+          <ContextMenuSeparator />
+        </>
+      )}
+
+      {/* Permalinks (#733). The conversation entry only appears when the
+          message actually belongs to a thread worth linking to. */}
+      {!showBatchActions && (
+        <>
+          <ContextMenuItem
+            icon={LinkIcon}
+            label={tDeepLink("copy_message")}
+            onClick={() => handleAction(() => {
+              void copyLink(buildMailPath({ mailboxId: null, emailId: email.id, threadId: null }));
+            })}
+          />
+          {email.threadId && (
+            <ContextMenuItem
+              icon={MessagesSquare}
+              label={tDeepLink("copy_conversation")}
+              onClick={() => handleAction(() => {
+                void copyLink(buildMailPath({ mailboxId: null, emailId: null, threadId: email.threadId! }));
+              })}
+            />
+          )}
           <ContextMenuSeparator />
         </>
       )}

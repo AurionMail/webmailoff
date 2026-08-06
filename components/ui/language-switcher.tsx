@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocaleStore } from '@/stores/locale-store';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMenuNavigation } from '@/hooks/use-menu-navigation';
 import { flagComponents } from './flag-icons';
 
 const languages = [
@@ -45,7 +46,13 @@ export function LanguageSwitcher({ className }: { className?: string }) {
   const choice = useLocaleStore((state) => state.locale) || 'auto';
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const { menuRef: listRef, onKeyDown: onListKeyDown } = useMenuNavigation<HTMLUListElement>({
+    open,
+    onClose: close,
+    triggerRef: buttonRef,
+  });
 
   const current = languages.find((l) => l.value === choice) ?? languages[0];
 
@@ -75,9 +82,10 @@ export function LanguageSwitcher({ className }: { className?: string }) {
     <div ref={containerRef} className={cn("relative", className)}>
       <button
         type="button"
+        ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-muted border border-border text-foreground hover:border-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors duration-150 cursor-pointer w-full"
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
         aria-expanded={open}
       >
         <FlagIcon locale={current.value} />
@@ -88,29 +96,31 @@ export function LanguageSwitcher({ className }: { className?: string }) {
       {open && (
         <ul
           ref={listRef}
-          role="listbox"
-          aria-activedescendant={`lang-${choice}`}
+          role="menu"
+          onKeyDown={onListKeyDown}
           className="absolute start-0 z-50 mt-1 min-w-full w-max max-w-[min(16rem,80vw)] max-h-60 overflow-auto rounded-md border border-border bg-background shadow-lg py-1"
         >
           {languages.map((lang) => (
-            <li
-              key={lang.value}
-              id={`lang-${lang.value}`}
-              role="option"
-              aria-selected={lang.value === choice}
-              onClick={() => {
-                setLocale(lang.value);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer whitespace-nowrap transition-colors duration-100",
-                lang.value === choice
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-foreground hover:bg-accent/50"
-              )}
-            >
-              <FlagIcon locale={lang.value} />
-              <span>{lang.label}</span>
+            <li key={lang.value} role="none">
+              <button
+                type="button"
+                id={`lang-${lang.value}`}
+                role="menuitemradio"
+                aria-checked={lang.value === choice}
+                onClick={() => {
+                  setLocale(lang.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-start cursor-pointer whitespace-nowrap transition-colors duration-100",
+                  lang.value === choice
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-foreground hover:bg-accent/50"
+                )}
+              >
+                <FlagIcon locale={lang.value} />
+                <span>{lang.label}</span>
+              </button>
             </li>
           ))}
         </ul>

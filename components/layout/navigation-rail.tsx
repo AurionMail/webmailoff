@@ -20,6 +20,7 @@ import { getActiveAccountSlotHeaders } from "@/lib/auth/active-account-slot";
 import { getMaxAccounts } from "@/lib/account-utils";
 import { isDocumentRTL } from "@/i18n/direction";
 import { cn, formatFileSize } from "@/lib/utils";
+import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { PluginSlot } from "@/components/plugins/plugin-slot";
 import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts-modal";
 import { apiFetch, getPathPrefix, withBasePath } from "@/lib/browser-navigation";
@@ -220,7 +221,14 @@ export function NavigationRail({
   const logoutAll = useAuthStore((s) => s.logoutAll);
   const [logoutMenuOpen, setLogoutMenuOpen] = useState(false);
   const logoutBtnRef = useRef<HTMLButtonElement>(null);
-  const logoutPopoverRef = useRef<HTMLDivElement>(null);
+  // Portalled to <body>, so without explicit focus handling the menu is
+  // unreachable for keyboard and screen reader users (#719).
+  const closeLogoutMenu = useCallback(() => setLogoutMenuOpen(false), []);
+  const { menuRef: logoutPopoverRef, onKeyDown: onLogoutMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: logoutMenuOpen,
+    onClose: closeLogoutMenu,
+    triggerRef: logoutBtnRef,
+  });
   const [logoutPopoverStyle, setLogoutPopoverStyle] = useState<React.CSSProperties>({});
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
@@ -261,7 +269,7 @@ export function NavigationRail({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [logoutMenuOpen, updateLogoutPosition]);
+  }, [logoutMenuOpen, updateLogoutPosition, logoutPopoverRef]);
 
   useEffect(() => {
     let cancelled = false;
@@ -713,8 +721,9 @@ export function NavigationRail({
               onClick={() => setLogoutMenuOpen(!logoutMenuOpen)}
               className="flex items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title={t("sign_out")}
+              aria-label={t("sign_out")}
               aria-expanded={logoutMenuOpen}
-              aria-haspopup="true"
+              aria-haspopup="menu"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -722,9 +731,11 @@ export function NavigationRail({
             {logoutMenuOpen && createPortal(
               <div
                 ref={logoutPopoverRef}
+                onKeyDown={onLogoutMenuKeyDown}
                 style={logoutPopoverStyle}
                 className="w-56 rounded-lg border border-border bg-background text-foreground shadow-lg z-50 overflow-hidden"
                 role="menu"
+                aria-label={t("sign_out")}
               >
                 <button
                   onClick={() => { setLogoutMenuOpen(false); logout(); }}

@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
-import { useAuthStore, redirectToLogin } from "@/stores/auth-store";
+import { useAuthStore, redirectToLogin, saveRedirectAfterLogin } from '@/stores/auth-store';
 import { useAccountStore } from "@/stores/account-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useFileStore } from "@/stores/file-store";
@@ -29,10 +29,21 @@ import { loadFilesSettings } from "@/components/files/files-settings-dialog";
 import type { FolderLayout } from "@/components/files/files-settings-dialog";
 import { AppTopBannerSlot } from "@/components/plugins/app-top-banner-slot";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { isFilePreviewable } from "@/lib/file-preview";
+import { appPath, buildFilesPath, parseFilesPath, type FilesDeepLink } from "@/lib/deep-links";
+import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
+import { useDeepLinkUrl } from "@/hooks/use-deep-link-url";
+import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 
-export default function FilesPage() {
+export interface FilesAppProps {
+  /** Path segments after `/files` - the folder path, one segment per level. */
+  linkSegments?: string[];
+}
+
+export function FilesApp({ linkSegments }: FilesAppProps = {}) {
   const router = useRouter();
   const t = useTranslations("files");
+  const tDeepLink = useTranslations("deep_link");
   const filesEnabled = usePolicyStore((s) => s.isFeatureEnabled('filesEnabled'));
   const { isAuthenticated, logout, checkAuth, isLoading: authLoading, client } = useAuthStore();
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
@@ -133,7 +144,7 @@ export default function FilesPage() {
   // Redirect if not authenticated
   useEffect(() => {
     if (initialCheckDone && !isAuthenticated && !authLoading) {
-      try { sessionStorage.setItem('redirect_after_login', window.location.pathname); } catch { /* ignore */ }
+      saveRedirectAfterLogin();
       redirectToLogin();
     }
   }, [initialCheckDone, isAuthenticated, authLoading]);
@@ -160,20 +171,78 @@ export default function FilesPage() {
     },
   });
 
-  // Check support and load root after client is initialized
-  const storeClient = useFileStore(s => s.client);
+  // ---- Deep links (#733) ---------------------------------------------------
+  // `/files/<folder>/<sub>` walks the drive to that folder; `?preview=<name>`
+  // opens a file there once the listing arrives. The link is parked on mount
+  // and claimed by whichever of the two paths below gets there first: the
+  // bootstrap that runs after a capability check on a cold load, or the effect
+  // for when the store already knows files are supported.
+  const filesLinkRef = useRef<FilesDeepLink | null>(null);
+  const pendingPreviewRef = useRef<string | null>(null);
   useEffect(() => {
-    if (storeClient && supportsFiles === null) {
-      checkSupport().then(async (supported) => {
-        if (supported) {
-          // Upgrade any files created by older builds (flat path-encoded names)
-          // into the real FileNode hierarchy before the first listing.
-          await migrateLegacyFlatNodes();
-          navigate(null);
-        }
-      });
+    // Inside the Pro shell the route is /pro, so the segments arrive through
+    // the handoff the redirect parked rather than as route params.
+    const segments = linkSegments ?? consumePendingDeepLink('files');
+    if (!segments) return;
+    const link = parseFilesPath(segments, new URLSearchParams(window.location.search));
+    // Never overwrite with null: this effect re-runs (twice on mount under
+    // StrictMode) and the handoff only yields its segments once.
+    if (link) filesLinkRef.current = link;
+  }, [linkSegments]);
+
+  const takeFilesLink = useCallback(() => {
+    const link = filesLinkRef.current;
+    filesLinkRef.current = null;
+    if (link?.preview) pendingPreviewRef.current = link.preview;
+    return link;
+  }, []);
+
+  // Check support and load the first listing after the client is initialized.
+  // One effect, run once: `checkSupport` publishes `supportsFiles` before it
+  // resolves, so splitting the cold path from the warm one would have them
+  // race - the warm one following the deep link while the cold one, a tick
+  // later, listed the root on top of it.
+  const storeClient = useFileStore(s => s.client);
+  const filesBootstrapRef = useRef(false);
+  useEffect(() => {
+    if (filesBootstrapRef.current) return;
+    if (!storeClient) return;
+    filesBootstrapRef.current = true;
+
+    void (async () => {
+      const firstCheck = supportsFiles === null;
+      if (firstCheck) {
+        if (!await checkSupport()) return;
+        // Upgrade any files created by older builds (flat path-encoded names)
+        // into the real FileNode hierarchy before the first listing.
+        await migrateLegacyFlatNodes();
+      } else if (supportsFiles !== true) {
+        return;
+      }
+
+      // A deep link replaces the root listing rather than following it -
+      // listing the root first would strand the user there and rewrite the
+      // URL they arrived on.
+      const link = takeFilesLink();
+      if (link && link.path !== '/') await navigateByPath(link.path);
+      else if (firstCheck) await navigate(null);
+    })();
+  }, [storeClient, supportsFiles, checkSupport, migrateLegacyFlatNodes, navigate, navigateByPath, takeFilesLink]);
+
+  // The preview waits for the folder listing: the modal is keyed by file name
+  // and can only render once that name is in `resources`.
+  useEffect(() => {
+    const pending = pendingPreviewRef.current;
+    if (!pending) return;
+    const resource = resources.find((r) => r.name === pending);
+    if (!resource) return;
+    pendingPreviewRef.current = null;
+    if (isFilePreviewable(pending)) {
+      setPreviewFile(pending);
+    } else {
+      toast.error(tDeepLink('file_not_found'));
     }
-  }, [storeClient, supportsFiles, checkSupport, migrateLegacyFlatNodes, navigate]);
+  }, [resources, tDeepLink]);
 
   const handleNavigate = useCallback((path: string, resourceId?: string | null) => {
     // Pro shell only: the Account breadcrumb segment signals "go to this
@@ -396,6 +465,15 @@ export default function FilesPage() {
     setDetailName(name);
     setShowDetails(true);
   }, []);
+
+  // The permalink for the folder on screen. Suppressed inside the Pro shell,
+  // where /pro owns the address bar, and at the account picker (no path yet).
+  const proInterfaceActive = useProInterfaceActive();
+  useDeepLinkUrl(
+    isEmbedded || proInterfaceActive
+      ? null
+      : appPath(buildFilesPath(currentPath, previewFile)),
+  );
 
   const handleToggleDetails = useCallback(() => {
     setShowDetails(v => !v);

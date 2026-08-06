@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useId } from "react";
 import { createPortal } from "react-dom";
 import { Check, Plus, LogOut, Star, ChevronDown, AlertCircle, GripVertical, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -11,6 +11,7 @@ import { isDocumentRTL } from "@/i18n/direction";
 import { cn } from "@/lib/utils";
 import { useRouter } from "@/i18n/navigation";
 import { Avatar } from "@/components/ui/avatar";
+import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 
 interface AccountSwitcherProps {
   /** "rail" = small avatar only (NavigationRail), "expanded" = avatar + name + email (Sidebar) */
@@ -36,8 +37,17 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+  // The popover is portalled to <body>, so it lands at the very end of the
+  // reading order. Without this the menu is unreachable for screen reader and
+  // keyboard users even though it is on screen.
+  const closeMenu = useCallback(() => setOpen(false), []);
+  const { menuRef: popoverRef, onKeyDown: handleMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open,
+    onClose: closeMenu,
+    triggerRef: buttonRef,
+  });
 
   const accounts = useAccountStore((s) => s.accounts);
   const setDefaultAccount = useAccountStore((s) => s.setDefaultAccount);
@@ -106,7 +116,7 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [open, updatePosition]);
+  }, [open, updatePosition, popoverRef]);
 
   const handleSwitch = async (accountId: string) => {
     if (accountId === activeAccountId) return;
@@ -187,8 +197,10 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
           className
         )}
         title={variant === "rail" ? (displayName || displayEmail) : undefined}
+        aria-label={t("switch_account")}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="menu"
+        aria-controls={open ? menuId : undefined}
       >
         {activeAccount ? (
           <>
@@ -219,6 +231,9 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
           style={popoverStyle}
           className="w-72 rounded-lg border border-border bg-background text-foreground shadow-lg z-50 overflow-hidden"
           role="menu"
+          id={menuId}
+          aria-label={t("switch_account")}
+          onKeyDown={handleMenuKeyDown}
         >
           {/* Account List */}
           <div className="py-1 max-h-64 overflow-y-auto">
@@ -299,6 +314,7 @@ export function AccountSwitcher({ variant = "rail", className }: AccountSwitcher
                   <button
                     type="button"
                     onClick={(e) => handleRemove(e, account)}
+                    role="menuitem"
                     aria-label={t("remove_account")}
                     title={t("remove_account")}
                     className="absolute end-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground/60 opacity-0 transition-opacity group-hover/acct:opacity-100 hover:bg-destructive/10 hover:text-destructive focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-destructive"

@@ -122,7 +122,8 @@
     "mobile": {
       "search": "검색",
       "compose": "메일 쓰기",
-      "go_back": "뒤로 가기"
+      "go_back": "뒤로 가기",
+      "toggle_menu": "메뉴 전환"
     },
     "clear_search": "검색어 지우기",
     "vacation_active": "부재중 자동 응답이 켜져 있어요",
@@ -3326,5 +3327,18 @@
     "install": "설치",
     "dont_remind": "다시 알리지 않음",
     "dismiss_aria": "설치 프롬프트 닫기"
+  },
+  "deep_link": {
+    "message_not_found": "이 메시지를 더 이상 사용할 수 없습니다.",
+    "thread_not_found": "이 대화를 더 이상 사용할 수 없습니다.",
+    "folder_not_found": "이 폴더를 더 이상 사용할 수 없습니다.",
+    "event_not_found": "이 일정을 더 이상 사용할 수 없습니다.",
+    "file_not_found": "이 파일을 더 이상 사용할 수 없습니다.",
+    "account_unavailable": "이 링크를 열려면 해당 계정으로 로그인하세요.",
+    "copy_message": "메시지 링크 복사",
+    "copy_conversation": "대화 링크 복사",
+    "copy_event": "일정 링크 복사",
+    "copied": "링크가 복사되었습니다",
+    "copy_failed": "링크를 복사하지 못했습니다"
   }
 }

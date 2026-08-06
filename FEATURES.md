@@ -99,6 +99,7 @@
 - Drag and drop to organize mail and assign tags
 - A guided tour for first-time users
 - Right-click menus, and toasts that offer an undo
+- Every screen has a permalink. `/mail/message/<id>`, `/mail/thread/<id>`, `/mail/folder/inbox`, `/calendar/day/2026-08-06`, `/calendar/event/<id>`, `/contacts/<id>`, `/files/<folder>`, and `/settings/<tab>` all open directly, the address bar follows what you are looking at, and "Copy link" is in the message, conversation, and event menus. Dashboards and launchers can link straight to a message; browser back and forward walk the mail UI.
 - Toolbar position, favicon, and login branding are configurable
 - Sidebar apps pin and reorder by drag
 - Settings sync between devices, encrypted

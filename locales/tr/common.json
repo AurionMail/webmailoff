@@ -122,7 +122,8 @@
     "mobile": {
       "search": "Ara",
       "compose": "Yeni E-posta",
-      "go_back": "Geri git"
+      "go_back": "Geri git",
+      "toggle_menu": "Menüyü aç/kapat"
     },
     "clear_search": "Aramayı temizle",
     "vacation_active": "Tatil otomatik yanıtı aktif",
@@ -3326,5 +3327,18 @@
     "install": "Yükle",
     "dont_remind": "Bir daha hatırlatma",
     "dismiss_aria": "Yükleme istemini kapat"
+  },
+  "deep_link": {
+    "message_not_found": "Bu ileti artık kullanılamıyor.",
+    "thread_not_found": "Bu sohbet artık kullanılamıyor.",
+    "folder_not_found": "Bu klasör artık kullanılamıyor.",
+    "event_not_found": "Bu etkinlik artık kullanılamıyor.",
+    "file_not_found": "Bu dosya artık kullanılamıyor.",
+    "account_unavailable": "Bu bağlantıyı açmak için o hesapta oturum açın.",
+    "copy_message": "İleti bağlantısını kopyala",
+    "copy_conversation": "Sohbet bağlantısını kopyala",
+    "copy_event": "Etkinlik bağlantısını kopyala",
+    "copied": "Bağlantı kopyalandı",
+    "copy_failed": "Bağlantı kopyalanamadı"
   }
 }

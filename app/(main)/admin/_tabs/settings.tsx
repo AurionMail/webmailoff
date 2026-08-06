@@ -230,6 +230,10 @@ function ToggleSetting({ label, description, configKey, value, source, onChange,
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button
+          type="button"
+          role="switch"
+          aria-checked={value}
+          aria-label={label}
           onClick={() => onChange(configKey, !value)}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${value ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}
         >

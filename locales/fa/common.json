@@ -122,7 +122,8 @@
     "mobile": {
       "search": "جستجو",
       "compose": "ایمیل جدید",
-      "go_back": "بازگشت"
+      "go_back": "بازگشت",
+      "toggle_menu": "تغییر وضعیت منو"
     },
     "clear_search": "پاک کردن جستجو",
     "vacation_active": "پاسخ‌گوی خودکار فعال است",
@@ -3326,5 +3327,18 @@
     "install": "نصب",
     "dont_remind": "دیگر یادآوری نکن",
     "dismiss_aria": "رد کردن پیشنهاد نصب"
+  },
+  "deep_link": {
+    "message_not_found": "این پیام دیگر در دسترس نیست.",
+    "thread_not_found": "این گفتگو دیگر در دسترس نیست.",
+    "folder_not_found": "این پوشه دیگر در دسترس نیست.",
+    "event_not_found": "این رویداد دیگر در دسترس نیست.",
+    "file_not_found": "این فایل دیگر در دسترس نیست.",
+    "account_unavailable": "برای باز کردن این پیوند، به آن حساب وارد شوید.",
+    "copy_message": "کپی پیوند پیام",
+    "copy_conversation": "کپی پیوند گفتگو",
+    "copy_event": "کپی پیوند رویداد",
+    "copied": "پیوند کپی شد",
+    "copy_failed": "کپی پیوند ممکن نشد"
   }
 }
