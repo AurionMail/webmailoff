@@ -4241,7 +4241,7 @@ export class JMAPClient implements IJMAPClient {
     return [primaryId, ...accountIds];
   }
 
-  async getAddressBooks(): Promise<AddressBook[]> {
+  async getAddressBooks(options?: { throwOnError?: boolean }): Promise<AddressBook[]> {
     try {
       const accountId = this.getContactsAccountId();
       const response = await this.request([
@@ -4251,9 +4251,13 @@ export class JMAPClient implements IJMAPClient {
       if (response.methodResponses?.[0]?.[0] === "AddressBook/get") {
         return (response.methodResponses[0][1].list || []) as AddressBook[];
       }
-      return [];
+      const methodError = response.methodResponses?.[0]?.[1];
+      throw new Error(methodError?.description || methodError?.type || "AddressBook/get failed");
     } catch (error) {
       console.error('Failed to get address books:', error);
+      // Callers that would treat an empty list as "nothing exists yet" must be
+      // able to tell a real empty account from a failed fetch (#730).
+      if (options?.throwOnError) throw error;
       return [];
     }
   }
@@ -4500,13 +4504,14 @@ export class JMAPClient implements IJMAPClient {
     return allContacts;
   }
 
-  async getContacts(addressBookId?: string): Promise<ContactCard[]> {
+  async getContacts(addressBookId?: string, options?: { throwOnError?: boolean }): Promise<ContactCard[]> {
     try {
       const accountId = this.getContactsAccountId();
       const filter = addressBookId ? { inAddressBook: addressBookId } : undefined;
       return await this.fetchPaginatedContacts(accountId, filter);
     } catch (error) {
       console.error('Failed to get contacts:', error);
+      if (options?.throwOnError) throw error;
       return [];
     }
   }

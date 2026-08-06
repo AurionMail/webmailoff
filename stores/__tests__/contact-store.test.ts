@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useContactStore, getContactPhotoUri, normalizeContactPhotoUri } from '../contact-store';
+import { useContactStore, getContactPhotoUri, normalizeContactPhotoUri, TRUSTED_SENDERS_BOOK_NAME } from '../contact-store';
 import type { ContactCard } from '@/lib/jmap/types';
 
 vi.stubGlobal('crypto', { randomUUID: () => '00000000-0000-0000-0000-000000000000' });
@@ -557,6 +557,136 @@ describe('contact-store', () => {
 
     it('returns undefined when no photo media is present', () => {
       expect(getContactPhotoUri(makeContact())).toBeUndefined();
+    });
+  });
+
+  describe('loadTrustedSendersBook (#730)', () => {
+    const trustedBook = (id: string) => ({ id, name: TRUSTED_SENDERS_BOOK_NAME });
+
+    const makeClient = (overrides: Record<string, unknown> = {}) => ({
+      getAddressBooks: vi.fn().mockResolvedValue([]),
+      createAddressBook: vi.fn(async (name: string) => ({ id: 'created-book', name })),
+      getContacts: vi.fn().mockResolvedValue([]),
+      createContact: vi.fn(),
+      updateContact: vi.fn().mockResolvedValue(undefined),
+      deleteContact: vi.fn().mockResolvedValue(undefined),
+      deleteAddressBook: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      useContactStore.setState({
+        trustedSendersBookId: null,
+        trustedSendersLoaded: false,
+        trustedSendersLoading: false,
+        trustedSenderEmails: [],
+      });
+    });
+
+    it('does not create a book when the address book fetch fails', async () => {
+      const client = makeClient({ getAddressBooks: vi.fn().mockRejectedValue(new Error('429 rate limited')) });
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.createAddressBook).not.toHaveBeenCalled();
+      expect(useContactStore.getState().trustedSendersBookId).toBeNull();
+    });
+
+    it('creates the book exactly once for a genuinely empty account', async () => {
+      const client = makeClient();
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.createAddressBook).toHaveBeenCalledTimes(1);
+      expect(useContactStore.getState().trustedSendersBookId).toBe('created-book');
+    });
+
+    it('shares one in-flight load between concurrent callers', async () => {
+      const client = makeClient();
+
+      await Promise.all([
+        useContactStore.getState().loadTrustedSendersBook(client as never),
+        useContactStore.getState().loadTrustedSendersBook(client as never),
+        useContactStore.getState().loadTrustedSendersBook(client as never),
+      ]);
+
+      expect(client.createAddressBook).toHaveBeenCalledTimes(1);
+    });
+
+    it('picks the same book on every client when duplicates already exist', async () => {
+      const client = makeClient({
+        getAddressBooks: vi.fn().mockResolvedValue([trustedBook('book-c'), trustedBook('book-a'), trustedBook('book-b')]),
+      });
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.createAddressBook).not.toHaveBeenCalled();
+      expect(useContactStore.getState().trustedSendersBookId).toBe('book-a');
+    });
+
+    it('merges duplicate books into the canonical one and deletes the leftovers', async () => {
+      const contactsByBook: Record<string, ContactCard[]> = {
+        'book-a': [makeContact({ id: 'c1', addressBookIds: { 'book-a': true }, emails: { e0: { address: 'kept@example.com' } } })],
+        'book-b': [makeContact({ id: 'c2', addressBookIds: { 'book-b': true }, emails: { e0: { address: 'moved@example.com' } } })],
+      };
+      const client = makeClient({
+        getAddressBooks: vi.fn().mockResolvedValue([trustedBook('book-a'), trustedBook('book-b')]),
+        getContacts: vi.fn(async (bookId: string) => contactsByBook[bookId] ?? []),
+      });
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.updateContact).toHaveBeenCalledWith('c2', { addressBookIds: { 'book-a': true } });
+      expect(client.deleteAddressBook).toHaveBeenCalledWith('book-b');
+      expect(useContactStore.getState().trustedSenderEmails.sort()).toEqual(['kept@example.com', 'moved@example.com']);
+    });
+
+    it('drops a duplicate card instead of copying it when the address is already trusted', async () => {
+      const duplicate = makeContact({ id: 'c2', addressBookIds: { 'book-b': true }, emails: { e0: { address: 'kept@example.com' } } });
+      const contactsByBook: Record<string, ContactCard[]> = {
+        'book-a': [makeContact({ id: 'c1', addressBookIds: { 'book-a': true }, emails: { e0: { address: 'kept@example.com' } } })],
+        'book-b': [duplicate],
+      };
+      const client = makeClient({
+        getAddressBooks: vi.fn().mockResolvedValue([trustedBook('book-a'), trustedBook('book-b')]),
+        getContacts: vi.fn(async (bookId: string) => contactsByBook[bookId] ?? []),
+      });
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.deleteContact).toHaveBeenCalledWith('c2');
+      expect(useContactStore.getState().trustedSenderEmails).toEqual(['kept@example.com']);
+    });
+
+    it('unfiles rather than destroys a card that also lives in another book', async () => {
+      const contactsByBook: Record<string, ContactCard[]> = {
+        'book-a': [makeContact({ id: 'c1', addressBookIds: { 'book-a': true }, emails: { e0: { address: 'kept@example.com' } } })],
+        'book-b': [makeContact({ id: 'c2', addressBookIds: { 'book-b': true, personal: true }, emails: { e0: { address: 'kept@example.com' } } })],
+      };
+      const client = makeClient({
+        getAddressBooks: vi.fn().mockResolvedValue([trustedBook('book-a'), trustedBook('book-b')]),
+        getContacts: vi.fn(async (bookId: string) => contactsByBook[bookId] ?? []),
+      });
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.deleteContact).not.toHaveBeenCalled();
+      expect(client.updateContact).toHaveBeenCalledWith('c2', { addressBookIds: { personal: true } });
+    });
+
+    it('keeps a duplicate book when its contacts cannot be read', async () => {
+      const client = makeClient({
+        getAddressBooks: vi.fn().mockResolvedValue([trustedBook('book-a'), trustedBook('book-b')]),
+        getContacts: vi.fn(async (bookId: string) => {
+          if (bookId === 'book-b') throw new Error('Network error');
+          return [];
+        }),
+      });
+
+      await useContactStore.getState().loadTrustedSendersBook(client as never);
+
+      expect(client.deleteAddressBook).not.toHaveBeenCalled();
+      expect(useContactStore.getState().trustedSendersBookId).toBe('book-a');
     });
   });
 

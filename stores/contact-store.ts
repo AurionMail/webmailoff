@@ -140,6 +140,69 @@ export function getContactPhotoUri(contact: ContactCard): string | undefined {
 
 export const TRUSTED_SENDERS_BOOK_NAME = 'Trusted Senders';
 
+/** In-flight trusted senders load, shared by all callers to keep it single-flight. */
+let trustedSendersLoadPromise: Promise<void> | null = null;
+
+/** Every e-mail address held by the given contacts, lowercased and de-duplicated. */
+export function collectContactEmails(contacts: ContactCard[]): string[] {
+  const seen = new Set<string>();
+  for (const contact of contacts) {
+    if (!contact.emails) continue;
+    for (const entry of Object.values(contact.emails)) {
+      const address = entry.address?.toLowerCase().trim();
+      if (address) seen.add(address);
+    }
+  }
+  return Array.from(seen);
+}
+
+/**
+ * Fold duplicate "Trusted Senders" books into the canonical one and delete the
+ * emptied leftovers (#730).  Contacts that already exist in the canonical book
+ * are dropped rather than copied, so merging never produces two cards for the
+ * same address.  A duplicate is only destroyed once every one of its contacts
+ * has been moved or removed - if any step fails the book is left untouched so
+ * no trusted sender is lost.
+ */
+export async function consolidateTrustedSenderBooks(
+  client: IJMAPClient,
+  canonicalBookId: string,
+  duplicates: AddressBook[],
+  knownEmails: string[]
+): Promise<string[]> {
+  const emails = new Set(knownEmails);
+
+  for (const duplicate of duplicates) {
+    try {
+      const contacts = await client.getContacts(duplicate.id, { throwOnError: true });
+      for (const contact of contacts) {
+        const addresses = collectContactEmails([contact]);
+        // Cards filed in other books too must never be destroyed - only unfiled
+        // from the duplicate.
+        const otherBookIds = Object.keys(contact.addressBookIds || {}).filter(id => id !== duplicate.id);
+        const addressBookIds: Record<string, boolean> = {};
+        for (const id of otherBookIds) addressBookIds[id] = true;
+
+        if (addresses.some(address => !emails.has(address))) {
+          addressBookIds[canonicalBookId] = true;
+          await client.updateContact(contact.id, { addressBookIds });
+          addresses.forEach(address => emails.add(address));
+        } else if (otherBookIds.length > 0) {
+          await client.updateContact(contact.id, { addressBookIds });
+        } else {
+          await client.deleteContact(contact.id);
+        }
+      }
+      await client.deleteAddressBook(duplicate.id);
+      debug.log('contacts', 'Merged duplicate trusted senders book:', duplicate.id);
+    } catch (error) {
+      debug.error('Failed to merge duplicate trusted senders book:', duplicate.id, error);
+    }
+  }
+
+  return Array.from(emails);
+}
+
 interface ContactStore {
   contacts: ContactCard[];
   addressBooks: AddressBook[];
@@ -1028,28 +1091,48 @@ export const useContactStore = create<ContactStore>()(
       },
 
       loadTrustedSendersBook: async (client) => {
-        if (get().trustedSendersLoading) return;
+        // Share the in-flight load so parallel callers (mail view, settings,
+        // the modal, addToTrustedSendersBook) can never create the book twice.
+        if (trustedSendersLoadPromise) return trustedSendersLoadPromise;
         set({ trustedSendersLoading: true });
-        try {
-          debug.log('contacts', 'Loading trusted senders address book');
-          const books = await client.getAddressBooks();
-          let book = books.find(b => b.name === TRUSTED_SENDERS_BOOK_NAME);
-          if (!book) {
-            debug.log('contacts', 'Creating new trusted senders address book');
-            book = await client.createAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+
+        trustedSendersLoadPromise = (async () => {
+          try {
+            debug.log('contacts', 'Loading trusted senders address book');
+            // Must throw rather than yield [] on failure: treating a failed
+            // fetch as "no book yet" minted a duplicate on every hiccup (#730).
+            const books = await client.getAddressBooks({ throwOnError: true });
+            // Sort so every client picks the same book when duplicates exist.
+            const matches = books
+              .filter(b => b.name === TRUSTED_SENDERS_BOOK_NAME)
+              .sort((a, b) => a.id.localeCompare(b.id));
+
+            let book = matches[0];
+            if (!book) {
+              debug.log('contacts', 'Creating new trusted senders address book');
+              book = await client.createAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+            }
+            const bookId = book.id;
+            debug.log('contacts', 'Trusted senders book id:', bookId);
+            const contacts = await client.getContacts(bookId, { throwOnError: true });
+            debug.log('contacts', 'Loaded', contacts.length, 'trusted sender contacts');
+            let emails = collectContactEmails(contacts);
+
+            if (matches.length > 1) {
+              debug.log('contacts', 'Found', matches.length, 'trusted senders books, merging duplicates');
+              emails = await consolidateTrustedSenderBooks(client, bookId, matches.slice(1), emails);
+            }
+
+            set({ trustedSendersBookId: bookId, trustedSenderEmails: emails, trustedSendersLoaded: true, trustedSendersLoading: false });
+          } catch (error) {
+            debug.error('Failed to load trusted senders address book:', error);
+            set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+          } finally {
+            trustedSendersLoadPromise = null;
           }
-          const bookId = book.id;
-          debug.log('contacts', 'Trusted senders book id:', bookId);
-          const contacts = await client.getContacts(bookId);
-          debug.log('contacts', 'Loaded', contacts.length, 'trusted sender contacts');
-          const emails = contacts.flatMap(c =>
-            c.emails ? Object.values(c.emails).map(e => e.address.toLowerCase().trim()) : []
-          ).filter(Boolean);
-          set({ trustedSendersBookId: bookId, trustedSenderEmails: emails, trustedSendersLoaded: true, trustedSendersLoading: false });
-        } catch (error) {
-          debug.error('Failed to load trusted senders address book:', error);
-          set({ trustedSendersLoaded: true, trustedSendersLoading: false });
-        }
+        })();
+
+        return trustedSendersLoadPromise;
       },
 
       addToTrustedSendersBook: async (client, email) => {

@@ -265,12 +265,12 @@ export interface IJMAPClient {
 
   // ── Contacts ──────────────────────────────────────────────────
   getContactsAccountId(): string;
-  getAddressBooks(): Promise<AddressBook[]>;
+  getAddressBooks(options?: { throwOnError?: boolean }): Promise<AddressBook[]>;
   getAllAddressBooks(): Promise<AddressBook[]>;
   createAddressBook(name: string): Promise<AddressBook>;
   updateAddressBook(addressBookId: string, updates: Partial<AddressBook>, targetAccountId?: string): Promise<void>;
   deleteAddressBook(addressBookId: string, targetAccountId?: string): Promise<void>;
-  getContacts(addressBookId?: string): Promise<ContactCard[]>;
+  getContacts(addressBookId?: string, options?: { throwOnError?: boolean }): Promise<ContactCard[]>;
   getAllContacts(): Promise<ContactCard[]>;
   getContact(contactId: string, accountId?: string): Promise<ContactCard | null>;
   createContact(contact: Partial<ContactCard>, targetAccountId?: string): Promise<ContactCard>;

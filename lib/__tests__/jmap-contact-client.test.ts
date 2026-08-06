@@ -134,6 +134,31 @@ describe('JMAPClient contact methods', () => {
       const result = await client.getAddressBooks();
       expect(result).toEqual([]);
     });
+
+    it('should throw on network error when throwOnError is set', async () => {
+      const client = createClient();
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+
+      await expect(client.getAddressBooks({ throwOnError: true })).rejects.toThrow('Network error');
+    });
+
+    it('should throw on a JMAP method error when throwOnError is set', async () => {
+      const client = createClient();
+      mockFetch({
+        methodResponses: [['error', { type: 'serverFail', description: 'Too many requests' }, '0']],
+      });
+
+      await expect(client.getAddressBooks({ throwOnError: true })).rejects.toThrow('Too many requests');
+    });
+
+    it('should still resolve to an empty list for a genuinely empty account', async () => {
+      const client = createClient();
+      mockFetch({
+        methodResponses: [['AddressBook/get', { list: [] }, '0']],
+      });
+
+      await expect(client.getAddressBooks({ throwOnError: true })).resolves.toEqual([]);
+    });
   });
 
   describe('getContacts', () => {
