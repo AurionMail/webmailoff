@@ -14,6 +14,7 @@ import {
   isHttpLinkHref,
   applyNewTabToAnchor,
   sanitizeI18nHtml,
+  sanitizePluginBodyHtml,
   decodeCssEscapes,
   styleHasExternalUrl,
   stripExternalCssUrls,
@@ -756,6 +757,33 @@ describe('email-sanitization', () => {
       );
       expect(rendered).not.toContain('javascript:');
       expect(rendered).not.toContain('<script');
+    });
+  });
+
+  // A plugin that offloads an attachment hands back a link block that goes
+  // into the host document and into the message the user sends, so it is
+  // untrusted input even though the plugin is installed.
+  describe('sanitizePluginBodyHtml', () => {
+    it('keeps the link block an offload plugin returns', () => {
+      const out = sanitizePluginBodyHtml(
+        '<p>Attachment: <a href="https://drop.example/f/abc">report.pdf</a> (12 MB)</p>',
+      );
+      expect(out).toContain('href="https://drop.example/f/abc"');
+      expect(out).toContain('report.pdf');
+    });
+
+    it('strips script, event handlers and javascript: URLs', () => {
+      const out = sanitizePluginBodyHtml(
+        '<script>steal()</script><img src=x onerror="steal()"><a href="javascript:steal()">go</a>',
+      );
+      expect(out).not.toContain('<script');
+      expect(out).not.toContain('onerror');
+      expect(out).not.toContain('javascript:');
+    });
+
+    it('returns empty string for empty input', () => {
+      expect(sanitizePluginBodyHtml('')).toBe('');
+      expect(sanitizePluginBodyHtml('   ')).toBe('');
     });
   });
 });

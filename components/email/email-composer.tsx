@@ -11,13 +11,13 @@ import { debug } from "@/lib/debug";
 import { toast } from "@/stores/toast-store";
 import { useContextMenu } from "@/hooks/use-context-menu";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
-import { sanitizeSignatureHtml, sanitizeSignatureHtmlForDisplay, sanitizeEmailHtml, escapeHtml } from "@/lib/email-sanitization";
+import { sanitizeSignatureHtml, sanitizeSignatureHtmlForDisplay, sanitizeEmailHtml, escapeHtml, sanitizePluginBodyHtml } from "@/lib/email-sanitization";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
 import { isFilePreviewable } from "@/lib/file-preview";
 import { isEditableEventTarget } from "@/lib/keyboard";
 import { buildQuotedHtmlBlock, serializeEditorContent } from "@/components/email/quoted-html";
 import { buildSignatureBlock } from "@/components/email/signature-block";
-import { emailHooks, contactHooks } from "@/lib/plugin-hooks";
+import { emailHooks, contactHooks, isExternalAttachmentResult } from "@/lib/plugin-hooks";
 import type { AlmostSavedDraft, OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
 import { useIdentityStore } from "@/stores/identity-store";
@@ -1234,7 +1234,39 @@ export function EmailComposer({
         const fileId = generateUUID();
         await fileStorage.saveFile(fileId, file);
         
-        const newFileId = await emailHooks.onBeforeBlobUpload.transform(fileId);
+        const transformed = await emailHooks.onBeforeBlobUpload.transform<unknown>(fileId);
+
+        // A handler can offload the file elsewhere and hand back replacement
+        // content instead of a file id. Drop the binary attachment and put the
+        // replacement in the body.
+        if (isExternalAttachmentResult(transformed)) {
+          // `transformed.fileId` when the handler re-saved the staged file
+          // under a new id; otherwise the id we handed it.
+          await fileStorage.deleteFile(transformed.fileId ?? fileId);
+          // The user may have removed the attachment while the handler was
+          // offloading it - don't drop a link for a file they cancelled.
+          if (controller?.signal.aborted) continue;
+          setAttachments(prev => prev.filter(att => att.file !== file));
+          if (plainTextMode) {
+            setBody(previous =>
+              previous && !previous.endsWith('\n') ? `${previous}\n${transformed.text}` : previous + transformed.text
+            );
+          } else {
+            // Never trust plugin markup in the document (or in the message the
+            // user then sends); insert through the editor so it lands at the
+            // caret rather than after the signature and quoted block.
+            const html = sanitizePluginBodyHtml(transformed.html);
+            if (!html) continue;
+            if (editorRef.current) {
+              editorRef.current.chain().focus().insertContent(html).run();
+            } else {
+              setBody(previous => previous + html);
+            }
+          }
+          continue;
+        }
+
+        const newFileId = typeof transformed === 'string' ? transformed : fileId;
 
         const newFile = await fileStorage.getFile(newFileId) || file;
         await fileStorage.deleteFile(newFileId);
@@ -1269,7 +1301,7 @@ export function EmailComposer({
         );
       }
     }
-  }, [client, t]);
+  }, [client, t, plainTextMode]);
 
   const handleImageUpload = useCallback(async (
     file: File,

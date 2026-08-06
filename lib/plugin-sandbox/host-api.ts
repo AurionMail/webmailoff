@@ -30,14 +30,24 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.sendRaw',
   'jmap.submitRaw',
   'jmap.importRaw',
-  'upfiles.get',
+  // NOTE: upfiles.get is deliberately NOT tier-gated. It reads back a file the
+  // user just attached in this session - not arbitrary message bytes from the
+  // server (those stay behind jmap.fetchBlob above). Note that the id is not a
+  // secret from the plugin: onBeforeBlobUpload hands it to every registered
+  // handler, so any untrusted plugin granted email:blob-read can read the
+  // bytes of every file the user attaches. That grant is what the consent
+  // dialog for email:blob-read now says out loud.
   'crypto.getOrCreateWebAuthn',
   'crypto.getPublicKeys',
   'crypto.createPublicKey',
   'crypto.removePublicKey',
   'crypto.getEncryptionAtRest',
   'crypto.setEncryptionAtRest',
-  'upfiles.set',
+  // Replacing the bytes of a file the user is about to send is strictly more
+  // dangerous than reading them, so the write stays privileged-only.
+  // This entry used to read `upfiles.set`, which matches no dispatched method
+  // and therefore gated nothing - the dispatcher calls it `upfiles.save`.
+  'upfiles.save',
 ]);
 
 const PERM_PER_METHOD: Record<string, Permission | null> = {
@@ -59,10 +69,12 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'jmap.sendRaw': 'email:raw-send',
   'jmap.submitRaw': 'email:raw-send',
   'jmap.importRaw': 'email:raw-send',
-  // uploaded files (privileged-tier only) : 
-  // Used only to get a file before it is uploaded to alterate it. 
-  // To just read, use jmap.fetchBlob.
-  'upfiles.get' : 'email:blob-write',
+  // uploaded files :
+  // upfiles.get reads back a just-attached file (see onBeforeBlobUpload) and
+  // is a read - it sits behind email:blob-read. To read a stored message
+  // blob, use jmap.fetchBlob. upfiles.save rewrites the staged file: it stays
+  // behind email:blob-write AND the privileged tier.
+  'upfiles.get' : 'email:blob-read',
   'upfiles.save' : 'email:blob-write',
   'crypto.getOrCreateWebAuthn': 'crypto:full',
   'crypto.getPublicKeys': 'crypto:full',
@@ -232,7 +244,38 @@ function isApiPostPathAllowed(path: string, allowlist: readonly string[]): boole
   return false;
 }
 
-async function doHttpPost(plugin: InstalledPlugin, path: string, body: unknown): Promise<{ ok: boolean; status: number; data: unknown }> {
+interface PluginHttpPostOptions {
+  headers?: Record<string, string>;
+}
+
+/**
+ * Namespace a plugin must use for its own upload metadata headers. Anything
+ * outside it (and `Content-Type`) is refused, so a plugin can never reach the
+ * credential headers the host attaches to the request.
+ */
+const PLUGIN_HEADER_PREFIX = 'x-plugin-';
+
+function applyPluginUploadHeaders(
+  provided: Record<string, string> | undefined,
+  target: Record<string, string>,
+): void {
+  for (const [name, value] of Object.entries(provided ?? {})) {
+    const lower = name.toLowerCase();
+    if (lower !== 'content-type' && !lower.startsWith(PLUGIN_HEADER_PREFIX)) {
+      throw new Error(
+        `Header ${name} is not allowed on a binary plugin upload (use Content-Type or an X-Plugin-* header)`,
+      );
+    }
+    target[name] = String(value);
+  }
+}
+
+async function doHttpPost(
+  plugin: InstalledPlugin,
+  path: string,
+  body: unknown,
+  options?: PluginHttpPostOptions,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
   if (typeof path !== 'string' || !path.startsWith('/api/')) {
     throw new Error('path must start with /api/');
   }
@@ -250,7 +293,25 @@ async function doHttpPost(plugin: InstalledPlugin, path: string, body: unknown):
     throw new Error(`Path ${url.pathname} not in plugin apiPostPaths allowlist`);
   }
   const { client } = useAuthStore.getState();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
+  let requestBody: BodyInit;
+
+  if (body instanceof Blob) {
+    // Binary upload: the plugin owns Content-Type and any X-Plugin-* metadata
+    // the receiving route needs. Stock behaviour for every other body type is
+    // unchanged - it is still serialized as JSON.
+    applyPluginUploadHeaders(options?.headers, headers);
+    const hasContentType = Object.keys(headers).some(h => h.toLowerCase() === 'content-type');
+    if (!hasContentType && body.type) {
+      headers['Content-Type'] = body.type;
+    }
+    requestBody = body;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    requestBody = JSON.stringify(body);
+  }
+
+  // Applied last so plugin-supplied headers can never override credentials.
   if (client) {
     headers['Authorization'] = client.getAuthHeader();
     headers['X-JMAP-Username'] = client.getUsername();
@@ -258,7 +319,7 @@ async function doHttpPost(plugin: InstalledPlugin, path: string, body: unknown):
   const res = await apiFetch(url.pathname + url.search, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
+    body: requestBody,
   });
   const data = await res.json().catch(() => null);
   return { ok: res.ok, status: res.status, data };
@@ -795,7 +856,7 @@ export async function dispatchApiCall(
     case 'toast.info':    appToast.info(String(args[0] ?? '')); return undefined;
     case 'toast.warning': appToast.warning(String(args[0] ?? '')); return undefined;
 
-    case 'http.post':  return doHttpPost(plugin, args[0] as string, args[1]);
+    case 'http.post':  return doHttpPost(plugin, args[0] as string, args[1], args[2] as PluginHttpPostOptions | undefined);
     case 'http.fetch': return doHttpFetch(plugin, args[0] as string, args[1] as PluginFetchInit | undefined);
 
     case 'jmap.fetchBlob': return doJmapFetchBlob(args[0] as string, args[1] as { name?: string; type?: string } | undefined);

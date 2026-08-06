@@ -63,6 +63,11 @@ const DEFAULT_TIMEOUT_MS = 5000;
 // reply-all, mailto, attachment upload), so they need a much longer budget
 // than observer / transform hooks.
 const INTERCEPT_TIMEOUT_MS = 60_000;
+// onBeforeBlobUpload handlers may push the attachment to an external store
+// before handing back a link (see ExternalAttachmentResult), which is a real
+// upload over the wire - 5s would kill every offload of a file worth
+// offloading, and three of those in a minute would auto-disable the plugin.
+const BLOB_UPLOAD_TIMEOUT_MS = 120_000;
 
 function withTimeout<T>(promise: T | Promise<T>, ms: number = DEFAULT_TIMEOUT_MS): Promise<T> {
   if (!(promise instanceof Promise)) return Promise.resolve(promise);
@@ -86,6 +91,14 @@ interface HookEntry<T extends (...args: never[]) => unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class HookBus<T extends (...args: any[]) => any> {
   private handlers: HookEntry<T>[] = [];
+
+  /**
+   * @param timeoutMs Per-handler budget for `emit` / `emitSync` / `transform`.
+   *   Defaults to 5s; a bus whose handlers legitimately do network work sets
+   *   its own (see `onBeforeBlobUpload`). `intercept` keeps its own longer
+   *   budget because those hooks block on user dialogs.
+   */
+  constructor(private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS) {}
 
   register(pluginId: string, handler: T, order: number = 100): Disposable {
     const entry: HookEntry<T> = { pluginId, handler, order };
@@ -117,7 +130,7 @@ export class HookBus<T extends (...args: any[]) => any> {
     for (const { pluginId, handler } of this.handlers) {
       if (pluginErrorTracker.isDisabled(pluginId)) continue;
       try {
-        await withTimeout(handler(...args));
+        await withTimeout(handler(...args), this.timeoutMs);
       } catch (err) {
         pluginErrorTracker.record(pluginId, err);
       }
@@ -141,7 +154,7 @@ export class HookBus<T extends (...args: any[]) => any> {
     for (const { pluginId, handler } of this.handlers) {
       if (pluginErrorTracker.isDisabled(pluginId)) continue;
       try {
-        const result = await withTimeout(handler(...args), INTERCEPT_TIMEOUT_MS);
+        const result = await withTimeout(handler(...args), Math.max(this.timeoutMs, INTERCEPT_TIMEOUT_MS));
         if (result === false) return false;
       } catch (err) {
         pluginErrorTracker.record(pluginId, err);
@@ -156,7 +169,7 @@ export class HookBus<T extends (...args: any[]) => any> {
     for (const { pluginId, handler } of this.handlers) {
       if (pluginErrorTracker.isDisabled(pluginId)) continue;
       try {
-        const result = await withTimeout(handler(value, ...rest));
+        const result = await withTimeout(handler(value, ...rest), this.timeoutMs);
         if (result !== undefined && result !== false) {
           value = result as V;
         }
@@ -166,6 +179,46 @@ export class HookBus<T extends (...args: any[]) => any> {
     }
     return value;
   }
+}
+
+// ─── Attachment Offload Result ───────────────────────────────
+
+/**
+ * Structured value an `onBeforeBlobUpload` handler may return instead of a
+ * file id. It asks the composer to drop the staged binary attachment and
+ * append replacement content to the message body, so a plugin can offload the
+ * file somewhere else (an external file drop, object storage, a share link)
+ * and leave a link behind.
+ *
+ * Returning a string keeps the stock behaviour: it is treated as the id of the
+ * (possibly rewritten) file to upload.
+ */
+export interface ExternalAttachmentResult {
+  externalAttachment: true;
+  /**
+   * Inserted into the body when the composer is in rich-text mode. Sanitized
+   * by the composer before it goes anywhere near the document - a handler
+   * cannot inject script into the message being written.
+   */
+  html: string;
+  /** Appended to the body when the composer is in plain-text mode. */
+  text: string;
+  /**
+   * Id of the staged file to discard, when the handler re-saved it through
+   * `upfiles.save` (which stores the new copy under a fresh id and deletes the
+   * old one). Defaults to the id the hook was called with. Without this the
+   * re-saved copy would be stranded in IndexedDB, since it is never uploaded.
+   */
+  fileId?: string;
+}
+
+export function isExternalAttachmentResult(value: unknown): value is ExternalAttachmentResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<ExternalAttachmentResult>;
+  return candidate.externalAttachment === true
+    && typeof candidate.html === 'string'
+    && typeof candidate.text === 'string'
+    && (candidate.fileId === undefined || typeof candidate.fileId === 'string');
 }
 
 // ─── All Hook Buses (one per hook across all 20 domains) ─────
@@ -243,8 +296,12 @@ export const emailHooks = {
   // It is fired after onBeforeAttachmentUpload.
   // Handler receive the {file: File, blobId: 'undefined'} object. 
   // If it uploaded, it must return the object with true blobId. 
-  // Here, the raw file sended is exposed and can be modified or replaced. 
-  onBeforeBlobUpload: new HookBus(),
+  // Here, the raw file sended is exposed and can be modified or replaced.
+  // A handler may also return an ExternalAttachmentResult to drop the
+  // attachment entirely and append replacement html/text to the body, which
+  // lets a plugin offload the file elsewhere and leave a link behind. That
+  // offload is a real upload, hence the extended per-handler budget.
+  onBeforeBlobUpload: new HookBus(BLOB_UPLOAD_TIMEOUT_MS),
   // Observer fired after an attachment has been uploaded and its blobId is
   // available. Handler receives AttachmentInfo with `blobId` populated.
   onAfterAttachmentUpload: new HookBus(),
