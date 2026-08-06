@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PUSH_NOTIFICATION_PROMPT_DELAY_MS, PushNotificationPrompt } from "../push-notification-prompt";
 import { PWA_INSTALL_PROMPT_VISIBILITY_EVENT } from "../pwa-install-prompt";
 
@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   enableWebPush: vi.fn(),
   isWebPushEnabled: vi.fn(),
   authState: {
-    client: { getAccountId: () => "account-1" },
+    client: { getAccountId: () => "account-1" } as {
+      getAccountId: () => string;
+    },
     username: "alice@example.com",
     isAuthenticated: true,
     isDemoMode: false,
@@ -86,6 +88,11 @@ describe("PushNotificationPrompt", () => {
     setNotificationPermission("default");
   });
 
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
   it("offers onboarding when the current account has no push subscription", async () => {
     render(<PushNotificationPrompt />);
     await advancePromptDelay();
@@ -150,6 +157,23 @@ describe("PushNotificationPrompt", () => {
     render(<PushNotificationPrompt />);
     await advancePromptDelay();
     expect(mocks.isWebPushEnabled).not.toHaveBeenCalled();
+  });
+
+  it("keeps the session dismissal of every account that was dismissed", async () => {
+    const { rerender } = render(<PushNotificationPrompt />);
+    await advancePromptDelay();
+    fireEvent.click(screen.getByText("not_now"));
+
+    mocks.authState.client = { getAccountId: () => "account-2" };
+    rerender(<PushNotificationPrompt />);
+    await advancePromptDelay();
+    expect(screen.getByText("title")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("not_now"));
+
+    mocks.authState.client = { getAccountId: () => "account-1" };
+    rerender(<PushNotificationPrompt />);
+    await advancePromptDelay();
+    expect(screen.queryByText("title")).not.toBeInTheDocument();
   });
 
   it("defers push onboarding until the PWA install prompt is closed", async () => {

@@ -1077,6 +1077,7 @@
         "description": "Otrzymuj powiadomienia systemowe o nowych wiadomościach, gdy ta strona jest zamknięta. Dostarczane przez przekaźnik push Bulwark; przekaźnik nigdy nie widzi treści wiadomości.",
         "disable": "Wyłącz",
         "enable": "Włącz",
+        "dismiss_aria": "Zamknij monit powiadomień",
         "ios_hint": "W systemie iOS najpierw zainstaluj stronę na ekranie głównym – Safari dostarcza Web Push tylko zainstalowanym PWA.",
         "reenable": "Zarejestruj ponownie",
         "relay_desc": "Domyślnie używa hostowanego przekaźnika Bulwark. Zmień tylko jeśli hostujesz samodzielnie.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Bell, Loader2, X } from "lucide-react";
@@ -13,7 +13,10 @@ import {
   isWebPushEnabled,
   isWebPushSupported,
 } from "@/lib/web-push";
-import { PWA_INSTALL_PROMPT_VISIBILITY_EVENT } from "@/components/pwa-install-prompt";
+import {
+  isPWAInstallPromptVisible,
+  PWA_INSTALL_PROMPT_VISIBILITY_EVENT,
+} from "@/components/pwa-install-prompt";
 
 const DISMISSED_KEY_PREFIX = "bulwark.push.onboarding.dismissed.v1.";
 export const PUSH_NOTIFICATION_PROMPT_DELAY_MS = 1_000;
@@ -65,15 +68,31 @@ export function PushNotificationPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isEnabling, setIsEnabling] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionDismissedAccountId, setSessionDismissedAccountId] =
-    useState<string | null>(null);
-  const [pwaPromptVisible, setPwaPromptVisible] = useState(false);
+  // Session-only dismissal is per account: dismissing on one account must not
+  // re-offer the prompt on an account dismissed earlier in the same session.
+  const [sessionDismissedAccountIds, setSessionDismissedAccountIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [pwaPromptVisible, setPwaPromptVisible] = useState(
+    isPWAInstallPromptVisible,
+  );
 
   const accountId = client?.getAccountId() ?? null;
   const relayBaseUrl = (adminPushRelayUrl ?? "").trim()
     || DEFAULT_RELAY_BASE_URL;
 
-  useEffect(() => {
+  const dismissForSession = useCallback((id: string) => {
+    setSessionDismissedAccountIds((previous) => {
+      if (previous.has(id)) return previous;
+      const next = new Set(previous);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  // A layout effect subscribes before the browser can paint, so a visibility
+  // event dispatched by the PWA prompt during the same commit is not missed.
+  useLayoutEffect(() => {
     const handlePwaPromptVisibility = (event: Event) => {
       const visible = (event as CustomEvent<{ visible?: boolean }>).detail?.visible;
       setPwaPromptVisible(visible === true);
@@ -83,6 +102,7 @@ export function PushNotificationPrompt() {
       PWA_INSTALL_PROMPT_VISIBILITY_EVENT,
       handlePwaPromptVisibility,
     );
+    setPwaPromptVisible(isPWAInstallPromptVisible());
     return () => {
       window.removeEventListener(
         PWA_INSTALL_PROMPT_VISIBILITY_EVENT,
@@ -106,7 +126,7 @@ export function PushNotificationPrompt() {
       || isDemoMode
       || !emailNotificationsEnabled
       || isExcludedPath(pathname)
-      || sessionDismissedAccountId === accountId
+      || sessionDismissedAccountIds.has(accountId)
       || pwaPromptVisible
       || wasDismissed(accountId)
       || !isWebPushSupported()
@@ -139,7 +159,7 @@ export function PushNotificationPrompt() {
     pathname,
     policyLoaded,
     pwaPromptVisible,
-    sessionDismissedAccountId,
+    sessionDismissedAccountIds,
   ]);
 
   const handleEnable = async () => {
@@ -161,14 +181,14 @@ export function PushNotificationPrompt() {
   };
 
   const handleDismiss = () => {
-    if (accountId) setSessionDismissedAccountId(accountId);
+    if (accountId) dismissForSession(accountId);
     setShowPrompt(false);
   };
 
   const handleDismissForever = () => {
     if (accountId) {
       dismissPermanently(accountId);
-      setSessionDismissedAccountId(accountId);
+      dismissForSession(accountId);
     }
     setShowPrompt(false);
   };
@@ -194,7 +214,7 @@ export function PushNotificationPrompt() {
           onClick={handleDismiss}
           disabled={isEnabling}
           className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors disabled:opacity-50"
-          aria-label={tPush("title")}
+          aria-label={tPush("dismiss_aria")}
         >
           <X className="w-4 h-4" />
         </button>

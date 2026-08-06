@@ -1091,6 +1091,7 @@
         "disable": "Zakázať",
         "confirm_disable_title": "Zakázať oznámenia na pozadí?",
         "confirm_disable_message": "Toto zariadenie prestane prijímať upozornenia, keď je stránka zatvorená.",
+        "dismiss_aria": "Zavrieť výzvu na oznámenia",
         "ios_hint": "Na iOS najprv nainštalujte stránku na domovskú obrazovku – Safari doručuje Web Push iba nainštalovaným PWA."
       }
     },

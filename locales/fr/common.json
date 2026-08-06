@@ -1077,6 +1077,7 @@
         "description": "Recevez des notifications système pour les nouveaux courriers quand ce site est fermé. Livré via le relais push Bulwark ; le relais ne voit jamais le contenu des courriers.",
         "disable": "Désactiver",
         "enable": "Activer",
+        "dismiss_aria": "Fermer l'invite de notifications",
         "ios_hint": "Sur iOS, installez d'abord le site sur l'écran d'accueil – Safari ne livre Web Push qu'aux PWA installées.",
         "reenable": "Réenregistrer",
         "relay_desc": "Utilise par défaut le relais Bulwark hébergé. Ne le changez que si vous l'hébergez vous-même.",

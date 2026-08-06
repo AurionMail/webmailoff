@@ -1077,6 +1077,7 @@
         "description": "Saņem sistēmas paziņojumus par jaunu pastu, kad šī vietne ir aizvērta. Piegādāts caur Bulwark push releju; relejs nekad neredz pasta saturu.",
         "disable": "Atspējot",
         "enable": "Iespējot",
+        "dismiss_aria": "Aizvērt paziņojumu uzaicinājumu",
         "ios_hint": "Operētājsistēmā iOS vispirms instalējiet vietni sākuma ekrānā – Safari piegādā Web Push tikai instalētajām PWA.",
         "reenable": "Reģistrēt vēlreiz",
         "relay_desc": "Pēc noklusējuma izmanto izmitināto Bulwark releju. Mainiet tikai tad, ja izmitināt pats.",

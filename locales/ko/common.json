@@ -1077,6 +1077,7 @@
         "description": "이 사이트가 닫혀 있을 때 새 메일에 대한 시스템 알림을 받습니다. Bulwark 푸시 릴레이를 통해 전달되며, 릴레이는 메일 내용을 절대 보지 않습니다.",
         "disable": "비활성화",
         "enable": "활성화",
+        "dismiss_aria": "알림 프롬프트 닫기",
         "ios_hint": "iOS에서는 먼저 사이트를 홈 화면에 설치하세요. Safari는 설치된 PWA에만 Web Push를 전달합니다.",
         "reenable": "다시 등록",
         "relay_desc": "기본값은 호스팅된 Bulwark 릴레이입니다. 셀프 호스팅 시에만 변경하세요.",

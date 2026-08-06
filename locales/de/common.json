@@ -1077,6 +1077,7 @@
         "description": "Systembenachrichtigungen für neue E-Mails empfangen, wenn diese Seite geschlossen ist. Zustellung über das Bulwark Push-Relay; das Relay sieht niemals E-Mail-Inhalte.",
         "disable": "Deaktivieren",
         "enable": "Aktivieren",
+        "dismiss_aria": "Benachrichtigungshinweis schließen",
         "ios_hint": "Installieren Sie die Seite unter iOS zuerst auf dem Startbildschirm – Safari liefert Web Push nur an installierte PWAs.",
         "reenable": "Neu registrieren",
         "relay_desc": "Standardmäßig wird das gehostete Bulwark-Relay verwendet. Nur ändern, wenn Sie selbst hosten.",

@@ -1077,6 +1077,7 @@
         "description": "Přijímat systémová oznámení o nové poště, když je tento web zavřený. Doručováno přes push relay Bulwark; relay nikdy nevidí obsah pošty.",
         "disable": "Zakázat",
         "enable": "Povolit",
+        "dismiss_aria": "Zavřít výzvu k oznámením",
         "ios_hint": "Na iOS nejprve nainstalujte web na domovskou obrazovku – Safari doručuje Web Push pouze nainstalovaným PWA.",
         "reenable": "Znovu zaregistrovat",
         "relay_desc": "Výchozí je hostovaný relay Bulwark. Změňte pouze pokud používáte vlastní hosting.",

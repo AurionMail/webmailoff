@@ -1067,6 +1067,7 @@
         "disable": "Disable",
         "confirm_disable_title": "Disable background notifications?",
         "confirm_disable_message": "This device will stop receiving alerts when the site is closed.",
+        "dismiss_aria": "Dismiss notification prompt",
         "ios_hint": "On iOS, install the site to your home screen first - Safari only delivers Web Push to installed PWAs."
       },
       "sound_selection": {
