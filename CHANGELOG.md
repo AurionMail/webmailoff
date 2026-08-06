@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.8.0 (2026-08-06)
+
+### Features
+
+- **Mail**: Nest tags in a tree by picking a parent when you create one
+- **Mail**: Per-tag visibility — always, only when unread, or always hidden
+- **Mail**: Assign and clear several tags at once, with a reworked tag display
+- **Mail**: Recover tags from the server by scanning mail for JMAP keywords no local tag explains (#658)
+- **Mail**: "Forward as attachment" in the viewer and the message-list context menu
+- **Mail**: Refresh button in the mail-list toolbar
+- **Composer**: Confirm sending without a subject instead of blocking the send, with "Don't ask again" (#684)
+- **Contacts**: Contact cards for organizations (#701)
+- **Security**: Manage S/MIME and PGP public keys and configure Stalwart encryption at rest from account security settings
+- **Notifications**: Background notification onboarding, sequenced after the PWA install prompt
+- **Navigation**: Deep links for mail, calendar, contacts, files, and settings, with screen-reader improvements
+- **Settings**: Always show the Unified Mailbox switch in Layout settings
+- **i18n**: Catalan translation
+- **i18n**: Localized editor toolbar across every locale
+- **Plugins**: Contact API — `contact.get`, `contact.create`, `contact.update`, `contact.search`
+- **Plugins**: `user.getAccounts` and `user.getIdentities`
+- **Plugins**: `user.logout` method and logout hook
+- **Plugins**: Crypto API — public-key management and encryption-at-rest control on the privileged tier
+- **Plugins**: `onBeforeBlobUpload` can offload an attachment to external storage
+- **Plugins**: Binary `Blob`/`File` bodies for `api.http.post`
+- **Plugins**: `upfiles.get` moved behind `email:blob-read`, off the privileged tier
+- **Dev**: Mock JMAP defaults now include nested tags
+
+### Changes
+
+- **Mail**: The "Reset to defaults" button is gone from tag settings — one stray click wiped a carefully built tag list, with no confirmation and no undo
+
+### Fixes
+
+- **Send**: Send through the identity's own account client so DKIM matches the From domain (#461)
+- **Send**: Split `Name <addr>` recipients into the JMAP `name` and `email` fields (#672)
+- **Send**: Time out stalled JMAP requests so a send can't hang forever (#702)
+- **Mail**: Keep inline images when replying to `application/octet-stream` cid parts (#543)
+- **Mail**: Reply on your own thread message no longer re-addresses the original recipients (#703)
+- **Mail**: Empty folder no longer stops after 500 emails (#711)
+- **Mail**: Move messages across accounts from the "Move to" context menu, preserving read state and deferring source removal to Stalwart
+- **Mail**: Stop resurrecting deleted rows in the mailbox refresh merge
+- **Mail**: Keep the `message/rfc822` attachment visible after inline unwrapping
+- **Mail**: Strip sender and recipient names from forward-as-attachment filenames
+- **Mail**: Open `mailto:` links in the built-in composer
+- **Mail**: Spell out the full tag path in drag-and-drop toasts, so `Personal/Receipts` and `Work/Receipts` no longer read as the same tag
+- **Mail**: Act on current email state in the context menu's mark-as-read instead of a stale copy
+- **Mail**: Match the selected-row tint between dark and light mode
+- **Mail**: Restore lost animations after the Tailwind config move
+- **Drafts**: Restore the sender identity when reopening a draft
+- **Calendar**: Stop re-adding the organizer to the attendee list on every save (#731)
+- **Calendar**: Stop re-probing shared accounts that have no calendar access
+- **Calendar**: Route the parse dump through the debug logger
+- **Contacts**: Stop minting duplicate "Trusted Senders" address books (#730)
+- **Contacts**: Hide Contacts and Calendars when the account lacks the JMAP capability
+- **Contacts**: Require an explicit shared-account fallback for contacts and calendars
+- **Files**: Show the modification date instead of the creation date (#700)
+- **PWA**: Honor the configured theme color in the desktop title bar and keep it in step with the active theme (#671)
+- **Accounts**: Reconcile the stale persisted account chip after an impersonation handoff
+- **Auth**: Only request a credential cookie when the server has a `SESSION_SECRET`
+- **JMAP**: Split requests to stay inside the server's advertised limits — `maxCallsInRequest`, `maxObjectsInGet`/`InSet`, `maxSizeRequest`, and concurrency
+- **JMAP**: Treat an aborted SSE connect as a close, not a failure
+- **JMAP**: Surface the underlying network error cause in passthrough failures
+- **Settings**: Avoid leaving `TZ="undefined"` when restoring an unset timezone
+- **Plugins**: Stop a privileged plugin from reading another privileged plugin's PRF secret
+- **Plugins**: Correct the method names for message errors and `crypto.getPublicKeys`
+- **i18n**: Restore key parity across locales and the English `send_timeout` string
+- **Docs**: Document the remaining env vars in the env templates, and correct the facts and headings in README and FEATURES
+
 ## 1.7.8 (2026-07-22)
 
 ### Features

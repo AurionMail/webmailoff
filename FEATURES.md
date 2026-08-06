@@ -11,6 +11,7 @@
 - Drafts auto-save, keeping the chosen identity, the HTML body, and correct `In-Reply-To` / `References` headers on replies
 - Attachments upload, download, drag out to the file system, and preview inline. Images and PDFs render on desktop and mobile, composer attachments open on click, and `.eml` (`message/rfc822`) parts display as a nested email. There are list thumbnails, and a warning when you mention an attachment and forget it.
 - Scheduled send, plus a configurable delay before anything leaves the outbox
+- Sending without a subject asks for confirmation instead of refusing, and the prompt can be switched off
 - Read receipts (MDN, RFC 8098)
 - Quoted text lands in an editable island that keeps the original layout
 - Full-text search with a JMAP filter panel, search chips, wildcards, OR conditions, and cross-mailbox queries
@@ -19,13 +20,16 @@
 - Tags carry color labels, reorder by drag, and can be assigned by dropping a message onto them
 - Tags optionally nest: pick a parent when you create one and the sidebar turns them into a tree
 - Each tag can be configured to show always, only when there are unread mails or always be hidden
+- Tag names and colors live in the browser, while the tags themselves ride on your messages as JMAP keywords. A scan finds keywords no local tag explains and adds them back.
 - Star or unstar, with a configurable mark-as-read delay
 - Large mailboxes scroll virtually, and the first page of mail prefetches at login
+- A refresh button in the list toolbar that spins while the fetch is in flight, alongside the F5 / Ctrl+R / pull-to-refresh gestures it shares a code path with
 - Quick reply, hover actions, favicon-based sender avatars, recipient popovers
 - Plain-text composer mode and Reply-To
 - The signature sits above or below the quoted text, per identity
 - Override the From header in the composer. Reply to an alias on a domain you own and it auto-fills as the sender, even when no identity exists for it.
 - Import `.eml` files from the folder right-click menu
+- Forward a message as an `.eml` attachment, from the viewer or the list right-click menu, named by your filename template
 - TNEF (`winmail.dat`) extraction and `message/rfc822` unwrapping
 - Folders take an icon, nest, and show counts in the sidebar
 - Print from the viewer
@@ -52,6 +56,7 @@
 - JMAP sync (RFC 9553 / 9610), falling back to local storage
 - Several address books, with drag-and-drop between them
 - Groups with member management
+- A card can be a person or an organization. Organization cards need no personal name; the org name carries the card and fills vCard's mandatory `FN`.
 - vCard import/export (RFC 6350) that flags duplicates
 - Trusted senders live in their own JMAP address book
 - Autocomplete on To, Cc, and Bcc
@@ -80,6 +85,7 @@
 - External content stays blocked until you say otherwise, and trusted senders are remembered
 - HTML sanitized through DOMPurify
 - S/MIME: manage certificates, then sign, encrypt, decrypt, and verify. Legacy 3DES / PBE is supported, and keys stay isolated per account.
+- Add S/MIME or PGP public keys per account, then turn on Stalwart's encryption at rest against one of them. The algorithm, whether new mail is encrypted on upload, and whether spam training runs before encryption are all configurable.
 - SPF / DKIM / DMARC indicators surface the most severe SPF result and drop the "via" badge on spoofed mail
 - OAuth2 / OIDC with PKCE against Keycloak, Authentik, or the built-in provider, plus OAuth-only mode, OAuth app passwords, and non-interactive SSO for embedded deployments
 - TOTP two-factor authentication
@@ -135,6 +141,8 @@
 - JSON config can read secrets from files (`passwordHashFile`, `sessionSecretFile`, `oauthClientSecretFile`) for Docker and Kubernetes secret mounts
 - An admin toggle controls search-engine indexing (`robots.txt` / `noindex`)
 - Plugin system: a schema-driven config UI, render and intercept hooks, `onAvatarResolve`, `onBeforeEmailSend`, composer-sidebar and email-banner slots, calendar event slots, i18n APIs (sandboxed plugins localize through manifest locales and `api.i18n.t`), an `/api/translate` proxy, email-body access, and managed policy enforcement
+- Plugin APIs reach contacts (`contact.get` / `create` / `update` / `search`), the signed-in user (`user.getAccounts`, `user.getIdentities`, `user.logout` and a logout hook), and — on the privileged tier — public keys and encryption at rest. Each sits behind its own consent permission.
+- `onBeforeBlobUpload` can divert an attachment to external storage before it reaches the server, and `api.http.post` takes binary `Blob` / `File` bodies to get it there
 - Plugins hot-reload, load from a dev folder, bundle `src/` on demand through esbuild, and can request `http:fetch` scoped by `httpOrigins`
 - Themes upload as ZIP bundles, and admins can enforce one
 - An extension marketplace browses and installs plugins and themes from a configurable directory (`EXTENSION_DIRECTORY_URL`). Installing and uninstalling stay in the admin dashboard.
@@ -143,6 +151,7 @@
 ## Operations
 
 - Progressive Web App: service worker, install prompt, web push for new inbox mail, a dynamic manifest, and install screenshots configurable per domain
+- The install prompt and the background-notification prompt are sequenced, so the two never compete for the same moment. Neither appears on login, setup, or settings screens.
 - Update checks run on their own, log new releases server-side, and raise a notice that can't be dismissed
 - Structured logging (`text` or `json`) with per-category levels
 - Anonymous instance telemetry, off unless you enable it through the admin UI, the installer, or `BULWARK_TELEMETRY=on`. It reports version, platform, bucketed account counts, and feature toggles.
