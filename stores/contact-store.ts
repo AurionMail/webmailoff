@@ -5,6 +5,48 @@ import type { IJMAPClient } from '@/lib/jmap/client-interface';
 import { generateUUID } from '@/lib/utils';
 import { debug } from '@/lib/debug';
 import { getClientByLocalAccountId } from './client-registry';
+import { sanitizeDisplayName, splitMailbox } from '@/lib/rfc5322-mailbox';
+
+/** One compose-autocomplete suggestion: a person, or a contact group. */
+type RecipientSuggestion = { name: string; email: string; group?: { id: string; memberCount: number } };
+
+/**
+ * Reduces every suggestion to a clean display name plus a bare address and
+ * collapses the ones that resolve to the same address.
+ *
+ * Contacts whose stored name is really a whole mailbox ("Jane <j@x.com>", the
+ * usual result of a flattened vCard import) otherwise show up next to the
+ * properly parsed card as a second, raw-looking suggestion, and picking that
+ * one composes a malformed recipient the receiving server rejects (#672).
+ * Groups carry no address and pass through untouched.
+ */
+function normalizeSuggestions(results: RecipientSuggestion[]): RecipientSuggestion[] {
+  const out: RecipientSuggestion[] = [];
+  const indexByEmail = new Map<string, number>();
+  for (const r of results) {
+    if (r.group) {
+      out.push(r);
+      continue;
+    }
+    const mailbox = splitMailbox(r.email);
+    if (!mailbox.email) continue;
+    // The name loses any address it carries; when that leaves nothing, the one
+    // the address field itself carried ("Jane <j@x.com>" stored as the address)
+    // stands in.
+    const name = sanitizeDisplayName(r.name) || mailbox.name || '';
+    const suggestion = { name: name === mailbox.email ? '' : name, email: mailbox.email };
+    const key = mailbox.email.toLowerCase();
+    const seenAt = indexByEmail.get(key);
+    if (seenAt === undefined) {
+      indexByEmail.set(key, out.length);
+      out.push(suggestion);
+    } else if (!out[seenAt].name && suggestion.name) {
+      // Keep the first hit's position but take a display name it was missing.
+      out[seenAt].name = suggestion.name;
+    }
+  }
+  return out;
+}
 
 /** One connected JMAP account for contact multi-account aggregation. */
 export interface ContactAccountClient {
@@ -590,7 +632,7 @@ export const useContactStore = create<ContactStore>()(
         if (!query || query.length < 1) return [];
 
         const lower = query.toLowerCase();
-        const results: Array<{ name: string; email: string; group?: { id: string; memberCount: number } }> = [];
+        const results: RecipientSuggestion[] = [];
 
         for (const contact of contacts) {
           if (contact.kind === 'group') {
@@ -669,7 +711,7 @@ export const useContactStore = create<ContactStore>()(
           }
         }
 
-        return results;
+        return normalizeSuggestions(results);
       },
 
       getGroups: () => {

@@ -297,6 +297,49 @@ describe('contact-store', () => {
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe('Jane');
     });
+
+    // #672: a flattened vCard import leaves the whole mailbox in the name (and
+    // sometimes in the address too). Suggesting that raw string composes a
+    // recipient the receiving server rejects.
+    it('should split a display name that carries the address', () => {
+      useContactStore.setState({
+        contacts: [
+          makeContact({ id: 'raw', name: { full: 'Jane Doe <jane.doe@example.com>' }, emails: { e0: { address: 'jane.doe@example.com' } } }),
+        ],
+      });
+      const results = useContactStore.getState().getAutocomplete('jane');
+      expect(results).toEqual([{ name: 'Jane Doe', email: 'jane.doe@example.com' }]);
+    });
+
+    it('should split a whole mailbox stored as the address', () => {
+      useContactStore.setState({
+        contacts: [
+          makeContact({ id: 'raw', name: { full: 'Jane Doe <jane.doe@example.com>' }, emails: { e0: { address: 'Jane Doe <jane.doe@example.com>' } } }),
+        ],
+      });
+      const results = useContactStore.getState().getAutocomplete('jane');
+      expect(results).toEqual([{ name: 'Jane Doe', email: 'jane.doe@example.com' }]);
+    });
+
+    it('should not surface a raw duplicate of an already parsed contact', () => {
+      useContactStore.setState({
+        contacts: [
+          makeContact({ id: 'clean', name: { components: [{ kind: 'given', value: 'Jane' }, { kind: 'surname', value: 'Doe' }], isOrdered: true }, emails: { e0: { address: 'jane.doe@example.com' } } }),
+          makeContact({ id: 'raw', name: { full: 'Jane Doe <jane.doe@example.com>' }, emails: { e0: { address: 'jane.doe@example.com' } } }),
+        ],
+      });
+      const results = useContactStore.getState().getAutocomplete('jane');
+      expect(results).toEqual([{ name: 'Jane Doe', email: 'jane.doe@example.com' }]);
+    });
+
+    it('should repair a recent recipient whose address lost its closing bracket', () => {
+      useContactStore.setState({
+        contacts: [],
+        recentRecipients: [{ name: '', email: 'janedoe<jane.doe@example.com' }],
+      });
+      const results = useContactStore.getState().getAutocomplete('jane');
+      expect(results).toEqual([{ name: 'janedoe', email: 'jane.doe@example.com' }]);
+    });
   });
 
   describe('getGroups', () => {

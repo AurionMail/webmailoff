@@ -5,15 +5,18 @@ import { toWildcardQuery } from "./search-utils";
 import { batched, itemsPerRequest } from "./request-limits";
 import { debug } from "@/lib/debug";
 import { normalizeCalendarEventLike } from "@/lib/calendar-event-normalization";
+import { sanitizeDisplayName, splitMailbox } from "@/lib/rfc5322-mailbox";
 
-/** Parse a recipient string that may be "Name <email>" or bare "email" into { name?, email }. */
+/**
+ * Parse a recipient string that may be "Name <email>" or bare "email" into
+ * { name?, email }. The display name is unquoted and stripped of any address
+ * it carries inline: JMAP takes the name and the address as separate fields,
+ * so leaving the quoting or a second copy of the address in there makes the
+ * server emit an invalid To/Cc mailbox, which it then re-parses into a
+ * malformed envelope recipient (#672).
+ */
 function parseRecipientString(s: string): { name?: string; email: string } {
-  const trimmed = s.trim();
-  const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
-  if (angleMatch) {
-    return { name: angleMatch[1].trim(), email: angleMatch[2].trim() };
-  }
-  return { email: trimmed };
+  return splitMailbox(s);
 }
 
 /**
@@ -533,8 +536,7 @@ function buildInCalendarFilter(calendarIds: string[]): Record<string, unknown> {
 // whose display-name is invalid per RFC 5322 §3.4 and gets rejected by the
 // submission validator - the email then sits forever in Drafts.
 function sanitizeIdentityDisplayName(name: string | undefined | null): string {
-  if (!name) return '';
-  return name.replace(/\s*<[^>]*>\s*$/, '').trim();
+  return sanitizeDisplayName(name);
 }
 
 function normalizeEnvelopeRecipients(recipients?: Array<string | EmailAddress>): Array<{ email: string }> {
@@ -2695,9 +2697,9 @@ export class JMAPClient implements IJMAPClient {
 
     interface EmailDraft {
       from: { name?: string; email: string }[];
-      to: { email: string }[];
-      cc?: { email: string }[];
-      bcc?: { email: string }[];
+      to: { name?: string; email: string }[];
+      cc?: { name?: string; email: string }[];
+      bcc?: { name?: string; email: string }[];
       subject: string;
       keywords: Record<string, boolean>;
       mailboxIds: Record<string, boolean>;
@@ -2710,9 +2712,12 @@ export class JMAPClient implements IJMAPClient {
     const sanitizedFromName = sanitizeIdentityDisplayName(fromName);
     const emailData: EmailDraft = {
       from: [{ ...(sanitizedFromName ? { name: sanitizedFromName } : {}), email: fromEmail || this.username }],
-      to: to.map(email => ({ email })),
-      cc: cc?.length ? cc.map(email => ({ email })) : undefined,
-      bcc: bcc?.length ? bcc.map(email => ({ email })) : undefined,
+      // "Name <addr>" must be split into the two JMAP fields: storing the whole
+      // mailbox as the address makes the server treat the display name as part
+      // of the addr-spec, and the draft goes out to `Name<addr` (#672).
+      to: to.map(parseRecipientString),
+      cc: cc?.length ? cc.map(parseRecipientString) : undefined,
+      bcc: bcc?.length ? bcc.map(parseRecipientString) : undefined,
       subject,
       keywords: { "$seen": true, "$draft": true },
       mailboxIds: { [draftsMailbox.id]: true },
