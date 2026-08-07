@@ -355,6 +355,11 @@ export async function expectEmailUnread(page: Page, subject: string, unread: boo
   await expect(emailItem(page, subject).first()).toHaveAttribute('data-unread', String(unread), { timeout });
 }
 
+/** Assert an email row's starred state (from its `data-starred` attribute). */
+export async function expectEmailStarred(page: Page, subject: string, starred: boolean, timeout = 20000): Promise<void> {
+  await expect(emailItem(page, subject).first()).toHaveAttribute('data-starred', String(starred), { timeout });
+}
+
 /**
  * Open an email's right-click context menu and click one of its actions.
  * `testId` is one of: `ctx-delete`, `ctx-spam`, `ctx-not-spam`,
