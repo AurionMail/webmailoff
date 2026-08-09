@@ -242,7 +242,7 @@ export const API_METHODS = [
   'storage.get', 'storage.set', 'storage.remove', 'storage.keys',
   'http.post', 'http.fetch',
   'crypto.getOrCreateWebAuthn', 'crypto.getPublicKeys', 'crypto.createPublicKey', 'crypto.removePublicKey', 'crypto.getEncryptionAtRest', 'crypto.setEncryptionAtRest',
-  'jmap.fetchBlob', 'jmap.sendRaw',
+  'jmap.fetchBlob', 'jmap.uploadBlob', 'jmap.sendRaw',
   'upfiles.get', 'upfiles.save',
   'contact.get', 'contact.update', 'contact.create', 'contact.search',
   'admin.getConfig', 'admin.getAllConfig', 'admin.setConfig', 'admin.deleteConfig',
