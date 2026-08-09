@@ -27,6 +27,7 @@ import { EncryptionAtRestConfig, PublicKeyInfo, PublicKeyInput, useAccountSecuri
  */
 const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'jmap.fetchBlob',
+  'jmap.uploadBlob',
   'jmap.sendRaw',
   'jmap.submitRaw',
   'jmap.importRaw',
@@ -66,6 +67,7 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'http.fetch': 'http:fetch',
   // jmap (privileged-tier only; see PRIVILEGED_ONLY_METHODS)
   'jmap.fetchBlob': 'email:blob-read',
+  'jmap.uploadBlob': 'email:blob-write',
   'jmap.sendRaw': 'email:raw-send',
   'jmap.submitRaw': 'email:raw-send',
   'jmap.importRaw': 'email:raw-send',
@@ -392,6 +394,13 @@ async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: st
   if (!client) throw new Error('jmap.fetchBlob: no active session');
   const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type);
   return new Uint8Array(buf);
+}
+
+async function doJmapUploadBlob(content: Uint8Array, name: string, type: string): Promise<{ blobId: string; size: number; type: string; }> {
+  const { client } = useAuthStore.getState();
+  if (!client) throw new Error('jmap.uploadBlob: no active session');
+  const file = new File([content as BlobPart], name, { type });
+  return await client.uploadBlob(file);
 }
 
 interface JmapSubmitRawOptions {
@@ -860,6 +869,7 @@ export async function dispatchApiCall(
     case 'http.fetch': return doHttpFetch(plugin, args[0] as string, args[1] as PluginFetchInit | undefined);
 
     case 'jmap.fetchBlob': return doJmapFetchBlob(args[0] as string, args[1] as { name?: string; type?: string } | undefined);
+    case 'jmap.uploadBlob': return doJmapUploadBlob(args[0] as Uint8Array, args[1] as string, args[2] as string);
     case 'jmap.sendRaw':   return doJmapSendRaw(
       args[0] as ArrayBuffer | ArrayBufferView,
       args[1] as string,
