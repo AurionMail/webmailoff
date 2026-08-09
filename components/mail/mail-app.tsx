@@ -1590,12 +1590,18 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
   const handleReply = async (draftText?: string) => {
     if (selectedEmail) {
+      const formerSelected = { ...selectedEmail };
+      const enrichedEmail = await emailHooks.onBeforeComposeOpenToReply.transform(selectedEmail);
+      selectEmail(enrichedEmail);
       const ok = await emailHooks.onBeforeReply.intercept({
         originalEmailId: selectedEmail.id,
         originalEmail: emailToReadView(selectedEmail),
         mode: 'reply' as const,
       });
-      if (!ok) return;
+      if (!ok){ 
+        selectEmail(formerSelected);
+        return;
+      }
       await prepareComposerQuoteHeader(selectedEmail, 'reply');
     } else {
       setComposerQuoteHeader(null);
@@ -1737,12 +1743,18 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
   const handleReplyAll = async () => {
     if (selectedEmail) {
+      const formerSelected = { ...selectedEmail };
+      const enrichedEmail = await emailHooks.onBeforeComposeOpenToReplyAll.transform(selectedEmail);
+      selectEmail(enrichedEmail);
       const ok = await emailHooks.onBeforeReplyAll.intercept({
         originalEmailId: selectedEmail.id,
         originalEmail: emailToReadView(selectedEmail),
         mode: 'reply-all' as const,
       });
-      if (!ok) return;
+      if (!ok) {
+        selectEmail(formerSelected);
+        return;
+      }
       await prepareComposerQuoteHeader(selectedEmail, 'replyAll');
     } else {
       setComposerQuoteHeader(null);
@@ -1755,12 +1767,18 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
   const handleForward = async () => {
     if (selectedEmail) {
+      const formerSelected = { ...selectedEmail };
+      const enrichedEmail = await emailHooks.onBeforeComposeOpenToForward.transform(selectedEmail);
+      selectEmail(enrichedEmail);
       const ok = await emailHooks.onBeforeForward.intercept({
         originalEmailId: selectedEmail.id,
         originalEmail: emailToReadView(selectedEmail),
         mode: 'forward' as const,
       });
-      if (!ok) return;
+      if (!ok) {
+        selectEmail(formerSelected);
+        return;
+      }
       await prepareComposerQuoteHeader(selectedEmail, 'forward');
     } else {
       setComposerQuoteHeader(null);
@@ -1792,6 +1810,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
   // unselected row. See the list context-menu wiring below.
   const handleForwardAsAttachment = async (email: Email | null = selectedEmail) => {
     if (!email) return;
+    email = await emailHooks.onBeforeComposeOpenToForwardAsAttachment.transform(email);
     // Same filename options "Export as .eml" uses (see emailFilenameOptions
     // in email-viewer.tsx), so the two actions produce consistent filenames
     // for the same message rather than the synthetic attachment silently
@@ -3030,6 +3049,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
   // Handle reply from conversation view
   const handleConversationReply = async (email: Email) => {
+    email = await emailHooks.onBeforeComposeOpenToReply.transform(email);
     selectEmail(email);
     await prepareComposerQuoteHeader(email, 'reply');
     startFreshComposerSession();
@@ -3039,6 +3059,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
   };
 
   const handleConversationReplyAll = async (email: Email) => {
+    email = await emailHooks.onBeforeComposeOpenToReplyAll.transform(email);
     selectEmail(email);
     await prepareComposerQuoteHeader(email, 'replyAll');
     startFreshComposerSession();
@@ -3048,6 +3069,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
   };
 
   const handleConversationForward = async (email: Email) => {
+    email = await emailHooks.onBeforeComposeOpenToForward.transform(email);
     selectEmail(email);
     await prepareComposerQuoteHeader(email, 'forward');
     startFreshComposerSession();
