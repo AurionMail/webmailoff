@@ -428,3 +428,26 @@ export async function enableProInterface(page: Page): Promise<void> {
     await expect(toggle).toHaveAttribute('aria-checked', 'true');
   }
 }
+
+// --- Contacts / address books (multi-account) ------------------------------
+
+/** Navigate to contacts via in-app nav and wait for the address-book list. */
+export async function openContacts(page: Page): Promise<void> {
+  await page.locator('a[href$="/contacts"]').first().click();
+  await page
+    .locator('[data-testid="address-book-item"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 30000 });
+}
+
+/** All sidebar address books as {name, account}. */
+export async function addressBookRows(
+  page: Page,
+): Promise<Array<{ name: string; account: string }>> {
+  return page.locator('[data-testid="address-book-item"]').evaluateAll((els) =>
+    els.map((e) => ({
+      name: e.getAttribute('data-book-name') || '',
+      account: e.getAttribute('data-account') || '',
+    })),
+  );
+}
