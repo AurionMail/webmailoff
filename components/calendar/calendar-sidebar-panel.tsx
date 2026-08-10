@@ -242,6 +242,10 @@ export function CalendarSidebarPanel({
         <button
           onClick={() => onToggleVisibility(cal.id)}
           onContextMenu={hasMenu ? (e) => openContextMenu(e, cal) : undefined}
+          data-testid="calendar-item"
+          data-calendar-name={cal.name}
+          data-account={cal.accountName ?? ''}
+          data-visible={isVisible}
           className={cn(
             "flex items-center gap-2 w-full px-1.5 py-1 rounded-md text-sm transition-colors duration-150",
             "hover:bg-muted"

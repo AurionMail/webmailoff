@@ -932,6 +932,7 @@ export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
                   return (
                     <div key={tab.id}>
                       <button
+                        data-testid={`settings-tab-${tab.id}`}
                         onClick={() => handleTabSelect(tab.id)}
                         className="w-full flex items-center justify-between px-5 py-3.5 text-sm text-foreground hover:bg-muted transition-colors duration-150"
                       >
@@ -1072,6 +1073,7 @@ export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
                   return (
                     <div key={tab.id}>
                       <button
+                        data-testid={`settings-tab-${tab.id}`}
                         onClick={() => handleTabSelect(tab.id)}
                         className={cn(
                           'w-full text-start px-3 py-2 rounded-md text-sm transition-colors duration-150 flex items-center gap-2.5',
