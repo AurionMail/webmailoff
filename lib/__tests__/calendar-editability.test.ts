@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { CalendarEvent, CalendarParticipant, CalendarRights } from '@/lib/jmap/types';
 import {
   getEventEditability,
+  canCreateEventsIn,
   eventHasNoOwner,
   type EventEditability,
   type EditabilityContext,
@@ -107,6 +108,24 @@ function ctx(
     isSubscriptionCalendar: (id) => subscriptions.includes(id),
   };
 }
+
+describe('canCreateEventsIn (issue #762)', () => {
+  const sub = (id: string) => id === 'sub';
+  it('allows a writable, non-subscription calendar', () => {
+    expect(canCreateEventsIn({ id: 'c', myRights: ALL_RIGHTS }, sub)).toBe(true);
+    expect(canCreateEventsIn({ id: 'c', myRights: WRITE_OWN }, sub)).toBe(true);
+  });
+  it('rejects a read-only calendar', () => {
+    expect(canCreateEventsIn({ id: 'c', myRights: READ_ONLY }, sub)).toBe(false);
+    expect(canCreateEventsIn({ id: 'c', myRights: RSVP_ONLY }, sub)).toBe(false);
+  });
+  it('rejects an iCal subscription even when its Stalwart rights are writable', () => {
+    expect(canCreateEventsIn({ id: 'sub', myRights: ALL_RIGHTS }, sub)).toBe(false);
+  });
+  it('is permissive when myRights is absent (local/birthday calendars)', () => {
+    expect(canCreateEventsIn({ id: 'c', myRights: undefined as never }, sub)).toBe(true);
+  });
+});
 
 describe('eventHasNoOwner', () => {
   it('is true for a plain event with no participants/organizer', () => {

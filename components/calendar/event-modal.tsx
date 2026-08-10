@@ -19,7 +19,7 @@ import {
   getStatusCounts,
   buildParticipantMap,
 } from "@/lib/calendar-participants";
-import { getEventEditability } from "@/lib/calendar-editability";
+import { getEventEditability, canCreateEventsIn } from "@/lib/calendar-editability";
 import { PluginSlot } from "@/components/plugins/plugin-slot";
 import { useSettingsStore } from "@/stores/settings-store";
 import { generateUUID } from "@/lib/utils";
@@ -272,8 +272,18 @@ export function EventModal({
     if (event?.calendarIds) return getPrimaryCalendarId(event) || calendars[0]?.id || "";
     if (defaultCalendarId && calendars.some(c => c.id === defaultCalendarId)) return defaultCalendarId;
     const defaultCal = calendars.find(c => c.isDefault);
-    return defaultCal?.id || calendars[0]?.id || "";
+    // Never default new events into a subscription / read-only calendar (#762).
+    return defaultCal?.id
+      || calendars.find(c => canCreateEventsIn(c, isSubscriptionCalendar))?.id
+      || calendars[0]?.id || "";
   });
+
+  // Calendars offered as create/move targets: writable, non-subscription, plus
+  // the event's current calendar so an in-place edit never blanks the select.
+  const selectableCalendars = useMemo(
+    () => calendars.filter(c => canCreateEventsIn(c, isSubscriptionCalendar) || c.id === calendarId),
+    [calendars, isSubscriptionCalendar, calendarId]
+  );
   const [recurrence, setRecurrence] = useState<RecurrenceOption>(() => {
     if (!event?.recurrenceRules?.length) return "none";
     const rule = event.recurrenceRules[0];
@@ -1165,7 +1175,7 @@ export function EventModal({
             </div>
           )}
 
-          {calendars.length > 1 && (
+          {selectableCalendars.length > 1 && (
             <div>
               <label className="text-sm font-medium mb-1 block">{t("form.calendar_select")}</label>
               <select
@@ -1173,7 +1183,7 @@ export function EventModal({
                 onChange={(e) => setCalendarId(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {calendars.map((cal) => (
+                {selectableCalendars.map((cal) => (
                   <option key={cal.id} value={cal.id}>
                     {cal.name}
                   </option>

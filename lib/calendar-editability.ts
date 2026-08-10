@@ -12,6 +12,20 @@ export interface EditabilityContext {
   isSubscriptionCalendar: (calendarId: string) => boolean;
 }
 
+/**
+ * Whether new events may be created in / moved into this calendar: writable and
+ * not a (read-only) iCal subscription. Bulwark subscriptions are real Stalwart
+ * calendars with writable myRights, so the flag must be checked too (issue #762).
+ */
+export function canCreateEventsIn(
+  calendar: Pick<Calendar, 'id' | 'myRights'>,
+  isSubscriptionCalendar?: (calendarId: string) => boolean,
+): boolean {
+  if (isSubscriptionCalendar?.(calendar.id)) return false;
+  const r = calendar.myRights;
+  return !r || r.mayWriteAll || r.mayWriteOwn;
+}
+
 /** Ownerless (plain, non-scheduled) events are editable under `mayWriteOwn`. */
 export function eventHasNoOwner(event: CalendarEvent): boolean {
   if (event.organizerCalendarAddress) return false;
