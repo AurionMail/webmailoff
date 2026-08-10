@@ -232,7 +232,7 @@
     "batch_actions": {
       "select": "Имэйл сонгох",
       "select_all": "Бүгдийг нь сонго",
-      "selected_messages": "{count, plural, one {1 имэйл} other {# имэйл}}сонгосон",
+      "selected_messages": "{count, plural, one {1 имэйл} other {# имэйл}} сонгосон",
       "mark_read": "Уншсан гэж тэмдэглэх",
       "mark_unread": "Уншаагүй гэж тэмдэглэх",
       "delete": "Устгах",
