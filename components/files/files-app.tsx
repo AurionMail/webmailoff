@@ -106,7 +106,11 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
   const isMobile = useIsMobile();
   const isEmbedded = useIsEmbedded();
   const [folderLayout, setFolderLayout] = useState<FolderLayout>(() => loadFilesSettings().folderLayout);
-  const hasFetched = useRef(false);
+  // The account the files client was last initialised for (`undefined` = never).
+  // Tracked so a Pro-shell account switch re-initialises instead of showing the
+  // previous account's files until a manual Home click.
+  const initedAccountRef = useRef<string | null | undefined>(undefined);
+  const filesBootstrapRef = useRef(false);
 
   // Sync folderLayout when settings change
   useEffect(() => {
@@ -153,11 +157,22 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
   // are surfaced as top-level folders at the root, so we *don't* auto-attach
   // to the active account - the user picks one explicitly.
   useEffect(() => {
-    if (!isAuthenticated || !client || hasFetched.current) return;
-    hasFetched.current = true;
+    if (!isAuthenticated || !client) return;
+    // Re-run when the ACTIVE account changes (Pro multi-account switch), not
+    // just once - otherwise the previous account's files linger until a manual
+    // Home click.
+    if (initedAccountRef.current === activeAccountId) return;
+    const switched = initedAccountRef.current !== undefined;
+    initedAccountRef.current = activeAccountId;
     if (isEmbedded) {
       useFileStore.getState().clearClient();
     } else {
+      if (switched) {
+        // Drop the previous account's attached view so its files don't linger,
+        // and let the bootstrap effect below re-list for the new account.
+        useFileStore.getState().clearClient();
+        filesBootstrapRef.current = false;
+      }
       initClient(client, activeAccountId);
     }
   }, [isAuthenticated, client, initClient, activeAccountId, isEmbedded]);
@@ -203,7 +218,6 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
   // race - the warm one following the deep link while the cold one, a tick
   // later, listed the root on top of it.
   const storeClient = useFileStore(s => s.client);
-  const filesBootstrapRef = useRef(false);
   useEffect(() => {
     if (filesBootstrapRef.current) return;
     if (!storeClient) return;
