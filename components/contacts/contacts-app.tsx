@@ -224,8 +224,8 @@ export function ContactsApp({ linkSegments }: ContactsAppProps = {}) {
         if (activeId) {
           const { fetchAllAccountsContacts, fetchAllAccountsAddressBooks } = useContactStore.getState();
           await Promise.all([
-            fetchAllAccountsAddressBooks(accountClients, activeId),
-            fetchAllAccountsContacts(accountClients, activeId),
+            fetchAllAccountsAddressBooks(accountClients),
+            fetchAllAccountsContacts(accountClients),
           ]);
           return;
         }
@@ -331,7 +331,7 @@ export function ContactsApp({ linkSegments }: ContactsAppProps = {}) {
       const activeId = useAuthStore.getState().activeAccountId;
       if (activeId) {
         const { fetchAllAccountsAddressBooks } = useContactStore.getState();
-        await fetchAllAccountsAddressBooks(accountClients, activeId);
+        await fetchAllAccountsAddressBooks(accountClients);
         return;
       }
     }

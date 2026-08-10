@@ -656,7 +656,7 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
     const { dateRange: currentRange } = useCalendarStore.getState();
     if (!currentRange) return;
     if (multiAccountEnabled && accountClients.length > 0) {
-      await fetchAllAccountsEventsFn(accountClients, activeAccountId, currentRange.start, currentRange.end);
+      await fetchAllAccountsEventsFn(accountClients, currentRange.start, currentRange.end);
       return;
     }
     await fetchEvents(client, currentRange.start, currentRange.end);
@@ -669,7 +669,7 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
     onRefresh: async () => {
       if (!client) return;
       const calendarRefresh = multiAccountEnabled && accountClients.length > 0 && activeAccountId
-        ? fetchAllAccountsCalendarsFn(accountClients, activeAccountId)
+        ? fetchAllAccountsCalendarsFn(accountClients)
         : fetchCalendars(client);
       await Promise.all([
         calendarRefresh,
