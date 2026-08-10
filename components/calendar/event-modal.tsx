@@ -51,6 +51,19 @@ interface EventModalProps {
   isMobile?: boolean;
 }
 
+/**
+ * When an event's start is edited, the end moves with it to keep the SAME
+ * duration (oldEnd - oldStart), so the appointment's length is preserved.
+ * Returns the new end, or null for invalid or already-negative-duration input.
+ * Pure, for testing.
+ */
+export function shiftedEnd(oldStart: Date, oldEnd: Date, newStart: Date): Date | null {
+  if (isNaN(oldStart.getTime()) || isNaN(oldEnd.getTime()) || isNaN(newStart.getTime())) return null;
+  const durationMs = oldEnd.getTime() - oldStart.getTime();
+  if (durationMs < 0) return null;
+  return new Date(newStart.getTime() + durationMs);
+}
+
 function formatDateInput(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
@@ -257,6 +270,21 @@ export function EventModal({
   const [endDate, setEndDate] = useState(formatDateInput(getInitialEnd()));
   const [endTime, setEndTime] = useState(formatTimeInput(getInitialEnd()));
   const [allDay, setAllDay] = useState(event?.showWithoutTime || defaultAllDay || false);
+
+  // Editing the start shifts the end with it, preserving the event's current
+  // length (end - start) - so moving the start never leaves the end before it
+  // and never silently changes the duration.
+  const shiftEndKeepingDuration = (nextStartDate: string, nextStartTime: string) => {
+    const oldStart = new Date(`${startDate}T${allDay ? "00:00" : (startTime || "00:00")}:00`);
+    const oldEnd = new Date(`${endDate}T${allDay ? "00:00" : (endTime || "00:00")}:00`);
+    const newStart = new Date(`${nextStartDate}T${allDay ? "00:00" : (nextStartTime || "00:00")}:00`);
+    const nextEnd = shiftedEnd(oldStart, oldEnd, newStart);
+    if (!nextEnd) return;
+    setEndDate(formatDateInput(nextEnd));
+    if (!allDay) setEndTime(formatTimeInput(nextEnd));
+  };
+  const handleStartDateChange = (v: string) => { setStartDate(v); shiftEndKeepingDuration(v, startTime); };
+  const handleStartTimeChange = (v: string) => { setStartTime(v); shiftEndKeepingDuration(startDate, v); };
   const [calendarId, setCalendarId] = useState<string>(() => {
     if (event?.calendarIds) return getPrimaryCalendarId(event) || calendars[0]?.id || "";
     if (defaultCalendarId && calendars.some(c => c.id === defaultCalendarId)) return defaultCalendarId;
@@ -1097,7 +1125,7 @@ export function EventModal({
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -1107,7 +1135,7 @@ export function EventModal({
                 <input
                   type="time"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={(e) => handleStartTimeChange(e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
