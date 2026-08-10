@@ -264,6 +264,12 @@ export class JmapClient {
     ]);
   }
 
+  async setFlagged(emailId: string, flagged: boolean): Promise<void> {
+    await this.request([
+      ['Email/set', { accountId: this.accountId, update: { [emailId]: { [`keywords/$flagged`]: flagged ? true : null } } }, '0'],
+    ]);
+  }
+
   /** Look up an email id by subject within an optional mailbox. */
   async findEmailBySubject(subject: string, mailboxId?: string): Promise<any | undefined> {
     const filter: Record<string, unknown> = { subject };

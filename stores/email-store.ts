@@ -60,6 +60,10 @@ interface EmailStore {
   quota: { used: number; total: number } | null;
   processingReadStatus: Set<string>; // Track emails being marked as read/unread
   selectedEmailIds: Set<string>; // Track selected emails for batch operations
+  // Emails the user just read (unread view) or unstarred (starred view) that
+  // should stay visible in that self-filtering cross view until it is re-opened,
+  // instead of vanishing on the next push refresh. Cleared on navigation.
+  retainedInViewIds: Set<string>;
   hasMoreEmails: boolean; // Track if more emails are available to load
   totalEmails: number; // Total number of emails in the current mailbox/query
   isPushConnected: boolean; // Track if push notifications are connected
@@ -804,6 +808,72 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/**
+ * The two cross views whose filter is the very keyword the read/star actions
+ * flip: 'unread' (notKeyword $seen) and 'starred' (hasKeyword $flagged). In
+ * those views a just-read / just-unstarred mail no longer matches the query, so
+ * a naive push refresh drops it. We keep such rows (see retainedInViewIds).
+ * The 'all' view has no keyword filter and needs no retention.
+ */
+function retainingCrossView(state: { isUnifiedView: boolean; crossView: CrossView | null }): 'unread' | 'starred' | null {
+  if (!state.isUnifiedView) return null;
+  return state.crossView === 'unread' || state.crossView === 'starred' ? state.crossView : null;
+}
+
+/**
+ * Immutably add/remove an id from the retain set. Returns the same set instance
+ * when nothing changes (op 'none', or a no-op add/remove) to avoid needless
+ * re-renders.
+ */
+function updateRetainedForView(current: Set<string>, op: 'add' | 'remove' | 'none', id: string): Set<string> {
+  if (op === 'none') return current;
+  if (op === 'add') {
+    if (current.has(id)) return current;
+    return new Set(current).add(id);
+  }
+  if (!current.has(id)) return current;
+  const next = new Set(current);
+  next.delete(id);
+  return next;
+}
+
+/**
+ * Re-insert rows the user just read/unstarred in an unread/starred cross view
+ * that fell out of the fresh keyword-filtered page, keeping them at their prior
+ * position so the row updates its status + counter instead of vanishing from
+ * under the cursor. Rows genuinely gone (deleted/moved, hence absent from
+ * `previous`) are NOT resurrected - only ids still present locally are kept.
+ * Returns the original `merged` untouched when nothing needs retaining.
+ */
+function mergeRetainedRows(previous: Email[], merged: Email[], retainedIds: Set<string>): Email[] {
+  if (retainedIds.size === 0) return merged;
+  const mergedById = new Map(merged.map(e => [e.id, e] as const));
+  const toRetain = previous.filter(e => retainedIds.has(e.id) && !mergedById.has(e.id));
+  if (toRetain.length === 0) return merged;
+
+  const previousIds = new Set(previous.map(e => e.id));
+  const out: Email[] = [];
+  const emitted = new Set<string>();
+  // Genuinely new arrivals (not previously loaded) keep their fresh top slot.
+  for (const e of merged) {
+    if (!previousIds.has(e.id)) { out.push(e); emitted.add(e.id); }
+  }
+  // Then previous order: fresh copy if the row still matches, retained local
+  // copy otherwise. Rows absent from both `merged` and the retain set are the
+  // truly-removed ones and get dropped here.
+  for (const e of previous) {
+    if (emitted.has(e.id)) continue;
+    const fresh = mergedById.get(e.id);
+    if (fresh) { out.push(fresh); emitted.add(e.id); }
+    else if (retainedIds.has(e.id)) { out.push(e); emitted.add(e.id); }
+  }
+  // Any deeper-page rows merged in but not covered above, in merged order.
+  for (const e of merged) {
+    if (!emitted.has(e.id)) { out.push(e); emitted.add(e.id); }
+  }
+  return out;
+}
+
 export const useEmailStore = create<EmailStore>((set, get) => ({
   emails: [],
   mailboxes: [],
@@ -819,6 +889,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   quota: null,
   processingReadStatus: new Set(),
   selectedEmailIds: new Set(),
+  retainedInViewIds: new Set(),
   lastSelectedEmailId: null,
   hasMoreEmails: false,
   totalEmails: 0,
@@ -1074,7 +1145,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     // repopulates the list without showing the loading overlay, so switching to
     // an already-visited account doesn't flash a spinner over the visible mail.
     const background = opts?.background ?? false;
-    set(background ? { error: null } : { isLoading: true, error: null }); // Keep previous emails visible during transition
+    // Loading a real mailbox is a fresh navigation (leaving any cross view), so
+    // drop the unread/starred retain set.
+    set(background ? { error: null, retainedInViewIds: new Set() } : { isLoading: true, error: null, retainedInViewIds: new Set() }); // Keep previous emails visible during transition
     try {
       const targetMailboxId = mailboxId || get().selectedMailbox;
       if (targetMailboxId === VIRTUAL_SCHEDULED_MAILBOX_ID) {
@@ -1592,6 +1665,16 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
             : mailbox,
         );
 
+        // In the unread cross view, a mail just marked read no longer matches the
+        // filter. Retain it so the row stays put (status + counter update only)
+        // rather than vanishing on the next push refresh; marking it unread again
+        // makes it match, so drop the retention.
+        const retainedInViewIds = updateRetainedForView(
+          state.retainedInViewIds,
+          retainingCrossView(state) === 'unread' ? (read ? 'add' : 'remove') : 'none',
+          emailId,
+        );
+
         return {
           emails: state.emails.map(e =>
             e.id === emailId ? { ...e, keywords: { ...e.keywords, $seen: read } } : e
@@ -1599,6 +1682,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           selectedEmail: state.selectedEmail?.id === emailId
             ? { ...state.selectedEmail, keywords: { ...state.selectedEmail.keywords, $seen: read } }
             : state.selectedEmail,
+          retainedInViewIds,
           ...mailboxPatch,
           // Same delta, applied to every tag this email carries, so the sidebar
           // tag badges track the folder counters instead of going stale.
@@ -2212,7 +2296,15 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         ),
         selectedEmail: state.selectedEmail?.id === emailId
           ? { ...state.selectedEmail, keywords: { ...state.selectedEmail.keywords, $flagged: !isFlagged } }
-          : state.selectedEmail
+          : state.selectedEmail,
+        // In the starred cross view, un-starring drops the mail out of the
+        // hasKeyword:$flagged filter. Retain the row so it stays visible until the
+        // view is re-opened; re-starring makes it match again, so drop retention.
+        retainedInViewIds: updateRetainedForView(
+          state.retainedInViewIds,
+          retainingCrossView(state) === 'starred' ? (isFlagged ? 'add' : 'remove') : 'none',
+          emailId,
+        ),
       }));
     } catch (error) {
       set({
@@ -2309,10 +2401,21 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           .map(email => ({ keywords: email.keywords, delta: read ? -1 : 1 })),
       );
 
+      // In the unread cross view, retain every mail we just marked read so the
+      // rows stay put (status + counter update only); marking unread drops them.
+      let retainedInViewIds = get().retainedInViewIds;
+      if (retainingCrossView(get()) === 'unread') {
+        const op = read ? 'add' : 'remove';
+        for (const e of affectedEmails) {
+          retainedInViewIds = updateRetainedForView(retainedInViewIds, op, e.id);
+        }
+      }
+
       set({
         emails: updatedEmails,
         ...mailboxPatch,
         tagCounts,
+        retainedInViewIds,
         selectedEmailIds: new Set(),
         isLoading: false
       });
@@ -2934,28 +3037,58 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     }
 
     try {
-      // Fetch emails for the current mailbox without clearing the list first
-      // This provides a smoother update experience
-      const mailboxes = resolveActionMailboxes();
-      const effectiveClient = resolveActionClient(client);
-      const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
-      const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
-      const jmapMailboxId = mailbox?.originalId || selectedMailbox;
-
       // Get emails per page from settings
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
 
       // Respect active search filters / query so that a push-triggered refresh
       // does not silently replace a filtered list with an unfiltered one.
-      const { searchQuery, searchFilters } = get();
+      const { searchQuery, searchFilters, isUnifiedView, unifiedRole, crossView } = get();
       const hasFilters = !isFilterEmpty(searchFilters);
 
+      // The unified ("All Mail") and cross-account views hold a VIRTUAL
+      // selectedMailbox id (e.g. __cross_all__ / __unified_inbox__) that no real
+      // folder matches. Feeding it to getEmails as an inMailbox filter returns an
+      // empty page, and the merge below would then wipe the whole aggregated list
+      // on every push - and any delete/star/read raises an Email state change.
+      // Fan out via the same loaders the initial load and loadMore use so the
+      // aggregated list survives a refresh. `mailbox` stays undefined for these
+      // views; it only gates the inbox new-mail notification, which the unified
+      // views don't raise.
       let result;
-      if (hasFilters || searchQuery) {
-        const filter = buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId);
-        result = await effectiveClient.advancedSearchEmails(filter, accountId, emailsPerPage, 0);
+      let mailbox;
+      let unifiedErrors: Map<string, string> | undefined;
+      if (isUnifiedView && crossView) {
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
+        result = hasFilters
+          ? await advancedSearchCrossViewEmails(built, crossView, buildJMAPFilter(searchQuery, searchFilters, undefined), emailsPerPage, 0)
+          : searchQuery
+            ? await searchCrossViewEmails(built, crossView, searchQuery, emailsPerPage, 0)
+            : await fetchCrossViewEmails(built, crossView, emailsPerPage, 0);
+        unifiedErrors = result.errors;
+      } else if (isUnifiedView && unifiedRole) {
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
+        result = hasFilters
+          ? await advancedSearchUnifiedEmails(built, unifiedRole, (mailboxId) => buildJMAPFilter(searchQuery, searchFilters, mailboxId), emailsPerPage, 0)
+          : searchQuery
+            ? await searchUnifiedEmails(built, unifiedRole, searchQuery, emailsPerPage, 0)
+            : await fetchUnifiedEmails(built, unifiedRole, emailsPerPage, 0);
+        unifiedErrors = result.errors;
       } else {
-        result = await effectiveClient.getEmails(jmapMailboxId, accountId, emailsPerPage, 0, undefined, true);
+        // Single real mailbox (own or shared): query by its JMAP id. Refresh the
+        // list without clearing it first for a smoother update experience.
+        const mailboxes = resolveActionMailboxes();
+        const effectiveClient = resolveActionClient(client);
+        mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
+        const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
+        const jmapMailboxId = mailbox?.originalId || selectedMailbox;
+        if (hasFilters || searchQuery) {
+          const filter = buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId);
+          result = await effectiveClient.advancedSearchEmails(filter, accountId, emailsPerPage, 0);
+        } else {
+          result = await effectiveClient.getEmails(jmapMailboxId, accountId, emailsPerPage, 0, undefined, true);
+        }
       }
 
       const currentEmails = get().emails;
@@ -2986,7 +3119,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // append the whole previous list: drafts are saved as destroy+create, so
       // the old draft can disappear from the refreshed first page and must not
       // be reintroduced from stale local state.
-      const merged: Email[] = [...refreshedEmails];
+      let merged: Email[] = [...refreshedEmails];
       const mergedIds = new Set(refreshedEmails.map((e: Email) => e.id));
       const insertedCount = Math.max((result.total || 0) - previousTotal, 0);
       // Derive the cutoff from the page size, not from the refreshed list's
@@ -3005,6 +3138,18 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         }
       }
 
+      // Keep rows the user just read/unstarred in the unread/starred cross view:
+      // the fresh keyword-filtered page dropped them, but they should stay put
+      // (their status + the counters already updated in the action) until the
+      // view is re-opened. Only applies to those two views; the retain set is
+      // empty otherwise.
+      let retainedAddedCount = 0;
+      if (retainingCrossView({ isUnifiedView, crossView })) {
+        const beforeLen = merged.length;
+        merged = mergeRetainedRows(currentEmails, merged, get().retainedInViewIds);
+        retainedAddedCount = merged.length - beforeLen;
+      }
+
       // Check if anything actually changed to avoid unnecessary re-renders
       const hasChanged =
         currentEmails.length !== merged.length ||
@@ -3019,9 +3164,13 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         });
 
       if (hasChanged) {
+        // Retained rows sit beyond the server's keyword-filtered count, so add
+        // them to the total; otherwise the list would claim fewer items than it
+        // shows and mis-compute hasMore.
+        const effectiveTotal = (result.total || 0) + retainedAddedCount;
         // hasMore should reflect whether there are still more emails beyond
         // what we have loaded, using the fresh total from the server.
-        const hasMore = merged.length < (result.total || 0);
+        const hasMore = merged.length < effectiveTotal;
 
         // Invalidate thread email caches for threads whose composition changed
         // so expanded threads pick up new/removed emails.
@@ -3064,8 +3213,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
           return {
             emails: merged,
             hasMoreEmails: hasMore,
-            totalEmails: result.total,
+            totalEmails: effectiveTotal,
             threadEmailsCache: newCache,
+            ...(unifiedErrors !== undefined ? { unifiedErrors } : {}),
           };
         });
 
@@ -3524,6 +3674,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       unifiedRole: role,
       crossView: null,
       selectedKeyword: null,
+      retainedInViewIds: new Set(),
     });
     try {
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
@@ -3599,6 +3750,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       unifiedRole: null,
       crossView: view,
       selectedKeyword: null,
+      retainedInViewIds: new Set(),
     });
     try {
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
@@ -3639,6 +3791,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       unifiedRole: null,
       crossView: null,
       unifiedErrors: new Map(),
+      retainedInViewIds: new Set(),
     });
   },
 

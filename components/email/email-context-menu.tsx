@@ -372,6 +372,7 @@ export function EmailContextMenu({
           label={isStarred ? t("unstar") : t("star")}
           onClick={() => handleAction(onToggleStar!)}
           disabled={!onToggleStar}
+          testId={isStarred ? "ctx-unstar" : "ctx-star"}
         />
       )}
 

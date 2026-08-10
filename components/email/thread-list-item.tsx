@@ -190,6 +190,7 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
         data-email-id={email.id}
         data-subject={email.subject || ''}
         data-unread={isUnread ? 'true' : 'false'}
+        data-starred={email.keywords?.$flagged ? 'true' : 'false'}
         className={cn(
           "relative group cursor-pointer select-none transition-shadow duration-200 border-b border-border overflow-hidden",
           resolvedRowTint ? resolvedRowTint : (
