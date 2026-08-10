@@ -16,6 +16,7 @@ import { useEmailStore } from "@/stores/email-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useIdentityStore } from "@/stores/identity-store";
 import { useAccountStore } from "@/stores/account-store";
+import { useAccountSecurityStore } from "@/stores/account-security-store";
 import { usePolicyStore } from "@/stores/policy-store";
 import { toast } from "@/stores/toast-store";
 import { useIsDesktop, useIsMobile } from "@/hooks/use-media-query";
@@ -59,7 +60,7 @@ import { ShareCollectionDialog } from "@/components/settings/share-collection-di
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { CreateCalendarModal } from "@/components/calendar/create-calendar-modal";
-import { getUserParticipantId } from "@/lib/calendar-participants";
+import { getUserParticipantId, collectUserCalendarAddresses } from "@/lib/calendar-participants";
 import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from "@/lib/birthday-calendar";
 import { sharedCalendarColorKey, pickUnusedCalendarColor } from "@/lib/shared-calendar-colors";
 import { debug } from "@/lib/debug";
@@ -106,7 +107,7 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
     fetchCalendars, fetchEvents, createEvent, updateEvent, deleteEvent, rsvpEvent,
     setSelectedDate, setViewMode, toggleCalendarVisibility, updateCalendar, shareCalendar,
     removeCalendar, clearCalendarEvents,
-    refreshAllSubscriptions, icalSubscriptions,
+    refreshAllSubscriptions, icalSubscriptions, isSubscriptionCalendar,
   } = useCalendarStore();
   const calendarEnabled = usePolicyStore((s) => s.isFeatureEnabled('calendarEnabled'));
   const { firstDayOfWeek, timeFormat, showWeekNumbers, enableCalendarTasks, showTasksOnCalendar, calendarHoverPreview, showBirthdayCalendar, birthdayCalendarColor, updateSetting } = useSettingsStore();
@@ -119,9 +120,21 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
   const contacts = useContactStore((s) => s.contacts);
   const normalizedViewMode = isCalendarViewMode(viewMode) ? viewMode : "month";
 
-  const currentUserEmails = useMemo(() =>
-    identities.map(id => id.email).filter(Boolean),
-    [identities]
+  // Aliases live on the principal, not on identities; fetch them so an
+  // alias-organized event is recognised as the user's own (see isOrganizer).
+  const accountEmails = useAccountSecurityStore((s) => s.emails);
+  const fetchPrincipal = useAccountSecurityStore((s) => s.fetchPrincipal);
+  const principalFetchedRef = useRef(false);
+  useEffect(() => {
+    if (principalFetchedRef.current) return;
+    principalFetchedRef.current = true;
+    if (accountEmails.length > 0) return; // already loaded elsewhere
+    void fetchPrincipal();
+  }, [accountEmails, fetchPrincipal]);
+
+  const currentUserEmails = useMemo(
+    () => collectUserCalendarAddresses(identities.map(id => id.email), accountEmails),
+    [identities, accountEmails]
   );
 
   const [showEventModal, setShowEventModal] = useState(false);
@@ -1553,6 +1566,7 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
                 onClose={() => { setShowEventModal(false); setEditEvent(null); setPendingPreview(null); setDefaultCalendarIdForCreate(undefined); setDefaultModalAllDay(false); }}
                 onPreviewChange={setPendingPreview}
                 currentUserEmails={currentUserEmails}
+                isSubscriptionCalendar={isSubscriptionCalendar}
                 isMobile={false}
               />
             </div>
@@ -1662,6 +1676,7 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
           onMouseEnter={() => { if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; } }}
           onMouseLeave={handleHoverLeave}
           currentUserEmails={currentUserEmails}
+          isSubscriptionCalendar={isSubscriptionCalendar}
           timeFormat={timeFormat}
           isMobile={isMobile}
         />
@@ -1682,6 +1697,7 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
           onRsvp={handleRsvp}
           onClose={() => { setShowEventModal(false); setEditEvent(null); setDefaultCalendarIdForCreate(undefined); setDefaultModalAllDay(false); }}
           currentUserEmails={currentUserEmails}
+          isSubscriptionCalendar={isSubscriptionCalendar}
           isMobile={true}
         />
       )}
