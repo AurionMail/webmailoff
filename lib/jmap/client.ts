@@ -4298,7 +4298,7 @@ export class JMAPClient implements IJMAPClient {
 
   private contactUsing(): string[] {
     const using = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:contacts"];
-    if (this.hasCapability("urn:ietf:params:jmap:principals")) {
+    if (this.hasCapability("urn:ietf:params:jmap:principals:owner")) {
       using.push("urn:ietf:params:jmap:principals:owner");
     }
     return using;
@@ -4306,7 +4306,7 @@ export class JMAPClient implements IJMAPClient {
 
   private calendarUsing(): string[] {
     const using = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:calendars"];
-    if (this.hasCapability("urn:ietf:params:jmap:principals")) {
+    if (this.hasCapability("urn:ietf:params:jmap:principals:owner")) {
       using.push("urn:ietf:params:jmap:principals:owner");
     }
     return using;
@@ -5802,9 +5802,10 @@ export class JMAPClient implements IJMAPClient {
     if (this.hasCapability("urn:ietf:params:jmap:filenode")) {
       using.push("urn:ietf:params:jmap:filenode");
     }
-    // Required for shareWith/myRights on FileNode and for cross-account
-    // (shared-with-me) FileNode/get, mirroring calendarUsing().
-    if (this.supportsPrincipals()) {
+    // RFC 9670 places principals:owner in accountCapabilities rather than
+    // the session capabilities, so this only fires on servers that also
+    // advertise it in the session.
+    if (this.hasCapability("urn:ietf:params:jmap:principals:owner")) {
       using.push("urn:ietf:params:jmap:principals:owner");
     }
     return using;
