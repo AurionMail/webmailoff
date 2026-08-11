@@ -4,6 +4,7 @@ import { useThemeStore } from './theme-store';
 import { useLocaleStore } from './locale-store';
 import type { NotificationSoundChoice } from '@/lib/notification-sound';
 import { apiFetch } from '@/lib/browser-navigation';
+import { generateAccountId } from '@/lib/account-utils';
 import {
   DEFAULT_SUB_ADDRESS_DELIMITER,
   isValidSubAddressDelimiter,
@@ -418,7 +419,7 @@ interface SettingsState {
   ) => void;
   resetToDefaults: () => void;
   exportSettings: () => string;
-  importSettings: (json: string) => boolean;
+  importSettings: (json: string, opts?: { serverAccountId?: string }) => boolean;
 
   // Folder icons
   setFolderIcon: (mailboxId: string, icon: string) => void;
@@ -772,7 +773,7 @@ export const useSettingsStore = create<SettingsState>()(
         return JSON.stringify(settings, null, 2);
       },
 
-      importSettings: (json: string) => {
+      importSettings: (json: string, opts?: { serverAccountId?: string }) => {
         try {
           const settings = JSON.parse(json);
 
@@ -806,6 +807,24 @@ export const useSettingsStore = create<SettingsState>()(
                 return;
               }
               if (DEVICE_LOCAL_SETTING_KEYS.has(key)) {
+                return;
+              }
+              // Per-account maps (accountId -> value) live in every account's
+              // synced settings blob, so a per-account server load must NOT
+              // replace the whole map - each account's server is authoritative
+              // only for its OWN entry. Merging preserves the other accounts'
+              // local values; without this the last account to load clobbers
+              // the map and the composer picks another account's default sender
+              // (login-order dependent). File imports (no serverAccountId)
+              // still replace wholesale.
+              if (opts?.serverAccountId && (key === 'preferredIdentityIds' || key === 'allMailFolderIds')) {
+                const existing = (get() as unknown as Record<string, unknown>)[key];
+                const merged: Record<string, unknown> = isPlainRecord(existing) ? { ...existing } : {};
+                const incoming = settings[key] as Record<string, unknown>;
+                if (Object.prototype.hasOwnProperty.call(incoming, opts.serverAccountId)) {
+                  merged[opts.serverAccountId] = incoming[opts.serverAccountId];
+                }
+                set({ [key]: merged });
                 return;
               }
               set({ [key]: settings[key] });
@@ -980,7 +999,11 @@ export const useSettingsStore = create<SettingsState>()(
           }
           if (settings && typeof settings === 'object') {
             isLoadingFromServer = true;
-            get().importSettings(JSON.stringify(settings));
+            // Merge (not replace) per-account maps for the account being loaded,
+            // so multi-account logins don't clobber each other by login order.
+            get().importSettings(JSON.stringify(settings), {
+              serverAccountId: generateAccountId(username, serverUrl),
+            });
             isLoadingFromServer = false;
             syncLog('Settings loaded from server successfully');
             // The per-account preferred sender identity (#507) is re-applied by
