@@ -378,3 +378,76 @@ export async function emailContextAction(page: Page, subject: string, testId: st
   }).toPass({ timeout: 15000 });
   await item.click();
 }
+
+// --- Calendar (multi-account) ---------------------------------------------
+
+/**
+ * Navigate to the calendar via the in-app nav (client-side routing) and wait
+ * for the sidebar calendar list. A hard `page.goto('/calendar')` redirects to
+ * login because the deep-link SSR path runs before client auth hydrates.
+ */
+export async function openCalendar(page: Page): Promise<void> {
+  await page.locator('a[href$="/calendar"]').first().click();
+  await page
+    .locator('[data-testid="calendar-item"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 30000 });
+}
+
+/** A sidebar calendar row by its (exact) name. */
+export function calendarItem(page: Page, name: string): Locator {
+  return page.locator(`[data-testid="calendar-item"][data-calendar-name="${name}"]`).first();
+}
+
+/** All sidebar calendars as {name, account, visible}. */
+export async function calendarRows(
+  page: Page,
+): Promise<Array<{ name: string; account: string; visible: boolean }>> {
+  return page.locator('[data-testid="calendar-item"]').evaluateAll((els) =>
+    els.map((e) => ({
+      name: e.getAttribute('data-calendar-name') || '',
+      account: e.getAttribute('data-account') || '',
+      visible: e.getAttribute('data-visible') === 'true',
+    })),
+  );
+}
+
+/**
+ * Turn on the Pro (multi-account) interface via the settings UI, so the
+ * calendar/contacts aggregate across accounts. Done through the real toggle
+ * (not a reload/seed) because the app doesn't survive a hard reload in tests
+ * and seeding proInterface before login destabilises the add-account popover.
+ */
+export async function enableProInterface(page: Page): Promise<void> {
+  await page.locator('a[href$="/settings"]').first().click();
+  await page.locator('[data-testid="settings-tab-layout"]').first().click();
+  const toggle = page.locator('[data-testid="setting-pro-interface"]').first();
+  await toggle.waitFor({ state: 'visible', timeout: 30000 });
+  if ((await toggle.getAttribute('aria-checked')) !== 'true') {
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  }
+}
+
+// --- Contacts / address books (multi-account) ------------------------------
+
+/** Navigate to contacts via in-app nav and wait for the address-book list. */
+export async function openContacts(page: Page): Promise<void> {
+  await page.locator('a[href$="/contacts"]').first().click();
+  await page
+    .locator('[data-testid="address-book-item"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 30000 });
+}
+
+/** All sidebar address books as {name, account}. */
+export async function addressBookRows(
+  page: Page,
+): Promise<Array<{ name: string; account: string }>> {
+  return page.locator('[data-testid="address-book-item"]').evaluateAll((els) =>
+    els.map((e) => ({
+      name: e.getAttribute('data-book-name') || '',
+      account: e.getAttribute('data-account') || '',
+    })),
+  );
+}
