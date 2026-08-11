@@ -337,6 +337,11 @@ export const emailHooks = {
   // They can add, remove, or modify chips (e.g. rewrite addresses, add colors/icons).
   // Take Recipient[] as argument.
   onRecipientChipsChange: new HookBus(),
+  // Transform hooks - lets plugins modify the email before host use it to populate fields. 
+  onBeforeComposeOpenToForwardAsAttachment: new HookBus(),
+  onBeforeComposeOpenToReply: new HookBus(),
+  onBeforeComposeOpenToReplyAll: new HookBus(),
+  onBeforeComposeOpenToForward: new HookBus(),
 };
 
 // §7.2 Calendar Hooks
