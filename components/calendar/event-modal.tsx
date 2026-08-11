@@ -19,6 +19,7 @@ import {
   getStatusCounts,
   buildParticipantMap,
 } from "@/lib/calendar-participants";
+import { getEventEditability, canCreateEventsIn } from "@/lib/calendar-editability";
 import { PluginSlot } from "@/components/plugins/plugin-slot";
 import { useSettingsStore } from "@/stores/settings-store";
 import { generateUUID } from "@/lib/utils";
@@ -48,6 +49,7 @@ interface EventModalProps {
   onClose: () => void;
   onPreviewChange?: (preview: PendingEventPreview | null) => void;
   currentUserEmails?: string[];
+  isSubscriptionCalendar?: (calendarId: string) => boolean;
   isMobile?: boolean;
 }
 
@@ -177,6 +179,7 @@ export function EventModal({
   onClose,
   onPreviewChange,
   currentUserEmails = [],
+  isSubscriptionCalendar,
   isMobile = false,
 }: EventModalProps) {
   const t = useTranslations("calendar");
@@ -193,10 +196,18 @@ export function EventModal({
     return isOrganizer(event, currentUserEmails);
   }, [event, currentUserEmails]);
 
-  const isAttendeeMode = useMemo(() => {
-    if (!event || !event.participants) return false;
-    return !event.isOrigin && !userIsOrganizer;
-  }, [event, userIsOrganizer]);
+  // Gate affordances on calendar rights, not identity (see calendar-editability).
+  const editability = useMemo(() => {
+    if (!event) return "editable" as const;
+    const calendarsById = new Map(calendars.map((c) => [c.id, c]));
+    return getEventEditability(event, {
+      calendarsById,
+      userCalendarAddresses: currentUserEmails,
+      isSubscriptionCalendar: isSubscriptionCalendar ?? (() => false),
+    });
+  }, [event, calendars, currentUserEmails, isSubscriptionCalendar]);
+  const canEditBody = editability === "editable";
+  const rsvpMode = editability === "rsvp-only";
 
   const userParticipantId = useMemo(() => {
     if (!event) return null;
@@ -261,8 +272,18 @@ export function EventModal({
     if (event?.calendarIds) return getPrimaryCalendarId(event) || calendars[0]?.id || "";
     if (defaultCalendarId && calendars.some(c => c.id === defaultCalendarId)) return defaultCalendarId;
     const defaultCal = calendars.find(c => c.isDefault);
-    return defaultCal?.id || calendars[0]?.id || "";
+    // Never default new events into a subscription / read-only calendar (#762).
+    return defaultCal?.id
+      || calendars.find(c => canCreateEventsIn(c, isSubscriptionCalendar))?.id
+      || calendars[0]?.id || "";
   });
+
+  // Calendars offered as create/move targets: writable, non-subscription, plus
+  // the event's current calendar so an in-place edit never blanks the select.
+  const selectableCalendars = useMemo(
+    () => calendars.filter(c => canCreateEventsIn(c, isSubscriptionCalendar) || c.id === calendarId),
+    [calendars, isSubscriptionCalendar, calendarId]
+  );
   const [recurrence, setRecurrence] = useState<RecurrenceOption>(() => {
     if (!event?.recurrenceRules?.length) return "none";
     const rule = event.recurrenceRules[0];
@@ -601,12 +622,12 @@ export function EventModal({
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        if (!isAttendeeMode) handleSave();
+        if (canEditBody) handleSave();
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose, handleSave, isAttendeeMode, mode, isEdit]);
+  }, [onClose, handleSave, canEditBody, mode, isEdit]);
 
   useEffect(() => {
     const modal = modalRef.current;
@@ -634,7 +655,7 @@ export function EventModal({
 
   const hasParticipants = attendees.length > 0 || (event?.participants && Object.keys(event.participants).length > 0);
 
-  if (isAttendeeMode && event) {
+  if (rsvpMode && event) {
     const startD = getEventStartDate(event);
     const endD = getEventEndDate(event);
     const locationName = event.locations ? Object.values(event.locations)[0]?.name : null;
@@ -942,7 +963,7 @@ export function EventModal({
         {/* Action Bar */}
         <div className="px-6 py-3 border-t border-border flex-shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-1">
-            {onDelete && (
+            {onDelete && canEditBody && (
               showDeleteConfirm ? (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-destructive">{t("form.delete_confirm")}</span>
@@ -967,7 +988,7 @@ export function EventModal({
               </Button>
             )}
           </div>
-          {!showDeleteConfirm && (
+          {!showDeleteConfirm && canEditBody && (
             <Button onClick={() => setMode("edit")}>
               <Pencil className="w-4 h-4 me-1" />
               {t("events.edit")}
@@ -1154,7 +1175,7 @@ export function EventModal({
             </div>
           )}
 
-          {calendars.length > 1 && (
+          {selectableCalendars.length > 1 && (
             <div>
               <label className="text-sm font-medium mb-1 block">{t("form.calendar_select")}</label>
               <select
@@ -1162,7 +1183,7 @@ export function EventModal({
                 onChange={(e) => setCalendarId(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {calendars.map((cal) => (
+                {selectableCalendars.map((cal) => (
                   <option key={cal.id} value={cal.id}>
                     {cal.name}
                   </option>
