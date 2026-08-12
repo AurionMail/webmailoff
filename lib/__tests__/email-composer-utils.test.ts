@@ -289,6 +289,23 @@ describe("splitRecipients", () => {
     expect(splitRecipients("")).toEqual([]);
   });
 
+  it("still splits when an angle run never closes", () => {
+    expect(
+      splitRecipients("Ap Reinders <ap@x.com, Erwin Beets <erwin@x.com, jaco@x.com"),
+    ).toEqual([
+      "Ap Reinders <ap@x.com",
+      "Erwin Beets <erwin@x.com",
+      "jaco@x.com",
+    ]);
+  });
+
+  it("splits when only the last entry closes its angle brackets", () => {
+    expect(splitRecipients("Ap <ap@x.com, Bob <bob@y.com>")).toEqual([
+      "Ap <ap@x.com",
+      "Bob <bob@y.com>",
+    ]);
+  });
+
   it("only splits on the given separators (default comma keeps semicolons/newlines literal)", () => {
     expect(splitRecipients("a@x.com; b@y.com")).toEqual(["a@x.com; b@y.com"]);
   });
@@ -409,6 +426,24 @@ describe("splitPastedRecipients", () => {
 
   it("returns empty arrays for blank input", () => {
     expect(splitPastedRecipients("   ")).toEqual({ valid: [], invalid: [] });
+  });
+
+  it("recovers every recipient from a list whose closing brackets are missing", () => {
+    const { valid, invalid } = splitPastedRecipients(
+      "Ap Reinders <ap@x.com, Erwin Beets <erwin@x.com, jaco@x.com",
+    );
+    expect(valid).toEqual([
+      { name: "Ap Reinders", email: "ap@x.com" },
+      { name: "Erwin Beets", email: "erwin@x.com" },
+      { email: "jaco@x.com" },
+    ]);
+    expect(invalid).toEqual([]);
+  });
+
+  it("keeps the display name of a `Name <email` entry missing its bracket", () => {
+    const { valid, invalid } = splitPastedRecipients("John Doe <j@x.com");
+    expect(valid).toEqual([{ name: "John Doe", email: "j@x.com" }]);
+    expect(invalid).toEqual([]);
   });
 });
 

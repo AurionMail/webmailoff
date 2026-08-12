@@ -1,4 +1,5 @@
 import { isValidEmail } from "@/lib/validation";
+import { splitMailbox } from "@/lib/rfc5322-mailbox";
 import { htmlToPlainText } from "@/lib/html-to-text";
 import { emailHooks } from "@/lib/plugin-hooks";
 import { Ellipsis, Lock, TriangleAlert } from "lucide-react";
@@ -242,6 +243,18 @@ export async function enrichChipsWithColorsAndIcons(chips: Recipient[]): Promise
 };
 
 /**
+ * True when the angle run open at `from` closes before the next one opens. A
+ * `<` with no `>` of its own (or whose `>` sits past a later `<`) can never be
+ * an address delimiter, so separators after it must stay separators.
+ */
+function angleRunCloses(value: string, from: number): boolean {
+  const close = value.indexOf('>', from);
+  if (close === -1) return false;
+  const nextOpen = value.indexOf('<', from);
+  return nextOpen === -1 || close < nextOpen;
+}
+
+/**
  * Splits a recipient string into individual entries on any character in
  * `separators`, treating those characters as literal when they sit inside a
  * quoted display name (`"Doo, John" <john@doo.org>`) or angle brackets
@@ -257,7 +270,8 @@ export function splitRecipients(value: string, separators = ','): string[] {
   let inQuotes = false;
   let inAngle = false;
   let inGroup = false;
-  for (const ch of value) {
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
     if (ch === '"') {
       inQuotes = !inQuotes;
       current += ch;
@@ -267,6 +281,13 @@ export function splitRecipients(value: string, separators = ','): string[] {
     } else if (ch === '>' && !inQuotes) {
       inAngle = false;
       current += ch;
+    } else if (separators.includes(ch) && inAngle && !inQuotes && !angleRunCloses(value, i)) {
+      // An unclosed `<` would otherwise swallow every later separator, folding
+      // the whole list into one entry that is not an address at all.
+      inAngle = false;
+      const trimmed = current.trim();
+      if (trimmed) result.push(trimmed);
+      current = '';
     } else if (ch === ':' && !inQuotes && !inAngle) {
       // RFC 5322 group syntax ("Team: a@x, b@y;") - keep the whole group,
       // separators inside it included, as a single entry. A colon inside a
@@ -429,6 +450,8 @@ function splitPasteEntries(value: string): string[] {
  *   semicolon/newline separated) split into one chip per address.
  * - A token wrapped in angle brackets (`<a@x.com>`) is unwrapped before
  *   validating, so an `a <a@x.com>` fragment still yields the address.
+ * - `Name <email` entries that lost their closing bracket keep both the name
+ *   and the address instead of falling apart into bare words.
  */
 export function splitPastedRecipients(
   text: string,
@@ -460,7 +483,11 @@ export function splitPastedRecipients(
     const unwrapped = unquoteName(entry);
     if (unwrapped !== entry && tryAdd(parseRecipient(unwrapped))) continue;
 
-    // 2. Fallback: a bare-address run (`a@x.com b@y.com`) or a
+    // 2. `Name <email` with the closing bracket lost - splitMailbox tolerates
+    //    the missing `>`, so the display name survives the paste.
+    if (tryAdd(splitMailbox(entry))) continue;
+
+    // 3. Fallback: a bare-address run (`a@x.com b@y.com`) or a
     //    `John Doe <j@x.com>` fragment where only the <addr> is valid.
     //    Whitespace/semicolon-tokenize; leftover tokens stay behind.
     for (const token of entry.split(/[\s;]+/).map((t) => t.trim()).filter(Boolean)) {
