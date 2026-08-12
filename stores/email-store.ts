@@ -1082,6 +1082,11 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         return;
       }
 
+      // Publish the existing mailbox-refresh extension hook after a successful
+      // fetch. This is also emitted for Mailbox-only state changes (for example
+      // an empty provider label), where no Email fetch follows.
+      await emailHooks.onMailboxesRefresh.emit(mailboxes);
+
       // Auto-select inbox if no mailbox is selected or the current selection
       // doesn't exist in the fetched list (e.g. after an account switch)
       const currentSelectedMailbox = get().selectedMailbox;
