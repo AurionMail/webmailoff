@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { InstalledPlugin } from '../plugin-types';
+import { useAuthStore } from '@/stores/auth-store';
 import { useEmailStore } from '@/stores/email-store';
 import { DEFAULT_KEYWORDS, useSettingsStore } from '@/stores/settings-store';
 
@@ -98,6 +99,7 @@ describe('method-name typos', () => {
 
 describe('native keyword extension API', () => {
   afterEach(() => {
+    useAuthStore.setState({ client: null });
     useSettingsStore.setState({ emailKeywords: [...DEFAULT_KEYWORDS] });
     useEmailStore.setState({ tagCounts: {} });
   });
@@ -167,6 +169,27 @@ describe('native keyword extension API', () => {
 
     expect(error).not.toMatch(GATE_FAILURE);
     expect(error).toMatch(/No active session/);
+  });
+
+  it('routes jmap.getKeywords through the client implementation', async () => {
+    const result = {
+      keywords: { '$label:work': 2 },
+      labels: [{
+        id: '$label:work', name: 'Work', color: null, total: 2, unread: 1,
+        isProviderLabel: true, source: 'provider' as const,
+      }],
+      scanned: 8,
+      total: 8,
+      complete: true,
+    };
+    const getKeywords = vi.fn().mockResolvedValue(result);
+    const discoverKeywords = vi.fn();
+    useAuthStore.setState({ client: { getKeywords, discoverKeywords } as never });
+    const reader = plugin({ permissions: ['email:read'], grantedPermissions: ['email:read'] });
+
+    await expect(dispatchApiCall(reader, 'jmap.getKeywords', [{ limit: 100 }])).resolves.toEqual(result);
+    expect(getKeywords).toHaveBeenCalledWith({ limit: 100 });
+    expect(discoverKeywords).not.toHaveBeenCalled();
   });
 
   it('gates jmap.setKeywords with email:write and validates complete maps', async () => {

@@ -220,9 +220,9 @@ function buildPluginApi(manifest: PluginManifest) {
     // to the privileged tier for crypto plugins.
     jmap: {
       /**
-       * Discover keywords used by messages in the active account. This is a
-       * safe read-only facade, available to untrusted plugins with email:read;
-       * it does not expose arbitrary JMAP method calls.
+       * Enumerate keywords in the active account. Mail Gateway supplies exact
+       * counts and provider-label metadata; ordinary JMAP servers fall back to
+       * scanning message keywords.
        */
       getKeywords: (options?: { limit?: number }) =>
         callApi('jmap.getKeywords', [options]) as Promise<{
@@ -230,6 +230,15 @@ function buildPluginApi(manifest: PluginManifest) {
           scanned: number;
           total: number;
           complete: boolean;
+          labels: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            total: number;
+            unread: number;
+            isProviderLabel: boolean;
+            source: 'provider' | 'message';
+          }>;
         }>,
       /**
        * Replace an email's complete keyword map. Omitted keywords are removed;

@@ -264,13 +264,12 @@ const api = require('@plugin-host');
 
 const known = await api.keywords.list();                 // settings:read
 const scan = await api.jmap.getKeywords();               // email:read
-const id = Object.keys(scan.keywords)
-  .find((keyword) => keyword.startsWith('$label:'))
-  ?.slice('$label:'.length);
-if (id) {
+const providerLabel = scan.labels
+  .find((label) => label.id.startsWith('$label:'));
+if (providerLabel) {
   await api.keywords.add([{                              // settings:write
-    id,
-    label: 'Provider label',
+    id: providerLabel.id.slice('$label:'.length),
+    label: providerLabel.name,
     // color is optional; Bulwark picks a palette colour when omitted
     visibility: 'show',
   }]);
@@ -287,9 +286,11 @@ await api.jmap.removeKeyword('email-id', '$label:work');  // email:write
 ```
 
 `jmap.getKeywords()` is a narrow read-only facade rather than an arbitrary JMAP
-request API. It currently discovers keywords used by messages in the active
-account; labels with no messages cannot be discovered through standard JMAP.
-`keywords.discover()` remains available as a compatibility alias.
+request API. When the server advertises `urn:mail-gateway:keywords`, it returns
+all cached keywords with exact total/unread counts and provider-label metadata,
+including empty Gmail labels. On ordinary JMAP servers it falls back to a
+bounded scan of message keywords. `keywords.discover()` retains its original
+message-scan response for compatibility.
 
 `jmap.setKeywords()` replaces one message's complete keyword map via
 `Email/set`. Omitted keywords are removed, so extensions should use the existing

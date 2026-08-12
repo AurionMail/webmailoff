@@ -937,18 +937,26 @@ function doKeywordsGetCounts(value?: unknown): Record<string, { total: number; u
   return selected;
 }
 
-async function doKeywordsDiscover(value?: unknown) {
+function keywordDiscoveryOptions(value: unknown, method: string): { limit: number } | undefined {
   if (value !== undefined && !isPlainObject(value)) {
-    throw new Error('keywords.discover: options must be an object');
+    throw new Error(`${method}: options must be an object`);
   }
   const rawLimit = value?.limit;
   if (
     rawLimit !== undefined &&
     (typeof rawLimit !== 'number' || !Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > DEFAULT_KEYWORD_SCAN_LIMIT)
   ) {
-    throw new Error(`keywords.discover: limit must be an integer from 1 to ${DEFAULT_KEYWORD_SCAN_LIMIT}`);
+    throw new Error(`${method}: limit must be an integer from 1 to ${DEFAULT_KEYWORD_SCAN_LIMIT}`);
   }
-  return requireClient().discoverKeywords(rawLimit === undefined ? undefined : { limit: rawLimit });
+  return rawLimit === undefined ? undefined : { limit: rawLimit };
+}
+
+async function doJmapGetKeywords(value?: unknown) {
+  return requireClient().getKeywords(keywordDiscoveryOptions(value, 'jmap.getKeywords'));
+}
+
+async function doKeywordsDiscover(value?: unknown) {
+  return requireClient().discoverKeywords(keywordDiscoveryOptions(value, 'keywords.discover'));
 }
 
 async function doKeywordsRefreshCounts(): Promise<Record<string, { total: number; unread: number }>> {
@@ -1104,7 +1112,7 @@ export async function dispatchApiCall(
       args[1] as string[],
       args[2] as { keywords?: Record<string, boolean>; accountId?: string } | undefined,
     );
-    case 'jmap.getKeywords': return doKeywordsDiscover(args[0]);
+    case 'jmap.getKeywords': return doJmapGetKeywords(args[0]);
     case 'jmap.setKeywords': {
       const emailId = assertEmailId(args[0], 'jmap.setKeywords');
       const accountId = assertOptionalAccountId(args[2], 'jmap.setKeywords');
