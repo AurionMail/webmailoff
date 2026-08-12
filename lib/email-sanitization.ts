@@ -262,6 +262,25 @@ const RASTER_IMAGE_DATA_URI =
   /^data:image\/(?:png|jpe?g|gif|webp|bmp|avif|x-icon|vnd\.microsoft\.icon)[;,]/i;
 
 /**
+ * True if a `srcset` value carries a `data:` URI that isn't an allowed inline
+ * raster image. srcset candidates are comma-separated, but a data: URI itself
+ * contains commas, so the value can't be split into candidates reliably.
+ * Instead every `data:` occurrence is checked where it stands: its MIME type
+ * must be on the raster allowlist. The token is captured through the first
+ * comma so the plain form (`data:image/gif,...`) keeps the `[;,]` terminator
+ * the raster regexp requires - same verdict as the src path for the same URI.
+ * One disallowed hit condemns the whole attribute. No whitespace
+ * pre-normalization here: whitespace splits srcset tokens before the URL
+ * parser ever runs, so unlike in `src` it cannot hide a scheme inside a
+ * candidate.
+ */
+function srcsetHasDisallowedDataUri(srcset: string): boolean {
+  const dataUris = srcset.match(/data:[^,\s]*,?/gi);
+  if (!dataUris) return false;
+  return dataUris.some((uri) => !RASTER_IMAGE_DATA_URI.test(uri));
+}
+
+/**
  * Drop `data:` URIs that aren't inline raster images from media elements.
  * DOMPurify cannot inspect the bytes inside a data: URI, so an SVG payload can
  * carry <script>/<foreignObject> that the surrounding sanitizer never sees -
@@ -280,6 +299,17 @@ export function restrictDataUriResourcesOnNode(node: Element): void {
     // eslint-disable-next-line no-control-regex
     const normalized = value.replace(/[\u0000-\u0020]+/g, '');
     if (/^data:/i.test(normalized) && !RASTER_IMAGE_DATA_URI.test(normalized)) {
+      node.removeAttribute(attr);
+    }
+  }
+  // DOMPurify URI-tests srcset as one string, so an allowed first candidate
+  // waves every later one through - re-check per candidate. The external
+  // blocker's data-blocked-srcset stash gets the same treatment: it shares
+  // this hook pass with no ordering guarantee, and a stashed disallowed
+  // candidate must not outlive the live attribute.
+  for (const attr of ['srcset', 'data-blocked-srcset']) {
+    const value = node.getAttribute(attr);
+    if (value && srcsetHasDisallowedDataUri(value)) {
       node.removeAttribute(attr);
     }
   }

@@ -841,5 +841,48 @@ describe('email-sanitization', () => {
       restrictDataUriResourcesOnNode(node);
       expect(node.getAttribute('src')).toBe(TRANSPARENT_BLOCKED_PIXEL);
     });
+
+    // DOMPurify URI-tests srcset as one string, so an allowed first candidate
+    // would wave an SVG second candidate through (#717 review finding). The
+    // guard re-checks every data: occurrence and drops the whole attribute.
+    it('drops a srcset that smuggles an svg candidate behind a raster one', () => {
+      const html = '<img srcset="data:image/gif;base64,R0lGODlh 1x, data:image/svg+xml,<svg onload=alert(1)></svg> 2x">';
+      expect(sanitizeEmailHtmlForIframe(html)).not.toContain('svg');
+      expect(sanitizeEmailHtml(html)).not.toContain('svg');
+    });
+
+    it('drops a <picture><source srcset> with a disallowed data: candidate', () => {
+      const html = '<picture><source srcset="data:image/png;base64,AAAA 1x, data:image/svg+xml,<svg/> 2x"><img src="data:image/png;base64,AAAA"></picture>';
+      const clean = sanitizeEmailHtmlForIframe(html);
+      expect(clean).not.toContain('svg');
+      expect(clean).toContain('data:image/png;base64,AAAA');
+    });
+
+    it('keeps an all-raster srcset and non-data candidates', () => {
+      const raster = '<img srcset="data:image/png;base64,AAAA 1x, data:image/gif;base64,R0lGODlh 2x">';
+      expect(sanitizeEmailHtmlForIframe(raster)).toContain('srcset');
+      const node = parseHtmlSafely('<img srcset="https://example.com/a.png 1x, https://example.com/b.png 2x">').querySelector('img')!;
+      restrictDataUriResourcesOnNode(node);
+      expect(node.getAttribute('srcset')).toContain('example.com/a.png');
+    });
+
+    // The plain (non-base64) data: form ends its metadata with a comma; the
+    // srcset verdict must match the src verdict for the same URI.
+    it('keeps the comma-form raster data: URI a src would allow', () => {
+      const node = parseHtmlSafely('<img srcset="data:image/gif,R0lGODlh 1x">').querySelector('img')!;
+      restrictDataUriResourcesOnNode(node);
+      expect(node.getAttribute('srcset')).toContain('data:image/gif,R0lGODlh');
+    });
+
+    // The external blocker stashes the whole srcset before this guard runs in
+    // the shared hook pass - the stash must not keep the disallowed candidate.
+    it('scrubs the data-blocked-srcset stash the external blocker leaves', () => {
+      const node = parseHtmlSafely('<img srcset="https://tracker.example/a.png 1x, data:image/svg+xml,<svg/> 2x">').querySelector('img')!;
+      blockExternalResourcesOnNode(node);
+      expect(node.getAttribute('data-blocked-srcset')).toContain('svg');
+      restrictDataUriResourcesOnNode(node);
+      expect(node.hasAttribute('data-blocked-srcset')).toBe(false);
+      expect(node.hasAttribute('srcset')).toBe(false);
+    });
   });
 });
