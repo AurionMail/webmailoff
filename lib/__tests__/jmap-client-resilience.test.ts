@@ -287,6 +287,56 @@ describe('JMAPClient resilience', () => {
     });
   });
 
+  describe('session URL rewriting', () => {
+    async function connectWith(session: Record<string, unknown>, serverUrl = 'https://mail.example.com') {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(200, makeSession(session)));
+      const client = new JMAPClient(serverUrl, 'user@test.com', 'pass123');
+      await client.connect();
+      fetchSpy.mockReset();
+      return client;
+    }
+
+    async function pingUrl(client: JMAPClient): Promise<string> {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(200, { methodResponses: [['Core/echo', { ping: 'pong' }, '0']] }),
+      );
+      await client.ping();
+      return String(fetchSpy.mock.calls[0][0]);
+    }
+
+    it.each([
+      ['absolute-path relative', '/jmap/api'],
+      ['bare relative', 'jmap/api'],
+      ['cross-origin absolute', 'https://other.example.com/jmap/api'],
+      ['network-path reference', '//other.example.com/jmap/api'],
+    ])('anchors a %s apiUrl at the server origin', async (_form, apiUrl) => {
+      const client = await connectWith({ apiUrl });
+      expect(await pingUrl(client)).toBe('https://mail.example.com/jmap/api');
+    });
+
+    it('anchors a relative apiUrl at the origin even when serverUrl has a path', async () => {
+      const client = await connectWith({ apiUrl: 'jmap/api' }, 'https://mail.example.com/proxy');
+      expect(await pingUrl(client)).toBe('https://mail.example.com/jmap/api');
+    });
+
+    it.each([
+      ['same-origin', 'https://mail.example.com'],
+      ['cross-origin', 'https://other.example.com'],
+    ])('keeps URI Template placeholders literal in a %s downloadUrl', async (_o, host) => {
+      const client = await connectWith({
+        downloadUrl: `${host}/download/{accountId}/{blobId}/{name}?accept={type}`,
+      });
+      expect(client.getBlobDownloadUrl('blob1', 'file.txt', 'text/plain', 'acct-1')).toBe(
+        'https://mail.example.com/download/acct-1/blob1/file.txt?accept=text%2Fplain',
+      );
+    });
+
+    it('leaves an empty downloadUrl falsy so the unavailable guard still fires', async () => {
+      const client = await connectWith({ downloadUrl: '' });
+      expect(() => client.getBlobDownloadUrl('blob1')).toThrow('Download URL not available');
+    });
+  });
+
   describe('refreshSession', () => {
     it('updates session fields from server response', async () => {
       const client = await createConnectedClient();

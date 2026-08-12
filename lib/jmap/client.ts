@@ -1030,12 +1030,14 @@ export class JMAPClient implements IJMAPClient {
   }
 
   private rewriteSessionUrl(url: string): string {
+    if (!url) return url;
     try {
-      const parsed = new URL(url);
-      const server = new URL(this.serverUrl);
-      if (parsed.origin === server.origin) return url;
-      const pathAndRest = url.slice(url.indexOf('/', url.indexOf('//') + 2));
-      return server.origin + pathAndRest;
+      const { origin } = new URL(this.serverUrl);
+      if (!/^(https?:)?\/\//i.test(url)) {
+        return origin + (url.startsWith('/') ? url : '/' + url);
+      }
+      const pathStart = url.indexOf('/', url.indexOf('//') + 2);
+      return origin + (pathStart === -1 ? '' : url.slice(pathStart));
     } catch {
       return url;
     }
