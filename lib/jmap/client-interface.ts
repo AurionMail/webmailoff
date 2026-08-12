@@ -107,8 +107,9 @@ export interface IJMAPClient {
   getSomeEmails(emailsId: string[], accountId?: string): Promise<Email[]>
   getTagCounts(tagIds: string[]): Promise<Record<string, { total: number; unread: number }>>;
   /**
-   * Enumerate account keywords for extensions. Mail Gateway can return exact
-   * counts and provider-label metadata; other servers use the bounded scan.
+   * Enumerate account keywords for extensions. Servers supporting Keyword/get
+   * can return exact counts and provider-label metadata; other servers use the
+   * bounded scan.
    */
   getKeywords(options?: {
     limit?: number;

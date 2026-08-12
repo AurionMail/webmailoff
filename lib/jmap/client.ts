@@ -139,7 +139,7 @@ const SUBMISSION_USING = [
   'urn:ietf:params:jmap:submission',
 ] as const;
 
-export const GATEWAY_KEYWORDS_CAPABILITY = 'urn:mail-gateway:keywords';
+export const KEYWORDS_CAPABILITY = 'https://bulwarkmail.com/ns/jmap/keywords';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JMAPResponseResult = Record<string, any>;
@@ -1507,21 +1507,21 @@ export class JMAPClient implements IJMAPClient {
   /**
    * Extension-facing keyword enumeration.
    *
-   * Mail Gateway advertises a narrow capability that can enumerate all cached
-   * keywords in one request, including provider labels with no messages. A
-   * normal JMAP server has no equivalent method, so retain the existing
-   * message walk as a transparent fallback.
+   * A JMAP server can advertise a narrow capability that enumerates all cached
+   * keywords in one request, including provider labels with no messages.
+   * Servers without the capability retain the existing message walk as a
+   * transparent fallback.
    */
   async getKeywords(options?: {
     limit?: number;
     onProgress?: (scanned: number, total: number) => void;
     signal?: AbortSignal;
   }): Promise<KeywordDiscoveryResult> {
-    const supportsGatewayKeywords =
-      this.hasCapability(GATEWAY_KEYWORDS_CAPABILITY) &&
-      this.hasAccountCapability(GATEWAY_KEYWORDS_CAPABILITY);
+    const supportsKeywordGet =
+      this.hasCapability(KEYWORDS_CAPABILITY) &&
+      this.hasAccountCapability(KEYWORDS_CAPABILITY);
 
-    if (!supportsGatewayKeywords) {
+    if (!supportsKeywordGet) {
       const scan = await this.discoverKeywords(options);
       const labels: KeywordInfo[] = Object.entries(scan.keywords).map(([id, total]) => ({
         id,
@@ -1541,12 +1541,12 @@ export class JMAPClient implements IJMAPClient {
 
     const response = await this.request(
       [["Keyword/get", { accountId: this.accountId }, "0"]],
-      ["urn:ietf:params:jmap:core", GATEWAY_KEYWORDS_CAPABILITY],
+      ["urn:ietf:params:jmap:core", KEYWORDS_CAPABILITY],
     );
     const [method, result] = response.methodResponses?.[0] ?? [];
     if (method !== 'Keyword/get' || !Array.isArray(result?.list)) {
       const description = typeof result?.description === 'string' ? `: ${result.description}` : '';
-      throw new Error(`Mail Gateway Keyword/get failed${description}`);
+      throw new Error(`JMAP Keyword/get failed${description}`);
     }
 
     const labels = (result.list as KeywordInfo[]).map((item) => ({ ...item }));

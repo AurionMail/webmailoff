@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GATEWAY_KEYWORDS_CAPABILITY, JMAPClient } from '../jmap/client';
+import { KEYWORDS_CAPABILITY, JMAPClient } from '../jmap/client';
 
 // JMAP has no way to ask which keywords an account uses, so `discoverKeywords`
 // finds them by walking the message list: an Email/query for the next slice of
@@ -8,17 +8,17 @@ import { GATEWAY_KEYWORDS_CAPABILITY, JMAPClient } from '../jmap/client';
 // admits when it stopped early rather than passing a partial scan off as the
 // whole account.
 
-function makeSession(core: Record<string, number> = {}, gatewayKeywords = false) {
+function makeSession(core: Record<string, number> = {}, supportsKeywordGet = false) {
   return {
     capabilities: {
       'urn:ietf:params:jmap:core': core,
-      ...(gatewayKeywords ? { [GATEWAY_KEYWORDS_CAPABILITY]: { supportsCounts: true } } : {}),
+      ...(supportsKeywordGet ? { [KEYWORDS_CAPABILITY]: { supportsCounts: true } } : {}),
     },
     accounts: {
       'acct-1': {
         name: 'test',
         isPersonal: true,
-        accountCapabilities: gatewayKeywords ? { [GATEWAY_KEYWORDS_CAPABILITY]: {} } : {},
+        accountCapabilities: supportsKeywordGet ? { [KEYWORDS_CAPABILITY]: {} } : {},
       },
     },
     primaryAccounts: { 'urn:ietf:params:jmap:mail': 'acct-1' },
@@ -67,7 +67,7 @@ describe('JMAPClient.discoverKeywords', () => {
     return client;
   }
 
-  async function connectedGatewayClient(core?: Record<string, number>): Promise<JMAPClient> {
+  async function connectedKeywordGetClient(core?: Record<string, number>): Promise<JMAPClient> {
     fetchSpy.mockResolvedValueOnce(jsonResponse(makeSession(core, true)));
     const client = JMAPClient.withBearer('https://mail.example.com', 'token123', 'user@test.com');
     await client.connect();
@@ -224,8 +224,8 @@ describe('JMAPClient.discoverKeywords', () => {
     expect(result).toMatchObject({ keywords: {}, scanned: 0, total: 0, complete: true });
   });
 
-  it('uses Gateway Keyword/get and preserves provider-label metadata', async () => {
-    const client = await connectedGatewayClient();
+  it('uses JMAP Keyword/get and preserves provider-label metadata', async () => {
+    const client = await connectedKeywordGetClient();
     let requestBody: Record<string, unknown> | undefined;
     fetchSpy.mockImplementationOnce((async (_url: string, init: RequestInit) => {
       requestBody = JSON.parse(init.body as string);
@@ -245,7 +245,7 @@ describe('JMAPClient.discoverKeywords', () => {
     const result = await client.getKeywords();
 
     expect(requestBody).toMatchObject({
-      using: ['urn:ietf:params:jmap:core', GATEWAY_KEYWORDS_CAPABILITY],
+      using: ['urn:ietf:params:jmap:core', KEYWORDS_CAPABILITY],
       methodCalls: [['Keyword/get', { accountId: 'acct-1' }, '0']],
     });
     expect(result).toEqual({

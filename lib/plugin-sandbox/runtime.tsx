@@ -220,9 +220,9 @@ function buildPluginApi(manifest: PluginManifest) {
     // to the privileged tier for crypto plugins.
     jmap: {
       /**
-       * Enumerate keywords in the active account. Mail Gateway supplies exact
-       * counts and provider-label metadata; ordinary JMAP servers fall back to
-       * scanning message keywords.
+       * Enumerate keywords in the active account. JMAP servers supporting
+       * Keyword/get supply exact counts and provider-label metadata; other
+       * servers fall back to scanning message keywords.
        */
       getKeywords: (options?: { limit?: number }) =>
         callApi('jmap.getKeywords', [options]) as Promise<{

@@ -286,11 +286,12 @@ await api.jmap.removeKeyword('email-id', '$label:work');  // email:write
 ```
 
 `jmap.getKeywords()` is a narrow read-only facade rather than an arbitrary JMAP
-request API. When the server advertises `urn:mail-gateway:keywords`, it returns
-all cached keywords with exact total/unread counts and provider-label metadata,
-including empty Gmail labels. On ordinary JMAP servers it falls back to a
-bounded scan of message keywords. `keywords.discover()` retains its original
-message-scan response for compatibility.
+request API. When the JMAP server advertises
+`https://bulwarkmail.com/ns/jmap/keywords`, it returns all cached keywords with
+exact total/unread counts and provider-label metadata, including empty provider
+labels. On servers without the capability it falls back to a bounded scan of
+message keywords. `keywords.discover()` retains its original message-scan
+response for compatibility.
 
 `jmap.setKeywords()` replaces one message's complete keyword map via
 `Email/set`. Omitted keywords are removed, so extensions should use the existing
