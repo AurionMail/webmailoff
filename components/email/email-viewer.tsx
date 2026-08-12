@@ -5,7 +5,7 @@ import DOMPurify from "dompurify";
 import { Email, ContactCard, Mailbox } from "@/lib/jmap/types";
 import { emailExportFilename, attachmentDownloadFilename, attachmentsBundleFilename, DEFAULT_EMAIL_TEMPLATE, DEFAULT_ATTACHMENT_TEMPLATE } from "@/lib/download-filename";
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
-import { EMAIL_IFRAME_SANITIZE_CONFIG, applyNewTabToAnchor, blockExternalResourcesOnNode, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, sanitizeEmailHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
+import { EMAIL_IFRAME_SANITIZE_CONFIG, applyNewTabToAnchor, blockExternalResourcesOnNode, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, restrictDataUriResourcesOnNode, sanitizeEmailHtml, sanitizeEmailHtmlForIframe, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
 import { collapsePlainTextQuotes, setupQuoteCollapse } from "@/lib/quote-collapse";
 import { withBasePath } from "@/lib/browser-navigation";
@@ -1694,6 +1694,9 @@ export function EmailViewer({
           // http(s) links open in a new tab; other schemes keep their default.
           applyNewTabToAnchor(node);
 
+          // Re-apply the data:-URI allowlist DOMPurify skips on media tags.
+          restrictDataUriResourcesOnNode(node);
+
           // No dark mode color transforms - emails render true-to-life in iframe
         });
 
@@ -1786,7 +1789,7 @@ export function EmailViewer({
           return cidBlobUrls[cidRef] || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
         }
       );
-      const cleanHtml = DOMPurify.sanitize(htmlWithCidUrls, EMAIL_IFRAME_SANITIZE_CONFIG);
+      const cleanHtml = sanitizeEmailHtmlForIframe(htmlWithCidUrls);
       return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(pluginRenderedHtml), externalBlocked: false };
     }
     if (pluginRenderedText) {
@@ -1794,7 +1797,7 @@ export function EmailViewer({
     }
     // TNEF (winmail.dat) extracted content
     if (tnefHtml) {
-      const cleanHtml = DOMPurify.sanitize(tnefHtml, EMAIL_IFRAME_SANITIZE_CONFIG);
+      const cleanHtml = sanitizeEmailHtmlForIframe(tnefHtml);
       return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(tnefHtml), externalBlocked: false };
     }
     if (tnefText) {
@@ -1802,7 +1805,7 @@ export function EmailViewer({
     }
     // Embedded message/rfc822 unwrapped content
     if (embeddedEmailHtml) {
-      const cleanHtml = DOMPurify.sanitize(embeddedEmailHtml, EMAIL_IFRAME_SANITIZE_CONFIG);
+      const cleanHtml = sanitizeEmailHtmlForIframe(embeddedEmailHtml);
       return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(embeddedEmailHtml), externalBlocked: false };
     }
     if (embeddedEmailText) {
