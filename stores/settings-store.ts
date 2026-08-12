@@ -26,9 +26,42 @@ let syncEnabled = false;
 let syncUsername: string | null = null;
 let syncServerUrl: string | null = null;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+let pendingSync: SettingsSyncJob | null = null;
 let isLoadingFromServer = false;
 
 const SYNC_DEBOUNCE_MS = 2000;
+
+interface SettingsSyncJob {
+  username: string;
+  serverUrl: string;
+  settings: Record<string, unknown>;
+}
+
+async function syncSettingsJob(job: SettingsSyncJob, retries = 1): Promise<void> {
+  syncLog('Syncing settings to server for', job.username);
+  const res = await apiFetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(job),
+  });
+  if (res.status === 404) {
+    syncWarn('Settings sync endpoint returned 404, disabling sync');
+    syncEnabled = false;
+  } else if (res.status === 403) {
+    syncWarn('Settings sync rejected (identity mismatch), disabling sync');
+    syncEnabled = false;
+  } else if (res.status >= 500 && retries > 0) {
+    const body = await res.json().catch(() => ({}));
+    syncWarn('Settings sync got server error:', body.error || `status ${res.status}`, '- retrying...');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return syncSettingsJob(job, retries - 1);
+  } else if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    syncError('Settings sync failed:', body.error || `status ${res.status}`);
+  } else {
+    syncLog('Settings synced to server successfully');
+  }
+}
 
 export type FontSize = 'small' | 'medium' | 'large';
 export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
@@ -450,6 +483,7 @@ interface SettingsState {
 
   // Settings sync
   enableSync: (username: string, serverUrl: string) => void;
+  flushSync: () => Promise<void>;
   disableSync: () => void;
   loadFromServer: (username: string, serverUrl: string) => Promise<boolean>;
 }
@@ -967,6 +1001,16 @@ export const useSettingsStore = create<SettingsState>()(
         syncLog('Settings sync enabled for', username);
       },
 
+      flushSync: async () => {
+        if (syncTimeout) {
+          clearTimeout(syncTimeout);
+          syncTimeout = null;
+        }
+        const job = pendingSync;
+        pendingSync = null;
+        if (job) await syncSettingsJob(job);
+      },
+
       disableSync: () => {
         syncEnabled = false;
         syncUsername = null;
@@ -975,6 +1019,7 @@ export const useSettingsStore = create<SettingsState>()(
           clearTimeout(syncTimeout);
           syncTimeout = null;
         }
+        pendingSync = null;
         syncLog('Settings sync disabled');
       },
 
@@ -1189,44 +1234,21 @@ if (typeof window !== 'undefined') {
   applyDensity(store.density);
   applyAnimations(store.animationsEnabled);
 
-  // Shared sync function used by all store subscribers
-  const syncToServer = async (retries = 1): Promise<void> => {
-    const settings = JSON.parse(useSettingsStore.getState().exportSettings());
-    syncLog('Syncing settings to server...');
-    const res = await apiFetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: syncUsername, serverUrl: syncServerUrl, settings }),
-    });
-    if (res.status === 404) {
-      syncWarn('Settings sync endpoint returned 404, disabling sync');
-      syncEnabled = false;
-    } else if (res.status === 403) {
-      // Identity mismatch - current session cookies don't match the
-      // username/serverUrl we're syncing for (common in dev mock mode where
-      // no stalwart-context cookie is written, or when rememberMe is off).
-      // Retrying won't help for this session; disable to stop the noise.
-      syncWarn('Settings sync rejected (identity mismatch), disabling sync');
-      syncEnabled = false;
-    } else if (res.status >= 500 && retries > 0) {
-      const body = await res.json().catch(() => ({}));
-      syncWarn('Settings sync got server error:', body.error || `status ${res.status}`, '- retrying...');
-      await new Promise((r) => setTimeout(r, 2000));
-      return syncToServer(retries - 1);
-    } else if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      syncError('Settings sync failed:', body.error || `status ${res.status}`);
-    } else {
-      syncLog('Settings synced to server successfully');
-    }
-  };
-
   const triggerSync = () => {
     if (!syncEnabled || !syncUsername || !syncServerUrl || isLoadingFromServer) return;
+    pendingSync = {
+      username: syncUsername,
+      serverUrl: syncServerUrl,
+      settings: JSON.parse(useSettingsStore.getState().exportSettings()),
+    };
     if (syncTimeout) clearTimeout(syncTimeout);
     syncTimeout = setTimeout(async () => {
+      syncTimeout = null;
+      const job = pendingSync;
+      pendingSync = null;
+      if (!job) return;
       try {
-        await syncToServer();
+        await syncSettingsJob(job);
       } catch (error) {
         syncError('Settings sync error:', error);
       }

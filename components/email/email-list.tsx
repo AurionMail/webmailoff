@@ -47,7 +47,6 @@ interface EmailListProps {
   onEditDraft?: (email: Email) => void;
   isScheduledView?: boolean;
   onLoadMoreScheduled?: () => void;
-  onCancelScheduled?: (email: Email) => void | Promise<void>;
   onCancelScheduledForEdit?: (email: Email) => void | Promise<void>;
   onRescheduleScheduled?: (email: Email) => void | Promise<void>;
 }
@@ -78,7 +77,6 @@ export function EmailList({
   onEditDraft,
   isScheduledView = false,
   onLoadMoreScheduled,
-  onCancelScheduled,
   onCancelScheduledForEdit,
   onRescheduleScheduled,
 }: EmailListProps) {
@@ -610,7 +608,6 @@ export function EmailList({
           onMarkAsSpam={() => onMarkAsSpam?.(contextMenuEmail!)}
           onUndoSpam={() => onUndoSpam?.(contextMenuEmail!)}
           onEditDraft={() => onEditDraft?.(contextMenuEmail!)}
-          onCancelScheduled={onCancelScheduled ? () => onCancelScheduled(contextMenuEmail!) : undefined}
           onCancelScheduledForEdit={onCancelScheduledForEdit ? () => onCancelScheduledForEdit(contextMenuEmail!) : undefined}
           onRescheduleScheduled={onRescheduleScheduled ? () => onRescheduleScheduled(contextMenuEmail!) : undefined}
           onBatchMarkAsRead={(read) => client && batchMarkAsRead(client, read)}
