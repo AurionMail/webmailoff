@@ -1236,6 +1236,7 @@ export const useAuthStore = create<AuthState>()(
           accountStore.removeAccount(accountId);
         }
 
+        await useSettingsStore.getState().flushSync();
         useSettingsStore.getState().disableSync();
 
         await authHooks.onAfterLogout.emit({
@@ -1406,6 +1407,7 @@ export const useAuthStore = create<AuthState>()(
             snapshotAccount(state.activeAccountId);
           }
           clearAllStores();
+          await useSettingsStore.getState().flushSync();
           useSettingsStore.getState().disableSync();
 
           // Client not connected - try to restore
@@ -1546,6 +1548,7 @@ export const useAuthStore = create<AuthState>()(
             snapshotAccount(state.activeAccountId);
           }
           clearAllStores();
+          await useSettingsStore.getState().flushSync();
           useSettingsStore.getState().disableSync();
         }
 

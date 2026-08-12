@@ -136,7 +136,6 @@ interface EmailViewerProps {
   onNavigatePrev?: () => void;
   onShowShortcuts?: () => void;
   onEditDraft?: () => void;
-  onCancelScheduled?: () => void;
   onCancelScheduledForEdit?: () => void;
   onRescheduleScheduled?: (delayedUntil: string) => void;
   onCompose?: () => void;
@@ -636,7 +635,6 @@ export function EmailViewer({
   onNavigatePrev,
   onShowShortcuts,
   onEditDraft,
-  onCancelScheduled,
   onCancelScheduledForEdit,
   onRescheduleScheduled,
   onCompose,
@@ -2854,15 +2852,11 @@ export function EmailViewer({
               variant="default"
               size="sm"
               onClick={() => onRescheduleScheduled?.(new Date(Date.now() + 1000).toISOString())}
-              className="sm:flex sm:h-8"
+              className="sm:flex sm:flex-row sm:h-8 sm:gap-1.5 sm:py-0"
               title={t('send_now')}
             >
               <Send className="w-4 h-4" />
               {showToolbarLabels && <span className="hidden sm:inline text-sm">{t('send_now')}</span>}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onCancelScheduled} className="sm:flex sm:h-8" title={t('cancel_scheduled_send')}>
-              <X className="w-4 h-4" />
-              {showToolbarLabels && <span className="hidden sm:inline text-sm">{t('cancel_scheduled_send')}</span>}
             </Button>
             <Button
               variant="ghost"
@@ -2871,13 +2865,13 @@ export function EmailViewer({
                 const delayedUntil = promptForRescheduleDelayedUntil();
                 if (delayedUntil) onRescheduleScheduled?.(delayedUntil);
               }}
-              className="hidden sm:flex sm:h-8"
+              className="hidden sm:flex sm:h-8 sm:gap-1.5 sm:py-0"
               title={t('reschedule_send')}
             >
               <CalendarClock className="w-4 h-4" />
               {showToolbarLabels && <span className="hidden sm:inline text-sm">{t('reschedule_send')}</span>}
             </Button>
-            <Button variant="ghost" size="sm" onClick={onCancelScheduledForEdit} className="hidden sm:flex sm:h-8" title={email.isSmimeScheduled ? t('cancel_and_compose_again') : t('cancel_and_edit')}>
+            <Button variant="ghost" size="sm" onClick={onCancelScheduledForEdit} className="hidden sm:flex sm:h-8 sm:gap-1.5 sm:py-0" title={email.isSmimeScheduled ? t('cancel_and_compose_again') : t('cancel_and_edit')}>
               <EditIcon className="w-4 h-4" />
               {showToolbarLabels && <span className="hidden sm:inline text-sm">{email.isSmimeScheduled ? t('cancel_and_compose_again') : t('cancel_and_edit')}</span>}
             </Button>
@@ -4409,18 +4403,25 @@ export function EmailViewer({
         {/* Scheduled Banner */}
         {isScheduled && (
           <div className="border-b border-border bg-primary/10">
-            <div className="max-w-4xl mx-auto px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2">
               <div className="flex items-center gap-2 text-primary">
                 <CalendarClock className="w-4 h-4" />
                 <span className="text-sm font-medium">
                   {t('scheduled_banner', { date: email.scheduledSendAt ? formatDateTime(email.scheduledSendAt, timeFormat) : '' })}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {canCancelScheduled && (
                   <>
-                    <Button size="sm" variant="default" onClick={() => onRescheduleScheduled?.(new Date(Date.now() + 1000).toISOString())}>{t('send_now')}</Button>
-                    <Button size="sm" variant="outline" onClick={onCancelScheduled}>{t('cancel_scheduled_send')}</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRescheduleScheduled?.(new Date(Date.now() + 1000).toISOString())}
+                      className="gap-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      {t('send_now')}
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -4428,10 +4429,13 @@ export function EmailViewer({
                         const delayedUntil = promptForRescheduleDelayedUntil();
                         if (delayedUntil) onRescheduleScheduled?.(delayedUntil);
                       }}
+                      className="gap-1.5"
                     >
+                      <CalendarClock className="w-3.5 h-3.5" />
                       {t('reschedule_send')}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={onCancelScheduledForEdit}>
+                    <Button size="sm" variant="outline" onClick={onCancelScheduledForEdit} className="gap-1.5">
+                      <EditIcon className="w-3.5 h-3.5" />
                       {email.isSmimeScheduled ? t('cancel_and_compose_again') : t('cancel_and_edit')}
                     </Button>
                   </>

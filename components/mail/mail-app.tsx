@@ -337,7 +337,6 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     setScheduledView,
     fetchScheduledEmails,
     loadMoreScheduledEmails,
-    cancelScheduledEmail,
     cancelScheduledEmailForEdit,
     rescheduleScheduledEmail,
     refreshScheduledMetadata,
@@ -459,6 +458,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
   const handleNavRestore = useCallback(async (state: NavSnapshot) => {
     const ctx = navRestoreStateRef.current;
+    let restoredEmails = ctx.emails;
 
     // Restore sidebar overlay state.
     setSidebarOpen(state.sidebarOpen);
@@ -489,6 +489,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       if (ctx.client) {
         try {
           await fetchScheduledEmails(ctx.client);
+          restoredEmails = useEmailStore.getState().scheduledEmails;
         } catch (error) {
           debug.error('Failed to fetch scheduled emails on history restore:', error);
         }
@@ -522,7 +523,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       } else {
         // Try the in-memory list first; the existing useEffect will fetch
         // body content if it's missing.
-        const found = ctx.emails.find(e => e.id === state.emailId);
+        const found = restoredEmails.find(e => e.id === state.emailId);
         if (found) {
           selectEmail(found);
         } else if (ctx.client) {
@@ -3533,9 +3534,6 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                 isLoadingMoreItems={isScheduledView ? isLoadingScheduled && activeEmails.length > 0 : undefined}
                 isScheduledView={isScheduledView}
                 onLoadMoreScheduled={() => client && loadMoreScheduledEmails(client)}
-                onCancelScheduled={async (email) => {
-                  if (client && email.emailSubmissionId) await cancelScheduledEmail(client, email.emailSubmissionId, email.id);
-                }}
                 onCancelScheduledForEdit={async (email) => {
                   if (!client) return;
                   const restored = await cancelScheduledEmailForEdit(client, email);
@@ -3847,9 +3845,6 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                     onNavigatePrev={handleNavigatePrev}
                     onShowShortcuts={() => setShowShortcutsModal(true)}
                     onEditDraft={handleEditDraft}
-                    onCancelScheduled={async () => {
-                      if (client && selectedEmail?.emailSubmissionId) await cancelScheduledEmail(client, selectedEmail.emailSubmissionId, selectedEmail.id);
-                    }}
                     onCancelScheduledForEdit={async () => {
                       if (!client || !selectedEmail) return;
                       const restored = await cancelScheduledEmailForEdit(client, selectedEmail);

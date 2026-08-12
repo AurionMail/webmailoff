@@ -565,6 +565,7 @@ export function EmailComposer({
   const [scheduleError, setScheduleError] = useState('');
   const [showSendMenu, setShowSendMenu] = useState(false);
   const sendMenuRef = useRef<HTMLDivElement>(null);
+  const mobileSendMenuRef = useRef<HTMLDivElement>(null);
 
   const saveTemplateModalRef = useFocusTrap({
     isActive: showSaveAsTemplate,
@@ -696,7 +697,7 @@ export function EmailComposer({
 
   useEffect(() => {
     const handleClickOutsideSendMenu = (event: MouseEvent) => {
-      if (!sendMenuRef.current?.contains(event.target as Node)) {
+      if (!sendMenuRef.current?.contains(event.target as Node) && !mobileSendMenuRef.current?.contains(event.target as Node)) {
         setShowSendMenu(false);
       }
     };
@@ -2099,30 +2100,6 @@ export function EmailComposer({
     handleSend({ delayedUntil: new Date(scheduleValue).toISOString() });
   };
 
-  // Ctrl+Enter (Win/Linux) / Cmd+Enter (macOS) sends the open compose
-  // draft. Scoped to events whose target lives inside this composer's
-  // DOM tree — in Pro mode multiple composer tabs can be mounted at
-  // once (inactive tabs are CSS-hidden, not unmounted), so a window
-  // listener would otherwise fire every mounted composer's handleSend
-  // on a single keystroke. handleSend is rebound every render, so we
-  // route through a ref to keep the listener stable.
-  const composerRootRef = useRef<HTMLDivElement | null>(null);
-  const handleSendRef = useRef<typeof handleSend | undefined>(undefined);
-  handleSendRef.current = handleSend;
-  useEffect(() => {
-    const handleSendShortcut = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter') return;
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.altKey || e.shiftKey) return;
-      const root = composerRootRef.current;
-      if (!root || !(e.target instanceof Node) || !root.contains(e.target)) return;
-      e.preventDefault();
-      void handleSendRef.current?.();
-    };
-    window.addEventListener('keydown', handleSendShortcut);
-    return () => window.removeEventListener('keydown', handleSendShortcut);
-  }, []);
-
   const cleanClose = () => {
     sendCancelledRef.current = true;
     explicitCloseRef.current = true;
@@ -2237,7 +2214,11 @@ export function EmailComposer({
   };
 
   return (
-    <div ref={composerRootRef} data-testid="email-composer" className={cn("flex h-full bg-background", className)}>
+    <div
+      data-testid="email-composer"
+      className={cn("flex h-full bg-background", className)}
+      onKeyDownCapture={handleComposerKeyDown}
+    >
       <PluginSlot
         name="composer-sidebar"
         className="hidden md:flex shrink-0 h-full overflow-hidden border-e border-border"
@@ -2250,7 +2231,6 @@ export function EmailComposer({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onKeyDown={handleComposerKeyDown}
     >
       {/* Drag overlay */}
       {isDraggingOver && (
@@ -2289,18 +2269,59 @@ export function EmailComposer({
             )}
           </div>
         </div>
-        {/* Mobile: send button in header */}
-        <Button
-          onClick={() => handleSend()}
-          disabled={!canSend || isSending}
-          title={getSendTooltip()}
-          size="sm"
-          data-testid="composer-send"
-          className="md:hidden h-9 px-4"
-        >
-          <Send className="w-4 h-4 me-1.5" />
-          {t('send')}
-        </Button>
+        {/* Mobile: keep scheduled send reachable without consuming footer space. */}
+        {composerClient?.hasDelayedSend() ? (
+          <div ref={mobileSendMenuRef} className="relative inline-flex md:hidden">
+            <Button
+              onClick={() => handleSend()}
+              disabled={!canSend || isSending}
+              title={getSendTooltip()}
+              size="sm"
+              data-testid="composer-send"
+              className="h-9 rounded-e-none border-e border-primary-foreground/20 px-3"
+            >
+              <Send className="w-4 h-4 me-1.5" />
+              {t('send')}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setShowSendMenu((open) => !open)}
+              disabled={!canSend || isSending}
+              title={t('schedule_send')}
+              size="sm"
+              className="h-9 rounded-s-none px-2"
+              aria-haspopup="menu"
+              aria-expanded={showSendMenu}
+            >
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+            {showSendMenu && (
+              <div role="menu" className="absolute end-0 top-full z-50 mt-2 min-w-44 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={openScheduleDialog}
+                  className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-start text-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <CalendarClock className="w-4 h-4" />
+                  {t('schedule_send')}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Button
+            onClick={() => handleSend()}
+            disabled={!canSend || isSending}
+            title={getSendTooltip()}
+            size="sm"
+            data-testid="composer-send"
+            className="md:hidden h-9 px-4"
+          >
+            <Send className="w-4 h-4 me-1.5" />
+            {t('send')}
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
