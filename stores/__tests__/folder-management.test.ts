@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useEmailStore } from '../email-store';
 import type { Mailbox } from '@/lib/jmap/types';
 import { UNIFIED_MAILBOX_IDS } from '@/lib/jmap/types';
+import { emailHooks } from '@/lib/plugin-hooks';
 
 function makeMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
   return {
@@ -272,6 +273,22 @@ describe('email-store folder management', () => {
   // drafts in "All Drafts") must not reset a virtual unified/cross-view selection
   // to the inbox, which would jump the user out of the view they're in.
   describe('fetchMailboxes selection preservation', () => {
+    it('publishes the refreshed mailbox list to extensions', async () => {
+      const observer = vi.fn();
+      const disposable = emailHooks.onMailboxesRefresh.register('mailbox-refresh-test', observer);
+      const refreshed = [inbox, sent, trash, custom];
+      const client = makeMockClient({
+        getAllMailboxes: vi.fn().mockResolvedValue(refreshed),
+      });
+
+      try {
+        await useEmailStore.getState().fetchMailboxes(client);
+        expect(observer).toHaveBeenCalledWith(refreshed);
+      } finally {
+        disposable.dispose();
+      }
+    });
+
     it('keeps a unified-view selection (e.g. All Drafts) on background refresh', async () => {
       useEmailStore.setState({
         mailboxes: [inbox, sent, trash, custom],

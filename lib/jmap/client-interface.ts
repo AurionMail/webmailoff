@@ -1,6 +1,24 @@
 import type { Email, Mailbox, StateChange, AccountStates, Thread, Identity, EmailAddress, ContactCard, AddressBook, AddressBookRights, VacationResponse, Calendar, CalendarRights, CalendarEvent, CalendarEventFilter, CalendarTask, FileNode, FileNodeRights, Principal, PushSubscription, ScheduledEmail, SendEmailResult, SharedAccount } from "./types";
 import type { SieveScript, SieveCapabilities } from "./sieve-types";
 
+export interface KeywordInfo {
+  id: string;
+  name: string;
+  color: string | null;
+  total: number;
+  unread: number;
+  isProviderLabel: boolean;
+  source: 'provider' | 'message';
+}
+
+export interface KeywordDiscoveryResult {
+  keywords: Record<string, number>;
+  labels: KeywordInfo[];
+  scanned: number;
+  total: number;
+  complete: boolean;
+}
+
 /**
  * Interface defining the public JMAP client contract.
  *
@@ -88,6 +106,16 @@ export interface IJMAPClient {
   getEmail(emailId: string, accountId?: string): Promise<Email | null>;
   getSomeEmails(emailsId: string[], accountId?: string): Promise<Email[]>
   getTagCounts(tagIds: string[]): Promise<Record<string, { total: number; unread: number }>>;
+  /**
+   * Enumerate account keywords for extensions. Servers supporting Keyword/get
+   * can return exact counts and provider-label metadata; other servers use the
+   * bounded scan.
+   */
+  getKeywords(options?: {
+    limit?: number;
+    onProgress?: (scanned: number, total: number) => void;
+    signal?: AbortSignal;
+  }): Promise<KeywordDiscoveryResult>;
   /**
    * Every keyword currently set on the account's messages and how many of the
    * walked messages carry it, found by walking the message list - JMAP offers no

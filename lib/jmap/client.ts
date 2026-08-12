@@ -1,6 +1,6 @@
 import type { Email, Mailbox, StateChange, AccountStates, Thread, Identity, EmailAddress, ContactCard, AddressBook, AddressBookRights, VacationResponse, Calendar, CalendarRights, CalendarEvent, CalendarEventFilter, CalendarTask, FileNode, FileNodeFilter, FileNodeRights, Principal, PushSubscription, EmailSubmission, ScheduledEmail, SendEmailResult, SharedAccount } from "./types";
 import type { SieveScript, SieveCapabilities } from "./sieve-types";
-import type { IJMAPClient } from "./client-interface";
+import type { IJMAPClient, KeywordDiscoveryResult, KeywordInfo } from "./client-interface";
 import { toWildcardQuery } from "./search-utils";
 import { batched, itemsPerRequest } from "./request-limits";
 import { debug } from "@/lib/debug";
@@ -138,6 +138,8 @@ const SUBMISSION_USING = [
   'urn:ietf:params:jmap:mail',
   'urn:ietf:params:jmap:submission',
 ] as const;
+
+export const KEYWORDS_CAPABILITY = 'https://bulwarkmail.com/ns/jmap/keywords';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JMAPResponseResult = Record<string, any>;
@@ -1502,6 +1504,58 @@ export class JMAPClient implements IJMAPClient {
     }
 
     return { keywords, scanned, total: Math.max(total, scanned), complete };
+  }
+
+  /**
+   * Extension-facing keyword enumeration.
+   *
+   * A JMAP server can advertise a narrow capability that enumerates all cached
+   * keywords in one request, including provider labels with no messages.
+   * Servers without the capability retain the existing message walk as a
+   * transparent fallback.
+   */
+  async getKeywords(options?: {
+    limit?: number;
+    onProgress?: (scanned: number, total: number) => void;
+    signal?: AbortSignal;
+  }): Promise<KeywordDiscoveryResult> {
+    const supportsKeywordGet =
+      this.hasCapability(KEYWORDS_CAPABILITY) &&
+      this.hasAccountCapability(KEYWORDS_CAPABILITY);
+
+    if (!supportsKeywordGet) {
+      const scan = await this.discoverKeywords(options);
+      const labels: KeywordInfo[] = Object.entries(scan.keywords).map(([id, total]) => ({
+        id,
+        name: id.startsWith('$label:') ? id.slice('$label:'.length) : id,
+        color: null,
+        total,
+        unread: 0,
+        isProviderLabel: false,
+        source: 'message',
+      }));
+      return { ...scan, labels };
+    }
+
+    if (options?.signal?.aborted) {
+      return { keywords: {}, labels: [], scanned: 0, total: 0, complete: false };
+    }
+
+    const response = await this.request(
+      [["Keyword/get", { accountId: this.accountId }, "0"]],
+      ["urn:ietf:params:jmap:core", KEYWORDS_CAPABILITY],
+    );
+    const [method, result] = response.methodResponses?.[0] ?? [];
+    if (method !== 'Keyword/get' || !Array.isArray(result?.list)) {
+      const description = typeof result?.description === 'string' ? `: ${result.description}` : '';
+      throw new Error(`JMAP Keyword/get failed${description}`);
+    }
+
+    const labels = (result.list as KeywordInfo[]).map((item) => ({ ...item }));
+    const keywords = Object.fromEntries(labels.map((item) => [item.id, item.total]));
+    const total = typeof result.totalEmails === 'number' ? result.totalEmails : 0;
+    options?.onProgress?.(total, total);
+    return { keywords, labels, scanned: total, total, complete: true };
   }
 
   /**

@@ -1,4 +1,4 @@
-import type { IJMAPClient } from '@/lib/jmap/client-interface';
+import type { IJMAPClient, KeywordDiscoveryResult } from '@/lib/jmap/client-interface';
 import type { Email, Mailbox, StateChange, AccountStates, Thread, Identity, EmailAddress, ContactCard, AddressBook, VacationResponse, Calendar, CalendarEvent, CalendarEventFilter, CalendarTask, FileNode, ScheduledEmail, SendEmailResult, SharedAccount } from '@/lib/jmap/types';
 import type { SieveScript, SieveCapabilities } from '@/lib/jmap/sieve-types';
 import { getDemoData, type DemoData } from './demo-data';
@@ -247,6 +247,26 @@ export class DemoJMAPClient implements IJMAPClient {
     }
     options?.onProgress?.(scanned, total);
     return { keywords, scanned, total, complete: scanned >= total };
+  }
+
+  async getKeywords(options?: {
+    limit?: number;
+    onProgress?: (scanned: number, total: number) => void;
+    signal?: AbortSignal;
+  }): Promise<KeywordDiscoveryResult> {
+    const scan = await this.discoverKeywords(options);
+    return {
+      ...scan,
+      labels: Object.entries(scan.keywords).map(([id, total]) => ({
+        id,
+        name: id.startsWith('$label:') ? id.slice('$label:'.length) : id,
+        color: null,
+        total,
+        unread: 0,
+        isProviderLabel: false,
+        source: 'message' as const,
+      })),
+    };
   }
 
   async getCategoryUnreadCounts(mailboxId: string, tabs: Array<{ id: string; filter: Record<string, unknown> | null }>, _accountId?: string): Promise<Record<string, number>> {
