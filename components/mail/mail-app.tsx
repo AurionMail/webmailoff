@@ -2488,7 +2488,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     }
   };
 
-  const handleCreateFolderFromContextMenu = async () => {
+  const handleCreateFolderFromContextMenu = async (accountId?: string) => {
     if (!client) return;
     const name = await promptDialog({
       title: tCtxMenu('mailbox_context_menu.new_folder'),
@@ -2498,7 +2498,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     });
     if (!name) return;
     try {
-      await createMailbox(client, name);
+      await createMailbox(client, name, undefined, accountId);
       toast.success(tCtxMenu('mailbox_context_menu.toast_folder_created'));
     } catch {
       toast.error(tCtxMenu('mailbox_context_menu.toast_error_create'));

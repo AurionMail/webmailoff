@@ -78,6 +78,13 @@ export class JmapClient {
       .map(([, name]) => name);
   }
 
+  /** Resolve an account visible in this session by its JMAP display name. */
+  accountIdByName(name: string): string {
+    const entry = Object.entries(this.accounts).find(([, accountName]) => accountName === name);
+    if (!entry) throw new Error(`No account named ${name} in JMAP session`);
+    return entry[0];
+  }
+
   async request(methodCalls: MethodCall[], using: string[] = [CORE, MAIL, SUBMISSION]): Promise<any> {
     const res = await fetch(this.apiUrl, {
       method: 'POST',
@@ -163,25 +170,25 @@ export class JmapClient {
     return mb.id;
   }
 
-  async mailboxes(): Promise<JmapMailbox[]> {
-    const r = await this.request([['Mailbox/get', { accountId: this.accountId }, '0']]);
+  async mailboxes(accountId: string = this.accountId): Promise<JmapMailbox[]> {
+    const r = await this.request([['Mailbox/get', { accountId }, '0']]);
     return r.methodResponses[0][1].list as JmapMailbox[];
   }
 
-  async mailboxByRole(role: string): Promise<JmapMailbox | undefined> {
-    return (await this.mailboxes()).find((m) => m.role === role);
+  async mailboxByRole(role: string, accountId: string = this.accountId): Promise<JmapMailbox | undefined> {
+    return (await this.mailboxes(accountId)).find((m) => m.role === role);
   }
 
-  async mailboxByName(name: string): Promise<JmapMailbox | undefined> {
-    return (await this.mailboxes()).find((m) => m.name === name);
+  async mailboxByName(name: string, accountId: string = this.accountId): Promise<JmapMailbox | undefined> {
+    return (await this.mailboxes(accountId)).find((m) => m.name === name);
   }
 
   /** Create a folder (top-level) and return its id. Idempotent by name. */
-  async createMailbox(name: string, parentId: string | null = null): Promise<string> {
-    const existing = await this.mailboxByName(name);
+  async createMailbox(name: string, parentId: string | null = null, accountId: string = this.accountId): Promise<string> {
+    const existing = await this.mailboxByName(name, accountId);
     if (existing) return existing.id;
     const r = await this.request([
-      ['Mailbox/set', { accountId: this.accountId, create: { new: { name, parentId } } }, '0'],
+      ['Mailbox/set', { accountId, create: { new: { name, parentId } } }, '0'],
     ]);
     const created = r.methodResponses[0][1].created?.new;
     if (!created) throw new Error(`Mailbox/set create failed: ${JSON.stringify(r.methodResponses[0][1])}`);
@@ -196,8 +203,8 @@ export class JmapClient {
     ]);
   }
 
-  private async allEmailIds(): Promise<string[]> {
-    const r = await this.request([['Email/query', { accountId: this.accountId, limit: 5000 }, '0']]);
+  private async allEmailIds(accountId: string = this.accountId): Promise<string[]> {
+    const r = await this.request([['Email/query', { accountId, limit: 5000 }, '0']]);
     return r.methodResponses[0][1].ids as string[];
   }
 
@@ -205,16 +212,30 @@ export class JmapClient {
    * Reset a mailbox to a clean slate: destroy every message and delete any
    * non-system (custom) folder. System folders (Inbox/Sent/Trash/…) are kept.
    */
-  async reset(): Promise<void> {
-    const ids = await this.allEmailIds();
+  async reset(accountId: string = this.accountId): Promise<void> {
+    const ids = await this.allEmailIds(accountId);
     if (ids.length) {
-      await this.request([['Email/set', { accountId: this.accountId, destroy: ids }, '0']]);
+      await this.request([['Email/set', { accountId, destroy: ids }, '0']]);
     }
-    const custom = (await this.mailboxes()).filter((m) => !m.role);
-    if (custom.length) {
-      await this.request([
-        ['Mailbox/set', { accountId: this.accountId, onDestroyRemoveEmails: true, destroy: custom.map((m) => m.id) }, '0'],
+    const custom = (await this.mailboxes(accountId)).filter((m) => !m.role);
+    const byId = new Map(custom.map((mailbox) => [mailbox.id, mailbox]));
+    const depth = (mailbox: JmapMailbox): number => {
+      let result = 0;
+      let parentId = mailbox.parentId;
+      while (parentId && byId.has(parentId)) {
+        result++;
+        parentId = byId.get(parentId)!.parentId;
+      }
+      return result;
+    };
+    // Stalwart refuses to destroy a mailbox that still has children. Remove
+    // custom trees leaf-first so tests that create nested folders cleanly reset.
+    for (const mailbox of custom.sort((a, b) => depth(b) - depth(a))) {
+      const r = await this.request([
+        ['Mailbox/set', { accountId, onDestroyRemoveEmails: true, destroy: [mailbox.id] }, '0'],
       ]);
+      const failure = r.methodResponses[0][1].notDestroyed?.[mailbox.id];
+      if (failure) throw new Error(`Mailbox reset failed for ${mailbox.name}: ${JSON.stringify(failure)}`);
     }
   }
 

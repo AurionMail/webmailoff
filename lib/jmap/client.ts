@@ -2163,6 +2163,7 @@ export class JMAPClient implements IJMAPClient {
   }
 
   async createMailbox(name: string, parentId?: string, accountId?: string): Promise<Mailbox> {
+    const targetAccountId = accountId || this.accountId;
     const createId = `new-${Date.now()}`;
     const createData: Record<string, unknown> = { name };
     if (parentId) {
@@ -2171,7 +2172,7 @@ export class JMAPClient implements IJMAPClient {
 
     const response = await this.request([
       ["Mailbox/set", {
-        accountId: accountId || this.accountId,
+        accountId: targetAccountId,
         create: { [createId]: createData },
       }, "0"],
     ]);
@@ -2203,16 +2204,17 @@ export class JMAPClient implements IJMAPClient {
       unreadThreads: 0,
       myRights: DEFAULT_MAILBOX_RIGHTS,
       isSubscribed: true,
-      accountId: this.accountId,
-      accountName: this.accounts[this.accountId]?.name || this.username,
-      isShared: false,
+      accountId: targetAccountId,
+      accountName: this.accounts[targetAccountId]?.name || (targetAccountId === this.accountId ? this.username : targetAccountId),
+      isShared: targetAccountId !== this.accountId,
     };
   }
 
-  async updateMailbox(mailboxId: string, changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number }): Promise<void> {
+  async updateMailbox(mailboxId: string, changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number }, accountId?: string): Promise<void> {
+    const targetAccountId = accountId || this.accountId;
     const response = await this.request([
       ["Mailbox/set", {
-        accountId: this.accountId,
+        accountId: targetAccountId,
         update: { [mailboxId]: changes },
       }, "0"],
     ]);
@@ -2223,10 +2225,11 @@ export class JMAPClient implements IJMAPClient {
     }
   }
 
-  async deleteMailbox(mailboxId: string): Promise<void> {
+  async deleteMailbox(mailboxId: string, accountId?: string): Promise<void> {
+    const targetAccountId = accountId || this.accountId;
     const response = await this.request([
       ["Mailbox/set", {
-        accountId: this.accountId,
+        accountId: targetAccountId,
         destroy: [mailboxId],
       }, "0"],
     ]);

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useEmailStore } from '../email-store';
+import { useAuthStore } from '../auth-store';
 import type { Mailbox } from '@/lib/jmap/types';
+import type { IJMAPClient } from '@/lib/jmap/client-interface';
 import { UNIFIED_MAILBOX_IDS } from '@/lib/jmap/types';
 
 function makeMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
@@ -31,13 +33,13 @@ function makeMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 
 function makeMockClient(overrides: Record<string, unknown> = {}) {
   return {
+    getAccountId: vi.fn().mockReturnValue('account-a'),
     createMailbox: vi.fn().mockResolvedValue(makeMailbox({ id: 'mb-new' })),
     updateMailbox: vi.fn().mockResolvedValue(undefined),
     deleteMailbox: vi.fn().mockResolvedValue(undefined),
     getAllMailboxes: vi.fn().mockResolvedValue([]),
     ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
+  } as unknown as IJMAPClient;
 }
 
 describe('email-store folder management', () => {
@@ -47,8 +49,15 @@ describe('email-store folder management', () => {
   const custom = makeMailbox({ id: 'custom-1', name: 'My Folder' });
 
   beforeEach(() => {
+    useAuthStore.setState({
+      activeAccountId: 'account-a',
+      getClientForAccount: () => undefined,
+      getAllConnectedClients: () => new Map(),
+    } as never);
     useEmailStore.setState({
       mailboxes: [inbox, sent, trash, custom],
+      accountMailboxes: {},
+      viewingAccountId: null,
       selectedMailbox: 'inbox-1',
       error: null,
     });
@@ -66,7 +75,7 @@ describe('email-store folder management', () => {
 
       await useEmailStore.getState().createMailbox(client, 'New Folder');
 
-      expect(client.createMailbox).toHaveBeenCalledWith('New Folder', undefined);
+      expect(client.createMailbox).toHaveBeenCalledWith('New Folder', undefined, undefined);
       expect(client.getAllMailboxes).toHaveBeenCalled();
     });
 
@@ -77,7 +86,7 @@ describe('email-store folder management', () => {
 
       await useEmailStore.getState().createMailbox(client, 'Sub Folder', 'inbox-1');
 
-      expect(client.createMailbox).toHaveBeenCalledWith('Sub Folder', 'inbox-1');
+      expect(client.createMailbox).toHaveBeenCalledWith('Sub Folder', 'inbox-1', undefined);
     });
 
     it('should set error on failure', async () => {
@@ -99,7 +108,7 @@ describe('email-store folder management', () => {
 
       await useEmailStore.getState().renameMailbox(client, 'custom-1', 'Renamed');
 
-      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { name: 'Renamed' });
+      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { name: 'Renamed' }, undefined);
       const mb = useEmailStore.getState().mailboxes.find(m => m.id === 'custom-1');
       expect(mb?.name).toBe('Renamed');
     });
@@ -132,7 +141,7 @@ describe('email-store folder management', () => {
 
       await useEmailStore.getState().deleteMailbox(client, 'custom-1');
 
-      expect(client.deleteMailbox).toHaveBeenCalledWith('custom-1');
+      expect(client.deleteMailbox).toHaveBeenCalledWith('custom-1', undefined);
       const mb = useEmailStore.getState().mailboxes.find(m => m.id === 'custom-1');
       expect(mb).toBeUndefined();
       expect(useEmailStore.getState().mailboxes).toHaveLength(3);
@@ -181,7 +190,7 @@ describe('email-store folder management', () => {
 
       await useEmailStore.getState().setMailboxRole(client, 'custom-1', 'archive');
 
-      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { role: 'archive' });
+      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { role: 'archive' }, undefined);
     });
 
     it('should clear existing role from another mailbox when reassigning', async () => {
@@ -197,9 +206,9 @@ describe('email-store folder management', () => {
       await useEmailStore.getState().setMailboxRole(client, 'custom-1', 'trash');
 
       // Should first clear trash role from trash-1
-      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: null });
+      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: null }, undefined);
       // Then set trash role on custom-1
-      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { role: 'trash' });
+      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { role: 'trash' }, undefined);
     });
 
     it('should clear role from a mailbox when role is null', async () => {
@@ -212,7 +221,7 @@ describe('email-store folder management', () => {
 
       await useEmailStore.getState().setMailboxRole(client, 'trash-1', null);
 
-      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: null });
+      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: null }, undefined);
     });
 
     it('should not clear role from same mailbox when re-assigning same role', async () => {
@@ -224,7 +233,7 @@ describe('email-store folder management', () => {
 
       // Should only call once (to set the role), not twice (no need to clear from same mailbox)
       expect(client.updateMailbox).toHaveBeenCalledTimes(1);
-      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: 'trash' });
+      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: 'trash' }, undefined);
     });
 
     it('should clear role from ALL mailboxes with that role when reassigning', async () => {
@@ -248,10 +257,10 @@ describe('email-store folder management', () => {
       await useEmailStore.getState().setMailboxRole(client, 'custom-1', 'trash');
 
       // Should clear trash role from BOTH trash-1 and trash-2
-      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: null });
-      expect(client.updateMailbox).toHaveBeenCalledWith('trash-2', { role: null });
+      expect(client.updateMailbox).toHaveBeenCalledWith('trash-1', { role: null }, undefined);
+      expect(client.updateMailbox).toHaveBeenCalledWith('trash-2', { role: null }, undefined);
       // Then set trash role on custom-1
-      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { role: 'trash' });
+      expect(client.updateMailbox).toHaveBeenCalledWith('custom-1', { role: 'trash' }, undefined);
       expect(client.updateMailbox).toHaveBeenCalledTimes(3);
     });
 
@@ -265,6 +274,128 @@ describe('email-store folder management', () => {
       ).rejects.toThrow();
 
       expect(useEmailStore.getState().error).toBe('Role update failed');
+    });
+  });
+
+  describe('shared/group mailbox routing', () => {
+    const sharedFolder = makeMailbox({
+      id: 'owner-x:shared-1',
+      originalId: 'shared-1',
+      name: 'Shared Folder',
+      accountId: 'owner-x',
+      isShared: true,
+    });
+    const sharedArchive = makeMailbox({
+      id: 'owner-x:archive-x',
+      originalId: 'archive-x',
+      name: 'Shared Archive',
+      role: 'archive',
+      accountId: 'owner-x',
+      isShared: true,
+    });
+
+    beforeEach(() => {
+      useEmailStore.setState({
+        mailboxes: [inbox, sent, trash, custom, sharedFolder, sharedArchive],
+        selectedMailbox: sharedFolder.id,
+      });
+    });
+
+    it('creates a subfolder with the owner accountId and bare parent id', async () => {
+      const client = makeMockClient();
+
+      await useEmailStore.getState().createMailbox(client, 'Shared Child', sharedFolder.id);
+
+      expect(client.createMailbox).toHaveBeenCalledWith('Shared Child', 'shared-1', 'owner-x');
+    });
+
+    it('keeps root creation in the personal Folders account while a shared folder is selected', async () => {
+      const client = makeMockClient();
+
+      await useEmailStore.getState().createMailbox(client, 'Personal Root');
+
+      expect(client.createMailbox).toHaveBeenCalledWith('Personal Root', undefined, undefined);
+    });
+
+    it('creates a shared root folder only when the caller explicitly targets its account', async () => {
+      const client = makeMockClient();
+
+      await useEmailStore.getState().createMailbox(client, 'Shared Root', undefined, 'owner-x');
+
+      expect(client.createMailbox).toHaveBeenCalledWith('Shared Root', undefined, 'owner-x');
+    });
+
+    it('renames a shared folder through its owner account and preserves the namespaced store id', async () => {
+      const client = makeMockClient();
+
+      await useEmailStore.getState().renameMailbox(client, sharedFolder.id, 'Renamed Shared');
+
+      expect(client.updateMailbox).toHaveBeenCalledWith('shared-1', { name: 'Renamed Shared' }, 'owner-x');
+      expect(useEmailStore.getState().mailboxes.find((mb) => mb.id === sharedFolder.id)?.name)
+        .toBe('Renamed Shared');
+    });
+
+    it('deletes a shared folder through its owner account and removes the namespaced store entry', async () => {
+      const client = makeMockClient();
+      useEmailStore.setState({ selectedMailbox: inbox.id });
+
+      await useEmailStore.getState().deleteMailbox(client, sharedFolder.id);
+
+      expect(client.deleteMailbox).toHaveBeenCalledWith('shared-1', 'owner-x');
+      expect(useEmailStore.getState().mailboxes.some((mb) => mb.id === sharedFolder.id)).toBe(false);
+    });
+
+    it('reassigns a shared role only within the shared owner account', async () => {
+      const ownArchive = makeMailbox({ id: 'archive-a', name: 'Personal Archive', role: 'archive' });
+      useEmailStore.setState({
+        mailboxes: [inbox, sent, trash, custom, ownArchive, sharedFolder, sharedArchive],
+      });
+      const client = makeMockClient();
+
+      await useEmailStore.getState().setMailboxRole(client, sharedFolder.id, 'archive');
+
+      expect(client.updateMailbox).toHaveBeenCalledWith('archive-x', { role: null }, 'owner-x');
+      expect(client.updateMailbox).toHaveBeenCalledWith('shared-1', { role: 'archive' }, 'owner-x');
+      expect(client.updateMailbox).not.toHaveBeenCalledWith('archive-a', { role: null }, undefined);
+    });
+
+    it('keeps role reassignment scoped when the owner has a directly connected client', async () => {
+      const ownArchive = makeMailbox({ id: 'archive-a', name: 'Personal Archive', role: 'archive' });
+      useEmailStore.setState({
+        mailboxes: [inbox, sent, trash, custom, ownArchive, sharedFolder, sharedArchive],
+      });
+      const activeClient = makeMockClient();
+      const ownerClient = makeMockClient({
+        getAccountId: vi.fn().mockReturnValue('owner-x'),
+      });
+      useAuthStore.setState({
+        getAllConnectedClients: () => new Map([['owner-login', ownerClient]]),
+      } as never);
+
+      await useEmailStore.getState().setMailboxRole(activeClient, sharedFolder.id, 'archive');
+
+      expect(ownerClient.updateMailbox).toHaveBeenCalledWith('archive-x', { role: null }, undefined);
+      expect(ownerClient.updateMailbox).toHaveBeenCalledWith('shared-1', { role: 'archive' }, undefined);
+      expect(activeClient.updateMailbox).not.toHaveBeenCalled();
+    });
+
+    it('reorders shared folders with bare ids inside the owner account', async () => {
+      const sharedSibling = makeMailbox({
+        id: 'owner-x:shared-2',
+        originalId: 'shared-2',
+        name: 'Shared Sibling',
+        accountId: 'owner-x',
+        isShared: true,
+      });
+      useEmailStore.setState({
+        mailboxes: [inbox, sent, trash, custom, sharedFolder, sharedSibling],
+      });
+      const client = makeMockClient();
+
+      await useEmailStore.getState().reorderMailboxes(client, [sharedSibling.id, sharedFolder.id]);
+
+      expect(client.updateMailbox).toHaveBeenNthCalledWith(1, 'shared-2', { sortOrder: 1 }, 'owner-x');
+      expect(client.updateMailbox).toHaveBeenNthCalledWith(2, 'shared-1', { sortOrder: 2 }, 'owner-x');
     });
   });
 
