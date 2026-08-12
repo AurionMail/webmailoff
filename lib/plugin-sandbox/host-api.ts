@@ -11,8 +11,18 @@ import { useIdentityStore } from '@/stores/identity-store';
 import { useEmailStore } from '@/stores/email-store';
 import { useFilterStore } from '@/stores/filter-store';
 import { useMessageListTabsStore } from '@/stores/message-list-tabs-store';
+import {
+  KEYWORD_PALETTE,
+  useSettingsStore,
+  type KeywordDefinition,
+  type KeywordVisibility,
+} from '@/stores/settings-store';
 import type { MessageListTabsConfig } from '../plugin-types';
 import { apiFetch } from '../browser-navigation';
+import { DEFAULT_KEYWORD_SCAN_LIMIT } from '../jmap/client';
+import { suggestKeywordColor } from '../keyword-discovery';
+import { MAX_KEYWORD_LENGTH } from '../keyword-nesting';
+import { KEYWORD_PREFIX } from '../thread-utils';
 import { awaitDialog, awaitPrompt, type PromptField } from './host-dialog';
 import { fileStorage } from '../plugin-storage';
 import { generateUUID } from '../utils';
@@ -109,6 +119,15 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // email keyword mutations
   'email.setKeyword': 'email:write',
   'email.removeKeyword': 'email:write',
+  // Native keyword definitions are a deliberately narrow settings API: a
+  // plugin can read definitions or append missing ones, but cannot overwrite
+  // or remove user-managed tags. Discovery/counts reveal mail metadata and
+  // therefore use email:read rather than a settings permission.
+  'keywords.list': 'settings:read',
+  'keywords.add': 'settings:write',
+  'keywords.discover': 'email:read',
+  'keywords.getCounts': 'email:read',
+  'keywords.refreshCounts': 'email:read',
   // message-list category tabs
   'tabs.set': 'ui:message-list-tabs',
   'tabs.clear': 'ui:message-list-tabs',
@@ -737,6 +756,164 @@ function requireClient() {
   return client;
 }
 
+// ─── Native keyword definitions ──────────────────────────────
+
+const MAX_PLUGIN_KEYWORD_DEFINITIONS = 500;
+const MAX_PLUGIN_KEYWORD_LABEL_LENGTH = 255;
+const VALID_VISIBILITIES = new Set<KeywordVisibility>(['show', 'hide', 'unread']);
+
+type PluginKeywordDefinitionInput = Omit<KeywordDefinition, 'color'> & { color?: string };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** RFC 8621 keyword syntax, applied to the complete `$label:<id>` value. */
+function isValidKeywordDefinitionId(id: string): boolean {
+  const keyword = KEYWORD_PREFIX + id;
+  if (id.length === 0 || keyword.length > MAX_KEYWORD_LENGTH) return false;
+  for (let i = 0; i < keyword.length; i++) {
+    const code = keyword.charCodeAt(i);
+    if (
+      code < 0x21 || code > 0x7e ||
+      code === 0x28 || code === 0x29 || code === 0x7b || code === 0x7d ||
+      code === 0x5d || code === 0x25 || code === 0x2a || code === 0x22 || code === 0x5c
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function assertKeywordDefinition(value: unknown, index: number): PluginKeywordDefinitionInput {
+  if (!isPlainObject(value)) {
+    throw new Error(`keywords.add: definitions[${index}] must be an object`);
+  }
+
+  const id = value.id;
+  const label = value.label;
+  const color = value.color;
+  const visibility = value.visibility;
+
+  if (typeof id !== 'string' || !isValidKeywordDefinitionId(id)) {
+    throw new Error(`keywords.add: definitions[${index}].id is not a valid JMAP label id`);
+  }
+  if (
+    typeof label !== 'string' || label.trim().length === 0 ||
+    label.length > MAX_PLUGIN_KEYWORD_LABEL_LENGTH
+  ) {
+    throw new Error(
+      `keywords.add: definitions[${index}].label must be 1-${MAX_PLUGIN_KEYWORD_LABEL_LENGTH} characters`,
+    );
+  }
+  if (
+    color !== undefined &&
+    (typeof color !== 'string' || !Object.prototype.hasOwnProperty.call(KEYWORD_PALETTE, color))
+  ) {
+    throw new Error(`keywords.add: definitions[${index}].color is not in the keyword palette`);
+  }
+  if (visibility !== undefined && !VALID_VISIBILITIES.has(visibility as KeywordVisibility)) {
+    throw new Error(`keywords.add: definitions[${index}].visibility is invalid`);
+  }
+
+  return {
+    id,
+    label: label.trim(),
+    ...(color === undefined ? {} : { color }),
+    ...(visibility === undefined ? {} : { visibility: visibility as KeywordVisibility }),
+  };
+}
+
+function assertKeywordDefinitionArray(value: unknown): PluginKeywordDefinitionInput[] {
+  if (!Array.isArray(value)) throw new Error('keywords.add: definitions must be an array');
+  if (value.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
+    throw new Error(`keywords.add: at most ${MAX_PLUGIN_KEYWORD_DEFINITIONS} definitions may be added at once`);
+  }
+  return value.map(assertKeywordDefinition);
+}
+
+function doKeywordsList(): KeywordDefinition[] {
+  return useSettingsStore.getState().emailKeywords.map((keyword) => ({ ...keyword }));
+}
+
+function doKeywordsAdd(value: unknown): { added: KeywordDefinition[]; skipped: string[] } {
+  const definitions = assertKeywordDefinitionArray(value);
+  const existing = useSettingsStore.getState().emailKeywords;
+  const known = new Set(existing.map((keyword) => keyword.id.toLowerCase()));
+  const takenColors = new Set(existing.map((keyword) => keyword.color));
+  const added: KeywordDefinition[] = [];
+  const skipped: string[] = [];
+
+  for (const definition of definitions) {
+    const foldedId = definition.id.toLowerCase();
+    if (known.has(foldedId)) {
+      skipped.push(definition.id);
+      continue;
+    }
+    known.add(foldedId);
+    const color = definition.color ?? suggestKeywordColor(definition.id, takenColors);
+    takenColors.add(color);
+    added.push({ ...definition, color });
+  }
+
+  if (added.length > 0) {
+    // One atomic append keeps concurrent plugin calls from partially
+    // overwriting the list and triggers the normal persist/settings-sync path.
+    useSettingsStore.setState((state) => ({
+      emailKeywords: [...state.emailKeywords, ...added],
+    }));
+  }
+
+  return { added: added.map((keyword) => ({ ...keyword })), skipped };
+}
+
+function assertKeywordIds(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
+    throw new Error(`keywords.getCounts: ids must be an array of at most ${MAX_PLUGIN_KEYWORD_DEFINITIONS} strings`);
+  }
+  if (value.some((id) => typeof id !== 'string' || !isValidKeywordDefinitionId(id))) {
+    throw new Error('keywords.getCounts: ids contains an invalid label id');
+  }
+  return value as string[];
+}
+
+function doKeywordsGetCounts(value?: unknown): Record<string, { total: number; unread: number }> {
+  const ids = assertKeywordIds(value);
+  const counts = useEmailStore.getState().tagCounts;
+  if (!ids) {
+    return Object.fromEntries(
+      Object.entries(counts).map(([id, count]) => [id, { ...count }]),
+    );
+  }
+
+  const selected: Record<string, { total: number; unread: number }> = {};
+  for (const id of ids) {
+    const count = counts[id];
+    if (count) selected[id] = { ...count };
+  }
+  return selected;
+}
+
+async function doKeywordsDiscover(value?: unknown) {
+  if (value !== undefined && !isPlainObject(value)) {
+    throw new Error('keywords.discover: options must be an object');
+  }
+  const rawLimit = value?.limit;
+  if (
+    rawLimit !== undefined &&
+    (typeof rawLimit !== 'number' || !Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > DEFAULT_KEYWORD_SCAN_LIMIT)
+  ) {
+    throw new Error(`keywords.discover: limit must be an integer from 1 to ${DEFAULT_KEYWORD_SCAN_LIMIT}`);
+  }
+  return requireClient().discoverKeywords(rawLimit === undefined ? undefined : { limit: rawLimit });
+}
+
+async function doKeywordsRefreshCounts(): Promise<Record<string, { total: number; unread: number }>> {
+  await useEmailStore.getState().fetchTagCounts(requireClient());
+  return doKeywordsGetCounts();
+}
+
 // ─── Message-list category tabs ───────────────────────────────
 
 /**
@@ -998,6 +1175,12 @@ export async function dispatchApiCall(
       await requireClient().removeKeyword(String(args[0]), keyword, args[2] as string | undefined);
       return undefined;
     }
+
+    case 'keywords.list': return doKeywordsList();
+    case 'keywords.add': return doKeywordsAdd(args[0]);
+    case 'keywords.discover': return doKeywordsDiscover(args[0]);
+    case 'keywords.getCounts': return doKeywordsGetCounts(args[0]);
+    case 'keywords.refreshCounts': return doKeywordsRefreshCounts();
 
     case 'tabs.set': {
       // validateTabsConfig (inside registerTabs) throws a developer-readable

@@ -256,6 +256,33 @@ PLUGIN_DEV_DIR=../my-plugins          # load plugins from disk instead of ZIPs
 
 `EXTENSION_DIRECTORY_URL` enables the admin marketplace for browsing and installing plugins and themes. `PLUGIN_DEV_DIR` is for plugin authors: each immediate subfolder is one plugin with a `manifest.json`, and an entrypoint under `src/` is bundled on demand with esbuild, so editing sources needs only a browser refresh.
 
+Sandboxed plugins that integrate provider-side labels can use the native
+`api.keywords` facade exposed by `@plugin-host`:
+
+```js
+const api = require('@plugin-host');
+
+const known = await api.keywords.list();                 // settings:read
+const scan = await api.keywords.discover();              // email:read
+const id = Object.keys(scan.keywords)
+  .find((keyword) => keyword.startsWith('$label:'))
+  ?.slice('$label:'.length);
+if (id) {
+  await api.keywords.add([{                              // settings:write
+    id,
+    label: 'Provider label',
+    // color is optional; Bulwark picks a palette colour when omitted
+    visibility: 'show',
+  }]);
+}
+const counts = await api.keywords.refreshCounts();        // email:read
+```
+
+`keywords.add()` is append-only and case-insensitive by id: it returns added
+and skipped definitions without overwriting the user's existing label name,
+colour, visibility, or order. `keywords.discover()` scans the active account's
+JMAP message keywords and reports whether its bounded scan was complete.
+
 </details>
 
 <details>

@@ -165,6 +165,22 @@ function decodeCallbacks(value: unknown, depth = 0): unknown {
 
 type PluginManifest = BackgroundInit['manifest'];
 
+type PluginKeywordVisibility = 'show' | 'hide' | 'unread';
+
+interface PluginKeywordDefinition {
+  id: string;
+  label: string;
+  color: string;
+  visibility?: PluginKeywordVisibility;
+}
+
+type PluginKeywordDefinitionInput = Omit<PluginKeywordDefinition, 'color'> & { color?: string };
+
+interface PluginKeywordCounts {
+  total: number;
+  unread: number;
+}
+
 function buildPluginApi(manifest: PluginManifest) {
   return {
     plugin: {
@@ -288,6 +304,29 @@ function buildPluginApi(manifest: PluginManifest) {
         callApi('email.setKeyword', [emailId, keyword, accountId]) as Promise<void>,
       removeKeyword: (emailId: string, keyword: string, accountId?: string) =>
         callApi('email.removeKeyword', [emailId, keyword, accountId]) as Promise<void>,
+    },
+    // Native sidebar tag definitions. Definition reads/writes use the existing
+    // settings permissions; server discovery and message counts use email:read.
+    // add() is intentionally append-only: it never overwrites or removes tags
+    // the user has already named, coloured, hidden, or reordered.
+    keywords: {
+      list: () => callApi('keywords.list', []) as Promise<PluginKeywordDefinition[]>,
+      add: (definitions: PluginKeywordDefinitionInput[]) =>
+        callApi('keywords.add', [definitions]) as Promise<{
+          added: PluginKeywordDefinition[];
+          skipped: string[];
+        }>,
+      discover: (options?: { limit?: number }) =>
+        callApi('keywords.discover', [options]) as Promise<{
+          keywords: Record<string, number>;
+          scanned: number;
+          total: number;
+          complete: boolean;
+        }>,
+      getCounts: (ids?: string[]) =>
+        callApi('keywords.getCounts', [ids]) as Promise<Record<string, PluginKeywordCounts>>,
+      refreshCounts: () =>
+        callApi('keywords.refreshCounts', []) as Promise<Record<string, PluginKeywordCounts>>,
     },
     // Message-list category tabs (permission: ui:message-list-tabs; categorize
     // additionally needs email:write). The host renders the strip natively and

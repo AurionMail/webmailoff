@@ -1,5 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { InstalledPlugin } from '../plugin-types';
+import { useEmailStore } from '@/stores/email-store';
+import { DEFAULT_KEYWORDS, useSettingsStore } from '@/stores/settings-store';
 
 vi.mock('@/stores/toast-store', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -91,5 +93,71 @@ describe('method-name typos', () => {
   // nothing while looking like it does.
   it('rejects a method with no entry in the permission map', async () => {
     expect(await gateError(plugin(), 'upfiles.set', ['x'])).toMatch(/Unknown API method/);
+  });
+});
+
+describe('native keyword extension API', () => {
+  afterEach(() => {
+    useSettingsStore.setState({ emailKeywords: [...DEFAULT_KEYWORDS] });
+    useEmailStore.setState({ tagCounts: {} });
+  });
+
+  it('uses the existing settings permissions for definition reads and writes', async () => {
+    expect(await gateError(plugin(), 'keywords.list', []))
+      .toMatch(/lacks permission "settings:read"/);
+    expect(await gateError(plugin(), 'keywords.add', [[]]))
+      .toMatch(/lacks permission "settings:write"/);
+
+    const reader = plugin({ permissions: ['settings:read'], grantedPermissions: ['settings:read'] });
+    expect(await dispatchApiCall(reader, 'keywords.list', []))
+      .toEqual(useSettingsStore.getState().emailKeywords);
+  });
+
+  it('only appends missing definitions and preserves existing user metadata', async () => {
+    useSettingsStore.setState({
+      emailKeywords: [{ id: 'work', label: 'My Work', color: 'purple', visibility: 'hide' }],
+    });
+    const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+
+    const result = await dispatchApiCall(writer, 'keywords.add', [[
+      { id: 'WORK', label: 'Plugin Work', color: 'red' },
+      { id: 'gmail~shopping', label: 'Shopping', visibility: 'unread' },
+    ]]) as { added: Array<{ id: string }>; skipped: string[] };
+
+    expect(result.added.map((keyword) => keyword.id)).toEqual(['gmail~shopping']);
+    expect(result.skipped).toEqual(['WORK']);
+    expect(useSettingsStore.getState().emailKeywords).toEqual([
+      { id: 'work', label: 'My Work', color: 'purple', visibility: 'hide' },
+      expect.objectContaining({
+        id: 'gmail~shopping',
+        label: 'Shopping',
+        visibility: 'unread',
+        color: expect.any(String),
+      }),
+    ]);
+  });
+
+  it('rejects invalid definitions without partially updating settings', async () => {
+    useSettingsStore.setState({ emailKeywords: [...DEFAULT_KEYWORDS] });
+    const before = useSettingsStore.getState().emailKeywords;
+    const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+
+    await expect(dispatchApiCall(writer, 'keywords.add', [[
+      { id: 'valid', label: 'Valid', color: 'blue' },
+      { id: 'invalid label', label: 'Invalid', color: 'blue' },
+    ]])).rejects.toThrow(/not a valid JMAP label id/);
+
+    expect(useSettingsStore.getState().emailKeywords).toEqual(before);
+  });
+
+  it('gates discovery and counts as email metadata', async () => {
+    for (const method of ['keywords.discover', 'keywords.getCounts', 'keywords.refreshCounts']) {
+      expect(await gateError(plugin(), method, [])).toMatch(/lacks permission "email:read"/);
+    }
+
+    useEmailStore.setState({ tagCounts: { shopping: { total: 9, unread: 2 } } });
+    const reader = plugin({ permissions: ['email:read'], grantedPermissions: ['email:read'] });
+    expect(await dispatchApiCall(reader, 'keywords.getCounts', [['shopping']]))
+      .toEqual({ shopping: { total: 9, unread: 2 } });
   });
 });
