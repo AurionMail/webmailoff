@@ -263,7 +263,7 @@ Sandboxed plugins that integrate provider-side labels can use the native
 const api = require('@plugin-host');
 
 const known = await api.keywords.list();                 // settings:read
-const scan = await api.keywords.discover();              // email:read
+const scan = await api.jmap.getKeywords();               // email:read
 const id = Object.keys(scan.keywords)
   .find((keyword) => keyword.startsWith('$label:'))
   ?.slice('$label:'.length);
@@ -276,12 +276,31 @@ if (id) {
   }]);
 }
 const counts = await api.keywords.refreshCounts();        // email:read
+
+// Complete replacement: keywords omitted here are removed from the message.
+await api.jmap.setKeywords('email-id', {                 // email:write
+  '$seen': true,
+  '$label:provider-label-id': true,
+});
+await api.jmap.setKeyword('email-id', '$label:work');     // email:write
+await api.jmap.removeKeyword('email-id', '$label:work');  // email:write
 ```
+
+`jmap.getKeywords()` is a narrow read-only facade rather than an arbitrary JMAP
+request API. It currently discovers keywords used by messages in the active
+account; labels with no messages cannot be discovered through standard JMAP.
+`keywords.discover()` remains available as a compatibility alias.
+
+`jmap.setKeywords()` replaces one message's complete keyword map via
+`Email/set`. Omitted keywords are removed, so extensions should use the existing
+`jmap.setKeyword()` and `jmap.removeKeyword()` methods for incremental edits.
+The existing `email.setKeyword()` and `email.removeKeyword()` names remain as
+compatibility aliases.
 
 `keywords.add()` is append-only and case-insensitive by id: it returns added
 and skipped definitions without overwriting the user's existing label name,
-colour, visibility, or order. `keywords.discover()` scans the active account's
-JMAP message keywords and reports whether its bounded scan was complete.
+colour, visibility, or order. Keyword discovery reports whether its bounded
+scan was complete.
 
 </details>
 

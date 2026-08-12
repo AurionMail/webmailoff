@@ -243,6 +243,9 @@ export const API_METHODS = [
   'http.post', 'http.fetch',
   'crypto.getOrCreateWebAuthn', 'crypto.getPublicKeys', 'crypto.createPublicKey', 'crypto.removePublicKey', 'crypto.getEncryptionAtRest', 'crypto.setEncryptionAtRest',
   'jmap.fetchBlob', 'jmap.uploadBlob', 'jmap.sendRaw',
+  // Narrow keyword helpers. Unlike the raw-blob methods, these are available
+  // to untrusted plugins with email:read/email:write as appropriate.
+  'jmap.getKeywords', 'jmap.setKeywords', 'jmap.setKeyword', 'jmap.removeKeyword',
   'upfiles.get', 'upfiles.save',
   'contact.get', 'contact.update', 'contact.create', 'contact.search',
   'admin.getConfig', 'admin.getAllConfig', 'admin.setConfig', 'admin.deleteConfig',

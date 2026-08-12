@@ -151,7 +151,7 @@ describe('native keyword extension API', () => {
   });
 
   it('gates discovery and counts as email metadata', async () => {
-    for (const method of ['keywords.discover', 'keywords.getCounts', 'keywords.refreshCounts']) {
+    for (const method of ['jmap.getKeywords', 'keywords.discover', 'keywords.getCounts', 'keywords.refreshCounts']) {
       expect(await gateError(plugin(), method, [])).toMatch(/lacks permission "email:read"/);
     }
 
@@ -159,5 +159,46 @@ describe('native keyword extension API', () => {
     const reader = plugin({ permissions: ['email:read'], grantedPermissions: ['email:read'] });
     expect(await dispatchApiCall(reader, 'keywords.getCounts', [['shopping']]))
       .toEqual({ shopping: { total: 9, unread: 2 } });
+  });
+
+  it('keeps jmap.getKeywords available to untrusted plugins with email:read', async () => {
+    const reader = plugin({ permissions: ['email:read'], grantedPermissions: ['email:read'] });
+    const error = await gateError(reader, 'jmap.getKeywords', []);
+
+    expect(error).not.toMatch(GATE_FAILURE);
+    expect(error).toMatch(/No active session/);
+  });
+
+  it('gates jmap.setKeywords with email:write and validates complete maps', async () => {
+    expect(await gateError(plugin(), 'jmap.setKeywords', ['email-1', { '$seen': true }]))
+      .toMatch(/lacks permission "email:write"/);
+
+    const writer = plugin({ permissions: ['email:write'], grantedPermissions: ['email:write'] });
+    expect(await gateError(writer, 'jmap.setKeywords', ['email-1', { '$seen': false }]))
+      .toMatch(/must be true; omit it to remove it/);
+    expect(await gateError(writer, 'jmap.setKeywords', ['email-1', { 'invalid keyword': true }]))
+      .toMatch(/Invalid JMAP keyword/);
+
+    const error = await gateError(writer, 'jmap.setKeywords', ['email-1', { '$seen': true }]);
+    expect(error).not.toMatch(GATE_FAILURE);
+    expect(error).toMatch(/No active session/);
+  });
+
+  it('exposes incremental JMAP keyword aliases with email:write', async () => {
+    for (const method of ['jmap.setKeyword', 'jmap.removeKeyword']) {
+      expect(await gateError(plugin(), method, ['email-1', '$label:work']))
+        .toMatch(/lacks permission "email:write"/);
+    }
+
+    const writer = plugin({ permissions: ['email:write'], grantedPermissions: ['email:write'] });
+    for (const method of ['jmap.setKeyword', 'jmap.removeKeyword']) {
+      expect(await gateError(writer, method, ['', '$label:work']))
+        .toMatch(/emailId is required/);
+      expect(await gateError(writer, method, ['email-1', 'invalid keyword']))
+        .toMatch(/Invalid JMAP keyword/);
+      const error = await gateError(writer, method, ['email-1', '$label:work']);
+      expect(error).not.toMatch(GATE_FAILURE);
+      expect(error).toMatch(/No active session/);
+    }
   });
 });

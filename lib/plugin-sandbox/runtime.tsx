@@ -215,10 +215,34 @@ function buildPluginApi(manifest: PluginManifest) {
         callApi('http.post', [path, body, options], NETWORK_API_TIMEOUT_MS),
       fetch: (url: string, init?: unknown) => callApi('http.fetch', [url, init], NETWORK_API_TIMEOUT_MS),
     },
-    // Privileged-tier only (same-origin plugins). Calls throw for untrusted
-    // plugins (the host refuses the method) — these power crypto plugins that
-    // need raw message bytes and raw submission.
+    // Safe keyword methods are available to untrusted plugins with the
+    // matching email permission. Raw blob/submission methods remain restricted
+    // to the privileged tier for crypto plugins.
     jmap: {
+      /**
+       * Discover keywords used by messages in the active account. This is a
+       * safe read-only facade, available to untrusted plugins with email:read;
+       * it does not expose arbitrary JMAP method calls.
+       */
+      getKeywords: (options?: { limit?: number }) =>
+        callApi('jmap.getKeywords', [options]) as Promise<{
+          keywords: Record<string, number>;
+          scanned: number;
+          total: number;
+          complete: boolean;
+        }>,
+      /**
+       * Replace an email's complete keyword map. Omitted keywords are removed;
+       * use api.email.setKeyword/removeKeyword for an incremental mutation.
+       */
+      setKeywords: (emailId: string, keywords: Record<string, true>, accountId?: string) =>
+        callApi('jmap.setKeywords', [emailId, keywords, accountId]) as Promise<void>,
+      /** Add one keyword without changing the message's other keywords. */
+      setKeyword: (emailId: string, keyword: string, accountId?: string) =>
+        callApi('jmap.setKeyword', [emailId, keyword, accountId]) as Promise<void>,
+      /** Remove one keyword without changing the message's other keywords. */
+      removeKeyword: (emailId: string, keyword: string, accountId?: string) =>
+        callApi('jmap.removeKeyword', [emailId, keyword, accountId]) as Promise<void>,
       /** Fetch a blob's raw bytes by id. Resolves to a Uint8Array. */
       fetchBlob: (blobId: string, opts?: { name?: string; type?: string }) =>
         callApi('jmap.fetchBlob', [blobId, opts]) as Promise<Uint8Array>,

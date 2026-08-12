@@ -81,6 +81,14 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'jmap.sendRaw': 'email:raw-send',
   'jmap.submitRaw': 'email:raw-send',
   'jmap.importRaw': 'email:raw-send',
+  // Narrow read-only JMAP facade. This intentionally does not expose an
+  // arbitrary request primitive that could turn email:read into Email/set.
+  'jmap.getKeywords': 'email:read',
+  // Replace one message's complete keyword map. Kept separate from the raw
+  // request surface so email:write authorizes exactly this mutation.
+  'jmap.setKeywords': 'email:write',
+  'jmap.setKeyword': 'email:write',
+  'jmap.removeKeyword': 'email:write',
   // uploaded files :
   // upfiles.get reads back a just-attached file (see onBeforeBlobUpload) and
   // is a read - it sits behind email:blob-read. To read a stored message
@@ -750,6 +758,40 @@ function assertPluginKeyword(keyword: unknown): string {
   return keyword;
 }
 
+function assertPluginKeywords(value: unknown): Record<string, true> {
+  if (!isPlainObject(value)) {
+    throw new Error('jmap.setKeywords: keywords must be an object');
+  }
+  const entries = Object.entries(value);
+  if (entries.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
+    throw new Error(`jmap.setKeywords: at most ${MAX_PLUGIN_KEYWORD_DEFINITIONS} keywords are allowed`);
+  }
+  const keywords: Record<string, true> = {};
+  for (const [keyword, enabled] of entries) {
+    assertPluginKeyword(keyword);
+    if (enabled !== true) {
+      throw new Error(`jmap.setKeywords: keyword "${keyword}" must be true; omit it to remove it`);
+    }
+    keywords[keyword] = true;
+  }
+  return keywords;
+}
+
+function assertEmailId(value: unknown, method: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${method}: emailId is required`);
+  }
+  return value;
+}
+
+function assertOptionalAccountId(value: unknown, method: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${method}: accountId must be a non-empty string`);
+  }
+  return value;
+}
+
 function requireClient() {
   const { client } = useAuthStore.getState();
   if (!client) throw new Error('No active session');
@@ -1062,6 +1104,28 @@ export async function dispatchApiCall(
       args[1] as string[],
       args[2] as { keywords?: Record<string, boolean>; accountId?: string } | undefined,
     );
+    case 'jmap.getKeywords': return doKeywordsDiscover(args[0]);
+    case 'jmap.setKeywords': {
+      const emailId = assertEmailId(args[0], 'jmap.setKeywords');
+      const accountId = assertOptionalAccountId(args[2], 'jmap.setKeywords');
+      const keywords = assertPluginKeywords(args[1]);
+      await requireClient().updateEmailKeywords(emailId, keywords, accountId);
+      return undefined;
+    }
+    case 'jmap.setKeyword': {
+      const emailId = assertEmailId(args[0], 'jmap.setKeyword');
+      const keyword = assertPluginKeyword(args[1]);
+      const accountId = assertOptionalAccountId(args[2], 'jmap.setKeyword');
+      await requireClient().setKeyword(emailId, keyword, accountId);
+      return undefined;
+    }
+    case 'jmap.removeKeyword': {
+      const emailId = assertEmailId(args[0], 'jmap.removeKeyword');
+      const keyword = assertPluginKeyword(args[1]);
+      const accountId = assertOptionalAccountId(args[2], 'jmap.removeKeyword');
+      await requireClient().removeKeyword(emailId, keyword, accountId);
+      return undefined;
+    }
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
 
