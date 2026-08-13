@@ -274,6 +274,10 @@ if (providerLabel) {
     visibility: 'show',
   }]);
 }
+const current = await api.keywords.list();               // settings:read
+await api.keywords.reorder(current.map(({ id }) => id), { // settings:write
+  caseSensitive: false, // default
+});
 const counts = await api.keywords.refreshCounts();        // email:read
 
 // Complete replacement: keywords omitted here are removed from the message.
@@ -301,8 +305,11 @@ compatibility aliases.
 
 `keywords.add()` is append-only and case-insensitive by id: it returns added
 and skipped definitions without overwriting the user's existing label name,
-colour, visibility, or order. Keyword discovery reports whether its bounded
-scan was complete.
+colour, visibility, or order. `keywords.reorder()` accepts a complete
+permutation of the existing label ids and changes only their order; missing,
+unknown, or duplicate ids are rejected without changing settings. Matching is
+case-insensitive by default; pass `{ caseSensitive: true }` to require exact id
+casing. Keyword discovery reports whether its bounded scan was complete.
 
 </details>
 

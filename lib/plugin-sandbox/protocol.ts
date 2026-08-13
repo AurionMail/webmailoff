@@ -254,7 +254,7 @@ export const API_METHODS = [
   // Email keyword mutations (JMAP Email/set keyword patches).
   'email.setKeyword', 'email.removeKeyword',
   // Native tag definitions, discovery, and sidebar counts.
-  'keywords.list', 'keywords.add', 'keywords.discover', 'keywords.getCounts', 'keywords.refreshCounts',
+  'keywords.list', 'keywords.add', 'keywords.reorder', 'keywords.discover', 'keywords.getCounts', 'keywords.refreshCounts',
   // Message-list category tabs (Gmail-style inbox tabs).
   'tabs.set', 'tabs.clear', 'tabs.getState', 'tabs.categorize', 'tabs.refreshCounts',
   // Sieve integration for delivery-time classification plugins.
