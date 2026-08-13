@@ -330,10 +330,13 @@ export const useCalendarStore = create<CalendarStore>()(
           const calendars = await client.getAllCalendars();
           const { selectedCalendarIds } = get();
           const stillValid = reconcileSelectedIds(selectedCalendarIds, calendars);
+          // Default the visible selection to event calendars only - tasks-only
+          // calendars stay out of the event grid.
+          const defaultSelected = calendars.filter(c => !c.isTasksOnly).map(c => c.id);
           set({
             calendars,
             isLoading: false,
-            selectedCalendarIds: stillValid.length > 0 ? stillValid : calendars.map(c => c.id),
+            selectedCalendarIds: stillValid.length > 0 ? stillValid : defaultSelected,
           });
         } catch (error) {
           debug.error('Failed to fetch calendars:', error);
