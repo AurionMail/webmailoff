@@ -51,6 +51,7 @@ import { useIsEmbedded } from "@/hooks/use-is-embedded";
 import { useProMultiAccountCalendars } from "@/hooks/use-pro-multi-account-calendars";
 import { ResizeHandle } from "@/components/layout/resize-handle";
 import { sanitizeOutgoingCalendarEventData } from "@/lib/calendar-event-normalization";
+import { buildRecurrenceOverridePatch } from "@/lib/recurrence-overrides";
 import { getEventStartDate } from "@/lib/calendar-utils";
 import { useTaskStore } from "@/stores/task-store";
 import { useContactStore } from "@/stores/contact-store";
@@ -826,12 +827,8 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
             // Patch the master event's recurrenceOverrides instead.
             const master = await findMasterEvent(event);
             if (master && event.recurrenceId) {
-              const patchUpdates: Record<string, unknown> = {};
-              for (const [key, value] of Object.entries(updates)) {
-                if (['id', 'uid', '@type', 'calendarIds', 'recurrenceRules', 'recurrenceOverrides', 'excludedRecurrenceRules'].includes(key)) continue;
-                patchUpdates[`recurrenceOverrides/${event.recurrenceId}/${key}`] = value;
-              }
-              await updateEvent(client, master.id, patchUpdates as Partial<CalendarEvent>, sendScheduling);
+              const patchUpdates = buildRecurrenceOverridePatch(updates, event.recurrenceId);
+              await updateEvent(client, master.id, patchUpdates, sendScheduling);
             } else {
               await updateEvent(client, event.id, updates, sendScheduling);
             }
