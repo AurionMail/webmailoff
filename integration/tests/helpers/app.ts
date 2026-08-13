@@ -137,6 +137,42 @@ export async function forceSync(page: Page): Promise<void> {
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 }
 
+// ─── Files (drive) ─────────────────────────────────────────────────────────
+
+/** The primary navigation rail (there are two - mobile + desktop chrome). */
+function navRail(page: Page): Locator {
+  return page.locator('nav[aria-label="Navigation"]').first();
+}
+
+/**
+ * Open the Files drive via the navigation rail. A deep `page.goto('/files')`
+ * bounces to login in this SPA, so navigate in-app through the rail link
+ * (rendered for every route once files support is detected). Waits until the
+ * file browser toolbar is present.
+ */
+export async function openFiles(page: Page): Promise<void> {
+  await navRail(page).getByRole('link', { name: 'Files', exact: true }).click();
+  await page.locator('[role="toolbar"]').first().waitFor({ state: 'visible', timeout: 30000 });
+}
+
+/**
+ * Return to the mail view via the navigation rail's Mail link and wait until it
+ * has settled. Settling matters before touching the account switcher: while the
+ * mailbox is still loading the sidebar reflows, which leaves the switcher's
+ * popover items shifting/detaching under a click. Waiting for the Inbox row
+ * (and the switcher) pins the layout first.
+ */
+export async function openMailView(page: Page): Promise<void> {
+  await navRail(page).getByRole('link', { name: 'Mail', exact: true }).click();
+  await accountSwitcher(page).waitFor({ state: 'visible', timeout: 30000 });
+  await folderRow(page, { role: 'inbox' }).first().waitFor({ state: 'visible', timeout: 30000 });
+}
+
+/** A drive entry (folder/file) row, selected by its name via `data-resource`. */
+export function driveEntry(page: Page, name: string): Locator {
+  return page.locator(`[data-resource="${name}"]`);
+}
+
 // ─── Composer / drafts ────────────────────────────────────────────────────
 
 /** Open the composer via the keyboard shortcut and wait for it to render. */
