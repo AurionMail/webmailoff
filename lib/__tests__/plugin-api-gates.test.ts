@@ -163,6 +163,7 @@ describe('native keyword extension API', () => {
       ],
     });
     const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+    const setState = vi.spyOn(useSettingsStore, 'setState');
 
     const result = await dispatchApiCall(writer, 'keywords.reorder', [[
       'TRAVEL', 'work', 'shopping',
@@ -174,6 +175,8 @@ describe('native keyword extension API', () => {
       { id: 'shopping', label: 'Shopping', color: 'green', visibility: 'unread' },
     ]);
     expect(useSettingsStore.getState().emailKeywords).toEqual(result);
+    expect(setState).toHaveBeenCalledWith(expect.any(Function));
+    setState.mockRestore();
   });
 
   it('supports optional case-sensitive label id matching', async () => {

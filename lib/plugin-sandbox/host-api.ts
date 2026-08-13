@@ -930,36 +930,43 @@ function doKeywordsReorder(value: unknown, rawOptions?: unknown): KeywordDefinit
   }
   const caseSensitive = options?.caseSensitive === true;
   const normalizeId = (id: string) => caseSensitive ? id : id.toLowerCase();
+  let result: KeywordDefinition[] = [];
 
-  const existing = useSettingsStore.getState().emailKeywords;
-  if (value.length !== existing.length) {
-    throw new Error('keywords.reorder: ids must contain every existing label exactly once');
-  }
-
-  const byId = new Map(existing.map((keyword) => [normalizeId(keyword.id), keyword]));
-  if (byId.size !== existing.length) {
-    throw new Error('keywords.reorder: existing label ids are not unique');
-  }
-
-  const seen = new Set<string>();
-  const reordered: KeywordDefinition[] = [];
-  for (const id of value as string[]) {
-    const normalizedId = normalizeId(id);
-    if (seen.has(normalizedId)) {
-      throw new Error(`keywords.reorder: duplicate label id: ${id}`);
+  // Validate and reorder against the state being replaced. Keeping the read
+  // inside the functional update prevents a concurrent settings write from
+  // being overwritten by a reorder built from an older label list.
+  useSettingsStore.setState((state) => {
+    const existing = state.emailKeywords;
+    if (value.length !== existing.length) {
+      throw new Error('keywords.reorder: ids must contain every existing label exactly once');
     }
-    const keyword = byId.get(normalizedId);
-    if (!keyword) {
-      throw new Error(`keywords.reorder: unknown label id: ${id}`);
-    }
-    seen.add(normalizedId);
-    reordered.push(keyword);
-  }
 
-  // Reuse the existing definitions verbatim so ordering cannot change a
-  // label's name, colour, visibility, id casing, or any future metadata.
-  useSettingsStore.setState({ emailKeywords: reordered });
-  return reordered.map((keyword) => ({ ...keyword }));
+    const byId = new Map(existing.map((keyword) => [normalizeId(keyword.id), keyword]));
+    if (byId.size !== existing.length) {
+      throw new Error('keywords.reorder: existing label ids are not unique');
+    }
+
+    const seen = new Set<string>();
+    const reordered: KeywordDefinition[] = [];
+    for (const id of value as string[]) {
+      const normalizedId = normalizeId(id);
+      if (seen.has(normalizedId)) {
+        throw new Error(`keywords.reorder: duplicate label id: ${id}`);
+      }
+      const keyword = byId.get(normalizedId);
+      if (!keyword) {
+        throw new Error(`keywords.reorder: unknown label id: ${id}`);
+      }
+      seen.add(normalizedId);
+      reordered.push(keyword);
+    }
+
+    // Reuse the existing definitions verbatim so ordering cannot change a
+    // label's name, colour, visibility, id casing, or any future metadata.
+    result = reordered;
+    return { emailKeywords: reordered };
+  });
+  return result.map((keyword) => ({ ...keyword }));
 }
 
 function assertKeywordIds(value: unknown): string[] | undefined {
