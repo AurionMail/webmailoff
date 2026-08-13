@@ -214,6 +214,8 @@ interface EmailStore {
   clearSearchFilters: () => void;
   toggleAdvancedSearch: () => void;
   toggleStar: (client: IJMAPClient, emailId: string) => Promise<void>;
+  setEmailKeywords: (client: IJMAPClient, emailId: string, keywords: Record<string, boolean>) => Promise<void>;
+  markEmailKeyword: (client: IJMAPClient, emailId: string, keyword: string) => Promise<void>;
   setEmailKeywordsLocal: (emailId: string, keywords: Record<string, boolean>) => void;
 
   // Batch operations
@@ -443,6 +445,30 @@ function resolveEmailActionContext(
     mailboxes,
     accountId: currentMailbox?.isShared ? currentMailbox.accountId : undefined,
   };
+}
+
+/**
+ * Resolution for a keyword write, by email id.
+ *
+ * Same routing as `resolveEmailActionContext`, but only when the email is
+ * actually known to the store. A keyword write can be triggered for a message
+ * that is NOT the current selection - a Pro tab fetches its own email and does
+ * not go through `selectedEmail` - and for those the selected mailbox says
+ * nothing about the message's owner. Guessing from it would send an own-account
+ * write to a shared account whenever a shared folder happened to be open, so an
+ * unknown email keeps the previous behaviour instead: no explicit accountId,
+ * i.e. the reaching client's own account.
+ */
+function resolveKeywordActionContext(
+  emailId: string,
+  passedClient: IJMAPClient,
+): { client: IJMAPClient; accountId: string | undefined } {
+  const state = useEmailStore.getState();
+  const email = state.emails.find(e => e.id === emailId)
+    ?? (state.selectedEmail?.id === emailId ? state.selectedEmail : undefined);
+  if (!email) return { client: passedClient, accountId: undefined };
+  const { client, accountId } = resolveEmailActionContext(email, passedClient);
+  return { client, accountId };
 }
 
 /**
@@ -2317,6 +2343,33 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       });
       throw error;
     }
+  },
+
+  markEmailKeyword: async (client, emailId, keyword) => {
+    // Single-flag counterpart of setEmailKeywords ($answered / $forwarded /
+    // $mdnsent). Same routing, same reason: an unrouted write against the
+    // reaching client's primary account is a silent no-op on a shared/group
+    // message. Best-effort by contract - callers treat a failure as non-fatal.
+    const { client: actionClient, accountId } = resolveKeywordActionContext(emailId, client);
+    await actionClient.setKeyword(emailId, keyword, accountId);
+  },
+
+  setEmailKeywords: async (client, emailId, keywords) => {
+    // Route the write to the email's OWN account, exactly like toggleStar and
+    // every other single-email action. `resolveEmailActionContext` covers both
+    // shapes: in an aggregate view the owner comes from the email's
+    // `sourceAccountId`, and when a shared/group folder is selected directly in
+    // the "Shared" sidebar section - where emails are undecorated - it falls back
+    // to the owner of the selected mailbox.
+    //
+    // Resolving only the aggregate shape (`isUnifiedView ? ... : undefined`) sent
+    // the write to the reaching client's primary account, which the server
+    // answers with `notUpdated`/`updated: null` and no error, so the keyword was
+    // silently lost on the next reload - the same class of bug as the batch
+    // actions in `email-store-shared-folder-actions.test.ts`. (#281)
+    const { client: actionClient, accountId } = resolveKeywordActionContext(emailId, client);
+    await actionClient.updateEmailKeywords(emailId, keywords, accountId);
+    get().setEmailKeywordsLocal(emailId, keywords);
   },
 
   setEmailKeywordsLocal: (emailId, keywords) => {

@@ -301,7 +301,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     deleteEmail,
     markAsRead,
     toggleStar,
-    setEmailKeywordsLocal,
+    setEmailKeywords,
     moveToMailbox,
     moveToMailboxCrossAware,
     moveThreadToMailbox,
@@ -1468,16 +1468,9 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       // write to the email's own account so the flag lands on shared/group-mailbox
       // messages instead of being dropped against the reaching account. (#281)
       if (originalEmailId && (effectiveMode === 'reply' || effectiveMode === 'replyAll' || effectiveMode === 'forward')) {
-        const s = useEmailStore.getState();
-        const orig = s.emails.find(e => e.id === originalEmailId);
-        const kwClientId = s.isUnifiedView ? orig?.sourceClientAccountId : undefined;
-        const kwAccountId = s.isUnifiedView ? orig?.sourceAccountId : undefined;
-        const kwClient = kwClientId
-          ? (useAuthStore.getState().getClientForAccount(kwClientId) ?? client)
-          : client;
         const keyword = effectiveMode === 'forward' ? '$forwarded' : '$answered';
         try {
-          await kwClient.setKeyword(originalEmailId, keyword, kwAccountId);
+          await useEmailStore.getState().markEmailKeyword(client, originalEmailId, keyword);
         } catch (e) {
           debug.error(`Failed to set ${keyword} keyword:`, e);
         }
@@ -2076,22 +2069,13 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
         keywords['$pinned'] = true;
       }
 
-      // Same unified-view routing as tags: write to the email's own
-      // account via the login it is reachable through. (#281)
-      const pinClientId = isUnifiedView ? email.sourceClientAccountId : undefined;
-      const pinAccountId = isUnifiedView ? email.sourceAccountId : undefined;
-      const pinClient = pinClientId
-        ? (useAuthStore.getState().getClientForAccount(pinClientId) ?? client)
-        : client;
-
-      await pinClient.updateEmailKeywords(email.id, keywords, pinAccountId);
-
-      // Patch in place so the icon flips immediately, then refetch the first
-      // page so the mail floats/sinks per the server's pinned-first sort.
-      // Skip the refetch where that sort does not apply (unified views) or
-      // where it would replace a tag-filtered list (refreshCurrentMailbox
-      // fetches by folder only).
-      setEmailKeywordsLocal(email.id, keywords);
+      // Same routing as tags: the write goes to the email's own account, and
+      // the local patch flips the icon immediately. Then refetch the first page
+      // so the mail floats/sinks per the server's pinned-first sort. Skip the
+      // refetch where that sort does not apply (unified views) or where it
+      // would replace a tag-filtered list (refreshCurrentMailbox fetches by
+      // folder only). (#281)
+      await setEmailKeywords(client, email.id, keywords);
       if (!isUnifiedView && !useEmailStore.getState().selectedKeyword) {
         void refreshCurrentMailbox(client);
       }
@@ -2132,24 +2116,13 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
         }
       }
 
-      // In unified view route the write to the email's own account, reached
-      // through the login it is reachable via (`sourceClientAccountId`) and
-      // applied to its owning JMAP account (`sourceAccountId`). For personal
-      // sources these resolve to the account itself, so behavior is unchanged.
-      // Without this, tags on shared/group-mailbox messages are written to the
-      // reaching account and silently dropped by the server. (#281)
-      const tagClientId = isUnifiedView ? email.sourceClientAccountId : undefined;
-      const tagAccountId = isUnifiedView ? email.sourceAccountId : undefined;
-      const tagClient = tagClientId
-        ? (useAuthStore.getState().getClientForAccount(tagClientId) ?? client)
-        : client;
-
-      // Update email keywords via JMAP
-      await tagClient.updateEmailKeywords(emailId, keywords, tagAccountId);
-
-      // Patch the email in place so the list keeps its scroll/pagination state
-      // instead of being reset to the first page by a full refetch.
-      setEmailKeywordsLocal(emailId, keywords);
+      // Routes the write to the email's own account, then patches the email in
+      // place so the list keeps its scroll/pagination state instead of being
+      // reset to the first page by a full refetch. Resolving the account at the
+      // call site covered only the unified view, so a tag set on a directly
+      // selected shared folder was written to the reaching account and silently
+      // dropped by the server. (#281)
+      await setEmailKeywords(client, emailId, keywords);
 
       // Refresh tag counts
       fetchTagCounts(client);
@@ -2836,15 +2809,8 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     // account so the flag lands on shared/group-mailbox messages instead of
     // being dropped against the reaching account. (#281)
     {
-      const s = useEmailStore.getState();
-      const orig = s.emails.find(e => e.id === originalEmailId);
-      const kwClientId = s.isUnifiedView ? orig?.sourceClientAccountId : undefined;
-      const kwAccountId = s.isUnifiedView ? orig?.sourceAccountId : undefined;
-      const kwClient = kwClientId
-        ? (useAuthStore.getState().getClientForAccount(kwClientId) ?? client)
-        : client;
       try {
-        await kwClient.setKeyword(originalEmailId, '$answered', kwAccountId);
+        await useEmailStore.getState().markEmailKeyword(client, originalEmailId, '$answered');
       } catch (e) {
         debug.error('Failed to set $answered keyword:', e);
       }
