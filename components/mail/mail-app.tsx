@@ -62,7 +62,7 @@ import { isFilePreviewable } from "@/lib/file-preview";
 import { appendHtmlSignature, appendPlainTextSignature } from "@/lib/signature-utils";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
-import { findDraftIdentityId, resolveReplyFrom, type ReplyFromResolution } from "@/lib/reply-identity";
+import { findDraftIdentityId, resolveComposeAccountEmail, resolveReplyFrom, type ReplyFromResolution } from "@/lib/reply-identity";
 import { buildReplyRecipients, isSelfSent } from "@/lib/reply-recipients";
 import { useProMultiAccountIdentities } from "@/hooks/use-pro-multi-account-identities";
 import { Search, Filter, ChevronDown, X, Paperclip, Star, Mail, MailOpen, RotateCcw, PenSquare, PenLine, CheckSquare, Square, AlertTriangle } from "lucide-react";
@@ -3656,11 +3656,13 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                 <EmailComposer
                   key={composerSessionId}
                   mode={pendingDraft?.mode ?? composerMode}
-                  composeFromAccountEmail={
+                  composeFromAccountEmail={resolveComposeAccountEmail(
+                    mailboxes,
+                    selectedMailbox,
                     useAccountStore
                       .getState()
-                      .getAccountById(viewingAccountId ?? activeAccountId ?? '')?.email
-                  }
+                      .getAccountById(viewingAccountId ?? activeAccountId ?? '')?.email,
+                  )}
                   replyTo={pendingDraft !== null ? pendingDraft.replyTo : (selectedEmail ? {
                     from: selectedEmail.from,
                     replyToAddresses: selectedEmail.replyTo,
