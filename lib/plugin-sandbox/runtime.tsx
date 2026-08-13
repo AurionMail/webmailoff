@@ -340,8 +340,8 @@ function buildPluginApi(manifest: PluginManifest) {
     },
     // Native sidebar tag definitions. Definition reads/writes use the existing
     // settings permissions; server discovery and message counts use email:read.
-    // add() is intentionally append-only: it never overwrites or removes tags
-    // the user has already named, coloured, hidden, or reordered.
+    // add() is intentionally append-only. reorder() requires a complete
+    // permutation of existing ids. Neither method overwrites or removes tags.
     keywords: {
       list: () => callApi('keywords.list', []) as Promise<PluginKeywordDefinition[]>,
       add: (definitions: PluginKeywordDefinitionInput[]) =>
@@ -349,6 +349,8 @@ function buildPluginApi(manifest: PluginManifest) {
           added: PluginKeywordDefinition[];
           skipped: string[];
         }>,
+      reorder: (ids: string[], options?: { caseSensitive?: boolean }) =>
+        callApi('keywords.reorder', [ids, options]) as Promise<PluginKeywordDefinition[]>,
       discover: (options?: { limit?: number }) =>
         callApi('keywords.discover', [options]) as Promise<{
           keywords: Record<string, number>;

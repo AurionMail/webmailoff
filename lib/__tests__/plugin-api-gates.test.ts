@@ -109,6 +109,8 @@ describe('native keyword extension API', () => {
       .toMatch(/lacks permission "settings:read"/);
     expect(await gateError(plugin(), 'keywords.add', [[]]))
       .toMatch(/lacks permission "settings:write"/);
+    expect(await gateError(plugin(), 'keywords.reorder', [[]]))
+      .toMatch(/lacks permission "settings:write"/);
 
     const reader = plugin({ permissions: ['settings:read'], grantedPermissions: ['settings:read'] });
     expect(await dispatchApiCall(reader, 'keywords.list', []))
@@ -150,6 +152,84 @@ describe('native keyword extension API', () => {
     ]])).rejects.toThrow(/not a valid JMAP label id/);
 
     expect(useSettingsStore.getState().emailKeywords).toEqual(before);
+  });
+
+  it('reorders complete label sets without changing user metadata', async () => {
+    useSettingsStore.setState({
+      emailKeywords: [
+        { id: 'work', label: 'My Work', color: 'purple', visibility: 'hide' },
+        { id: 'shopping', label: 'Shopping', color: 'green', visibility: 'unread' },
+        { id: 'travel', label: 'Travel', color: 'blue' },
+      ],
+    });
+    const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+    const setState = vi.spyOn(useSettingsStore, 'setState');
+
+    const result = await dispatchApiCall(writer, 'keywords.reorder', [[
+      'TRAVEL', 'work', 'shopping',
+    ]]);
+
+    expect(result).toEqual([
+      { id: 'travel', label: 'Travel', color: 'blue' },
+      { id: 'work', label: 'My Work', color: 'purple', visibility: 'hide' },
+      { id: 'shopping', label: 'Shopping', color: 'green', visibility: 'unread' },
+    ]);
+    expect(useSettingsStore.getState().emailKeywords).toEqual(result);
+    expect(setState).toHaveBeenCalledWith(expect.any(Function));
+    setState.mockRestore();
+  });
+
+  it('supports optional case-sensitive label id matching', async () => {
+    const original = [
+      { id: 'Work', label: 'Work', color: 'purple' },
+      { id: 'shopping', label: 'Shopping', color: 'green' },
+    ];
+    useSettingsStore.setState({ emailKeywords: original });
+    const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+
+    await expect(dispatchApiCall(writer, 'keywords.reorder', [
+      ['SHOPPING', 'work'],
+      { caseSensitive: true },
+    ])).rejects.toThrow(/unknown label id/);
+    expect(useSettingsStore.getState().emailKeywords).toEqual(original);
+
+    await expect(dispatchApiCall(writer, 'keywords.reorder', [
+      ['shopping', 'Work'],
+      { caseSensitive: true },
+    ])).resolves.toEqual([original[1], original[0]]);
+  });
+
+  it('rejects invalid reorder options without changing settings', async () => {
+    const original = [{ id: 'work', label: 'Work', color: 'purple' }];
+    useSettingsStore.setState({ emailKeywords: original });
+    const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+
+    for (const options of [true, { caseSensitive: 'yes' }, { unknown: true }]) {
+      await expect(dispatchApiCall(writer, 'keywords.reorder', [
+        ['work'], options,
+      ])).rejects.toThrow(/options/);
+      expect(useSettingsStore.getState().emailKeywords).toEqual(original);
+    }
+  });
+
+  it('rejects incomplete, duplicate, and unknown reorder ids atomically', async () => {
+    const original = [
+      { id: 'work', label: 'Work', color: 'purple' },
+      { id: 'shopping', label: 'Shopping', color: 'green' },
+    ];
+    useSettingsStore.setState({ emailKeywords: original });
+    const writer = plugin({ permissions: ['settings:write'], grantedPermissions: ['settings:write'] });
+
+    for (const ids of [
+      ['work'],
+      ['work', 'WORK'],
+      ['work', 'missing'],
+    ]) {
+      await expect(dispatchApiCall(writer, 'keywords.reorder', [ids])).rejects.toThrow(
+        /every existing label|duplicate label id|unknown label id/,
+      );
+      expect(useSettingsStore.getState().emailKeywords).toEqual(original);
+    }
   });
 
   it('gates discovery and counts as email metadata', async () => {

@@ -128,11 +128,13 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'email.setKeyword': 'email:write',
   'email.removeKeyword': 'email:write',
   // Native keyword definitions are a deliberately narrow settings API: a
-  // plugin can read definitions or append missing ones, but cannot overwrite
-  // or remove user-managed tags. Discovery/counts reveal mail metadata and
-  // therefore use email:read rather than a settings permission.
+  // plugin can read definitions, append missing ones, or reorder the complete
+  // existing set, but cannot overwrite or remove user-managed tags.
+  // Discovery/counts reveal mail metadata and therefore use email:read rather
+  // than a settings permission.
   'keywords.list': 'settings:read',
   'keywords.add': 'settings:write',
+  'keywords.reorder': 'settings:write',
   'keywords.discover': 'email:read',
   'keywords.getCounts': 'email:read',
   'keywords.refreshCounts': 'email:read',
@@ -909,6 +911,64 @@ function doKeywordsAdd(value: unknown): { added: KeywordDefinition[]; skipped: s
   return { added: added.map((keyword) => ({ ...keyword })), skipped };
 }
 
+function doKeywordsReorder(value: unknown, rawOptions?: unknown): KeywordDefinition[] {
+  if (!Array.isArray(value)) {
+    throw new Error('keywords.reorder: ids must be an array');
+  }
+  if (value.some((id) => typeof id !== 'string')) {
+    throw new Error('keywords.reorder: ids must contain only strings');
+  }
+  if (rawOptions !== undefined && !isPlainObject(rawOptions)) {
+    throw new Error('keywords.reorder: options must be an object');
+  }
+  const options = rawOptions as Record<string, unknown> | undefined;
+  if (options && Object.keys(options).some((key) => key !== 'caseSensitive')) {
+    throw new Error('keywords.reorder: options contains an unknown property');
+  }
+  if (options?.caseSensitive !== undefined && typeof options.caseSensitive !== 'boolean') {
+    throw new Error('keywords.reorder: options.caseSensitive must be a boolean');
+  }
+  const caseSensitive = options?.caseSensitive === true;
+  const normalizeId = (id: string) => caseSensitive ? id : id.toLowerCase();
+  let result: KeywordDefinition[] = [];
+
+  // Validate and reorder against the state being replaced. Keeping the read
+  // inside the functional update prevents a concurrent settings write from
+  // being overwritten by a reorder built from an older label list.
+  useSettingsStore.setState((state) => {
+    const existing = state.emailKeywords;
+    if (value.length !== existing.length) {
+      throw new Error('keywords.reorder: ids must contain every existing label exactly once');
+    }
+
+    const byId = new Map(existing.map((keyword) => [normalizeId(keyword.id), keyword]));
+    if (byId.size !== existing.length) {
+      throw new Error('keywords.reorder: existing label ids are not unique');
+    }
+
+    const seen = new Set<string>();
+    const reordered: KeywordDefinition[] = [];
+    for (const id of value as string[]) {
+      const normalizedId = normalizeId(id);
+      if (seen.has(normalizedId)) {
+        throw new Error(`keywords.reorder: duplicate label id: ${id}`);
+      }
+      const keyword = byId.get(normalizedId);
+      if (!keyword) {
+        throw new Error(`keywords.reorder: unknown label id: ${id}`);
+      }
+      seen.add(normalizedId);
+      reordered.push(keyword);
+    }
+
+    // Reuse the existing definitions verbatim so ordering cannot change a
+    // label's name, colour, visibility, id casing, or any future metadata.
+    result = reordered;
+    return { emailKeywords: reordered };
+  });
+  return result.map((keyword) => ({ ...keyword }));
+}
+
 function assertKeywordIds(value: unknown): string[] | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
@@ -1250,6 +1310,7 @@ export async function dispatchApiCall(
 
     case 'keywords.list': return doKeywordsList();
     case 'keywords.add': return doKeywordsAdd(args[0]);
+    case 'keywords.reorder': return doKeywordsReorder(args[0], args[1]);
     case 'keywords.discover': return doKeywordsDiscover(args[0]);
     case 'keywords.getCounts': return doKeywordsGetCounts(args[0]);
     case 'keywords.refreshCounts': return doKeywordsRefreshCounts();
