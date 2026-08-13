@@ -1160,6 +1160,49 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         await get().fetchScheduledEmails(client);
         return;
       }
+
+      // Unified / cross-account views use client-only virtual mailbox ids
+      // (`__cross_*`, `__unified_*`) that no JMAP server accepts as `inMailbox`.
+      // Route them through the fan-out loaders (mirrors loadMoreEmails /
+      // refreshCurrentMailbox) instead of sending the virtual id to getEmails,
+      // which the server rejects and the catch below then empties the list (#791).
+      if (isCrossViewId(targetMailboxId) || isUnifiedMailboxId(targetMailboxId)) {
+        const { crossView, unifiedRole, searchQuery, searchFilters } = get();
+        // View state not resolved yet: don't send a virtual id and don't wipe
+        // the current list - just stop the loading state.
+        if (!crossView && !unifiedRole) {
+          set({ isLoading: false });
+          return;
+        }
+        const emailsPerPage = useSettingsStore.getState().emailsPerPage;
+        const includeGroup = useSettingsStore.getState().includeGroupInUnified;
+        const built = await buildUnifiedAccountClients({ includeGroup });
+        const hasFilters = !isFilterEmpty(searchFilters);
+        const result = crossView
+          ? (hasFilters
+              ? await advancedSearchCrossViewEmails(built, crossView, buildJMAPFilter(searchQuery, searchFilters, undefined), emailsPerPage, 0)
+              : searchQuery
+                ? await searchCrossViewEmails(built, crossView, searchQuery, emailsPerPage, 0)
+                : await fetchCrossViewEmails(built, crossView, emailsPerPage, 0))
+          : (hasFilters
+              ? await advancedSearchUnifiedEmails(built, unifiedRole!, (mb) => buildJMAPFilter(searchQuery, searchFilters, mb), emailsPerPage, 0)
+              : searchQuery
+                ? await searchUnifiedEmails(built, unifiedRole!, searchQuery, emailsPerPage, 0)
+                : await fetchUnifiedEmails(built, unifiedRole!, emailsPerPage, 0));
+        const enrichedEmails = await emailHooks.onEmailsFetched.transform(result.emails);
+        set({
+          emails: annotateScheduledEmails(enrichedEmails, get().scheduledSubmissionByEmailId),
+          hasMoreEmails: result.hasMore,
+          totalEmails: result.total,
+          threadEmailsCache: new Map(),
+          expandedThreadIds: new Set(),
+          isLoadingThread: null,
+          isLoading: false,
+          unifiedErrors: result.errors,
+        });
+        return;
+      }
+
       const effectiveClient = resolveActionClient(client);
 
       // Find the mailbox to get its accountId (for shared folder support)
