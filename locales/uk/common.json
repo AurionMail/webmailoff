@@ -855,7 +855,10 @@
     "switch_to_polish": "Перемкнути на польську",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Перейти на фарсі"
+    "switch_to_farsi": "Перейти на фарсі",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Перейти на монгольську"
   },
   "settings": {
     "title": "Налаштування",

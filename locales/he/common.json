@@ -820,7 +820,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "עבור לפרסית"
+    "switch_to_farsi": "עבור לפרסית",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "עבור למונגולית"
   },
   "settings": {
     "title": "הגדרות",

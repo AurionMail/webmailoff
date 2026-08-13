@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Canvia al persa"
+    "switch_to_farsi": "Canvia al persa",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Canvia al mongol"
   },
   "settings": {
     "title": "Configuració",

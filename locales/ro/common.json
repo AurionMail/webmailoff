@@ -855,7 +855,10 @@
     "zh": "Chineză simplificată",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Comută la persană"
+    "switch_to_farsi": "Comută la persană",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Comută la mongolă"
   },
   "settings": {
     "title": "Setări",

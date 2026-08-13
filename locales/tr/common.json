@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Farsçaya geç"
+    "switch_to_farsi": "Farsçaya geç",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Moğolcaya geç"
   },
   "settings": {
     "title": "Ayarlar",
