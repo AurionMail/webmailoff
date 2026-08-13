@@ -373,7 +373,10 @@ describe('JMAPClient resilience', () => {
       client.onConnectionChange(callback);
 
       const echoResponse = { methodResponses: [['Core/echo', { ping: 'pong' }, '0']] };
-      fetchSpy.mockResolvedValue(mockFetchResponse(200, echoResponse));
+      // A Response body is single-use, so one shared instance breaks as soon
+      // as anything fetches more than once in the window - serve a fresh one
+      // per call like the other tests in this file.
+      fetchSpy.mockImplementation(() => Promise.resolve(mockFetchResponse(200, echoResponse)));
 
       // Advance past keep-alive interval (30s)
       await vi.advanceTimersByTimeAsync(30_000);
