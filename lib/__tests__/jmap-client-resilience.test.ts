@@ -547,6 +547,30 @@ describe('JMAPClient resilience', () => {
       client.closePushNotifications();
       expect(replacementSignal.aborted).toBe(true);
     });
+
+    // #781: setupPushNotifications is re-run for every connected client on
+    // fairly frequent effect deps changes. Without an already-active guard a
+    // second connect stacks a new SSE stream while the previous one keeps its
+    // HTTP/1.1 socket open forever (readSSEStream only unwinds on abort/done),
+    // starving normal JMAP POSTs. Opening a new stream must abort the old one.
+    it('aborts the previous SSE stream when push is set up again (no orphan)', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: false });
+      const client = await createConnectedClient();
+      const signals: AbortSignal[] = [];
+      fetchSpy.mockImplementation(inFlightFetch(signals));
+
+      client.setupPushNotifications();
+      await vi.advanceTimersByTimeAsync(0); // let connect #1 register its signal
+      client.setupPushNotifications();
+      await vi.advanceTimersByTimeAsync(0); // connect #2 registers + guard aborts #1
+
+      // The first stream's signal is aborted, and exactly one stream stays live
+      // - no accumulation of abandoned SSE connections.
+      expect(signals[0].aborted).toBe(true);
+      expect(signals.filter((s) => !s.aborted)).toHaveLength(1);
+
+      client.closePushNotifications();
+    });
   });
 
   describe('fetchBlobAsObjectUrl', () => {
