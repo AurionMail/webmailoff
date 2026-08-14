@@ -228,11 +228,14 @@ interface AccountResponse {
   avatarColor: string;
   isConnected: boolean;
   isDefault: boolean;
+  isActive: boolean;
 }
 function doUserGetAccounts(): AccountResponse[] {
   const state = useAccountStore.getState();
+  const activeAccountId = state.activeAccountId;
 
   // we remove sensitive fields from the account entries before returning to the plugin
+  // we add a new field isActive to indicate which account is currently active
   const accounts = state.accounts.map((account) => ({
     id: account.id,
     label: account.label,
@@ -243,6 +246,7 @@ function doUserGetAccounts(): AccountResponse[] {
     avatarColor: account.avatarColor,
     isConnected: account.isConnected,
     isDefault: account.isDefault,
+    isActive: account.id === activeAccountId,
   }));
 
   return accounts;
