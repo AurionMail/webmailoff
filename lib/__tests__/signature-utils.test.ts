@@ -5,6 +5,7 @@ import {
   appendPlainTextSignature,
   getPlainTextSignature,
   hasMeaningfulHtmlBody,
+  plainTextBodyHasSignature,
 } from '../signature-utils';
 
 describe('signature-utils', () => {
@@ -25,6 +26,32 @@ describe('signature-utils', () => {
 
     it('leaves the body untouched when no signature exists', () => {
       expect(appendPlainTextSignature('Hello there', {})).toBe('Hello there');
+    });
+  });
+
+  describe('plainTextBodyHasSignature', () => {
+    const identity = { textSignature: 'Regards,\nAlice' };
+
+    it('detects a signature the draft path already appended', () => {
+      const saved = appendPlainTextSignature('Hello there', identity);
+      expect(plainTextBodyHasSignature(saved, identity)).toBe(true);
+    });
+
+    it('still matches after a CRLF round-trip through the server', () => {
+      const saved = appendPlainTextSignature('Hello there', identity).replace(/\n/g, '\r\n');
+      expect(plainTextBodyHasSignature(saved, identity)).toBe(true);
+    });
+
+    it('returns false for a body without the signature', () => {
+      expect(plainTextBodyHasSignature('Hello there', identity)).toBe(false);
+    });
+
+    it('returns false when the signature only appears mid-body', () => {
+      expect(plainTextBodyHasSignature('Regards,\nAlice\n\nactually one more thing', identity)).toBe(false);
+    });
+
+    it('returns false when the identity has no signature', () => {
+      expect(plainTextBodyHasSignature('Hello there', {})).toBe(false);
     });
   });
 
