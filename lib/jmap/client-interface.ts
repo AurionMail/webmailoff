@@ -273,7 +273,7 @@ export interface IJMAPClient {
   getBlobDownloadUrl(blobId: string, name?: string, type?: string, accountId?: string): string;
   fetchBlob(blobId: string, name?: string, type?: string, accountId?: string): Promise<Blob>;
   fetchBlobAsObjectUrl(blobId: string, name?: string, type?: string, accountId?: string): Promise<string>;
-  fetchBlobArrayBuffer(blobId: string, name?: string, type?: string, accountId?: string, rangeHeader?: string): Promise<ArrayBuffer>;
+  fetchBlobArrayBuffer(blobId: string, name?: string, type?: string, accountId?: string, rangeHeader?: number): Promise<ArrayBuffer>;
   downloadBlob(blobId: string, name?: string, type?: string, accountId?: string): Promise<void>;
 
   // ── Identities ────────────────────────────────────────────────

@@ -6751,17 +6751,62 @@ export class JMAPClient implements IJMAPClient {
   // ── S/MIME raw-email helpers ─────────────────────────────────────
 
   /** Fetch blob content as an ArrayBuffer (for S/MIME byte processing). */
-  async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string, accountId?: string, rangeHeader?: string): Promise<ArrayBuffer> {
+  async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string, accountId?: string, rangeHeader?: number): Promise<ArrayBuffer> {
     const url = this.getBlobDownloadUrl(blobId, name, type, accountId);
     const headers: Record<string, string> = {};
     if (rangeHeader) {
-      headers['Range'] = rangeHeader;
+      headers['Range'] = `bytes=0-${rangeHeader - 1}`;
     }
     const response = await this.authenticatedFetch(url, { headers }, { timeoutMs: JMAPClient.TRANSFER_TIMEOUT_MS });
     if (!response.ok) {
       throw new Error(`Failed to fetch blob: ${response.status}`);
     }
-    return response.arrayBuffer();
+
+    const maxBytes = rangeHeader;
+
+    // If no Range header requested or stream is missing, fallback to standard arrayBuffer()
+    if (!maxBytes || !response.body) {
+      return response.arrayBuffer();
+    }
+    // used to download only the first N bytes of a blob, e.g. for S/MIME /PGP encryption verification
+    // Currently, Stalwart server does not support Range requests for the download endpoint, 
+    // so we have to read the stream and cancel it after reading the first N bytes.
+    // Stream reading with early termination via reader.cancel()
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let bytesRead = 0;
+
+    try {
+      while (bytesRead < maxBytes) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        bytesRead += value.length;
+      }
+    } finally {
+      // Cancel the response body stream to close the network connection early
+      await reader.cancel().catch(() => {});
+    }
+
+    // Slice exact requested length and copy chunks into a contiguous ArrayBuffer
+    const totalLength = Math.min(bytesRead, maxBytes);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+
+    // Iterate over each chunk of binary data (Uint8Array) collected during the stream
+    for (const chunk of chunks) {
+      // Determine how many bytes to copy from the current chunk without exceeding totalLength
+      const bytesToCopy = Math.min(chunk.length, totalLength - offset);
+      // Copy the needed slice from the chunk into the target array starting at the current offset
+      result.set(chunk.subarray(0, bytesToCopy), offset);
+      // Move the offset forward by the number of bytes just written
+      offset += bytesToCopy;
+      // Stop processing further chunks if the target size limit has been reached
+      if (offset >= totalLength) break;
+    }
+
+    return result.buffer;
   }
 
   /**
