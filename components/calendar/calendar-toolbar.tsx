@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useTranslations, useFormatter } from "next-intl";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Plus, Upload, CalendarDays, Globe, ChevronDown, ArrowLeft, Menu } from "lucide-react";
-import { addDays, startOfWeek } from "date-fns";
+import { startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { CalendarViewMode } from "@/stores/calendar-store";
 import type { Calendar } from "@/lib/jmap/types";
+import { useCalendarLocale } from "@/hooks/use-calendar-locale";
 
 interface CalendarToolbarProps {
   selectedDate: Date;
@@ -50,7 +51,14 @@ export function CalendarToolbar({
   onMenuClick,
 }: CalendarToolbarProps) {
   const t = useTranslations("calendar");
-  const formatter = useFormatter();
+  const {
+    weekStartsOn,
+    formatMonthYear,
+    formatMonthYearShort,
+    formatWeekRange,
+    formatWeekRangeShort,
+    formatFullDate,
+  } = useCalendarLocale();
   const views: CalendarViewMode[] = enableCalendarTasks
     ? ["month", "week", "day", "agenda", "tasks"]
     : ["month", "week", "day", "agenda"];
@@ -72,28 +80,22 @@ export function CalendarToolbar({
     switch (viewMode) {
       case "month":
         return isMobile
-          ? formatter.dateTime(selectedDate, { month: "short", year: "numeric" })
-          : formatter.dateTime(selectedDate, { month: "long", year: "numeric" });
+          ? formatMonthYearShort(selectedDate)
+          : formatMonthYear(selectedDate);
       case "week": {
-        const ws = startOfWeek(selectedDate, { weekStartsOn: firstDayOfWeek as 0 | 1 });
-        const we = addDays(ws, 6);
-        if (isMobile) {
-          return `${formatter.dateTime(ws, { month: "short", day: "numeric" })} – ${formatter.dateTime(we, { day: "numeric" })}`;
-        }
-        const sameMonth = ws.getMonth() === we.getMonth();
-        if (sameMonth) {
-          return `${formatter.dateTime(ws, { month: "short", day: "numeric" })} – ${formatter.dateTime(we, { day: "numeric" })}, ${we.getFullYear()}`;
-        }
-        return `${formatter.dateTime(ws, { month: "short", day: "numeric" })} – ${formatter.dateTime(we, { month: "short", day: "numeric" })}, ${we.getFullYear()}`;
+        const ws = startOfWeek(selectedDate, { weekStartsOn });
+        return isMobile
+          ? formatWeekRangeShort(ws)
+          : formatWeekRange(ws);
       }
       case "day":
         return isMobile
-          ? formatter.dateTime(selectedDate, { weekday: "short", month: "short", day: "numeric" })
-          : formatter.dateTime(selectedDate, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+          ? formatFullDate(selectedDate)
+          : formatFullDate(selectedDate);
       case "agenda":
         return isMobile
-          ? formatter.dateTime(selectedDate, { month: "short", year: "numeric" })
-          : formatter.dateTime(selectedDate, { month: "long", year: "numeric" });
+          ? formatMonthYearShort(selectedDate)
+          : formatMonthYear(selectedDate);
       case "tasks":
         return t("views.tasks");
     }
@@ -124,7 +126,7 @@ export function CalendarToolbar({
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="h-8 w-8 -ml-1 mr-1"
+          className="h-8 w-8 -ms-1 me-1"
           aria-label={t("nav_open_menu")}
         >
           <Menu className="w-4 h-4" />
@@ -138,7 +140,7 @@ export function CalendarToolbar({
             {onMenuClick && (
               <button
                 onClick={onMenuClick}
-                className="p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors touch-manipulation"
+                className="p-1.5 -ms-1 rounded-md hover:bg-muted transition-colors touch-manipulation"
                 aria-label={t("nav_open_menu")}
               >
                 <Menu className="w-4 h-4" />
@@ -147,7 +149,7 @@ export function CalendarToolbar({
             {onNavigateBack && (
               <button
                 onClick={onNavigateBack}
-                className="p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors touch-manipulation"
+                className="p-1.5 -ms-1 rounded-md hover:bg-muted transition-colors touch-manipulation"
                 aria-label={t("back_to_month")}
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -162,7 +164,7 @@ export function CalendarToolbar({
             <button onClick={onNext} className="p-1.5 rounded-md hover:bg-muted transition-colors touch-manipulation" aria-label={t("nav_next")}>
               <ChevronRight className="w-4 h-4" />
             </button>
-            <Button variant="ghost" size="sm" onClick={onToday} className="touch-manipulation text-xs h-7 px-2 ml-0.5">
+            <Button variant="ghost" size="sm" onClick={onToday} className="touch-manipulation text-xs h-7 px-2 ms-0.5">
               {t("views.today")}
             </Button>
           </div>
@@ -199,7 +201,7 @@ export function CalendarToolbar({
                   <CalendarDays className="w-4 h-4" />
                 </button>
                 {showCalendarDropdown && (
-                  <div className="absolute top-full right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-2 min-w-[180px]">
+                  <div className="absolute top-full end-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-2 min-w-[180px]">
                     <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">
                       {t("my_calendars")}
                     </h3>
@@ -284,7 +286,7 @@ export function CalendarToolbar({
       {/* ── DESKTOP TOOLBAR ── */}
       {!isMobile && (
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={onToday} className="h-8 mr-1">
+          <Button variant="outline" size="sm" onClick={onToday} className="h-8 me-1">
             {t("views.today")}
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPrev} aria-label={t("nav_prev")}>
@@ -293,7 +295,7 @@ export function CalendarToolbar({
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNext} aria-label={t("nav_next")}>
             <ChevronRight className="w-4 h-4" />
           </Button>
-          <span className="text-base font-semibold ml-2 select-none">
+          <span className="text-base font-semibold ms-2 select-none">
             {getDateLabel()}
           </span>
         </div>
@@ -328,12 +330,12 @@ export function CalendarToolbar({
       {(onImport || onSubscribe) && !isMobile && (
         <div className="relative" ref={importDropdownRef}>
           <Button variant="outline" size="sm" className="h-8" onClick={() => setShowImportDropdown((v) => !v)}>
-            <Upload className="w-4 h-4 mr-1" />
+            <Upload className="w-4 h-4 me-1" />
             {t("import.title")}
-            <ChevronDown className="w-3 h-3 ml-1" />
+            <ChevronDown className="w-3 h-3 ms-1" />
           </Button>
           {showImportDropdown && (
-            <div className="absolute top-full right-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[180px]">
+            <div className="absolute top-full end-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-1 min-w-[180px]">
               {onImport && (
                 <button
                   onClick={() => { onImport(); setShowImportDropdown(false); }}
@@ -359,7 +361,7 @@ export function CalendarToolbar({
 
       {!isMobile && (
         <Button size="sm" className="h-8" onClick={onCreateEvent} data-tour="create-event-button">
-          <Plus className="w-4 h-4 mr-1" />
+          <Plus className="w-4 h-4 me-1" />
           {t("events.create")}
         </Button>
       )}

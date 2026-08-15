@@ -1,29 +1,38 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useLocale } from 'next-intl';
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocaleStore } from '@/stores/locale-store';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMenuNavigation } from '@/hooks/use-menu-navigation';
 import { flagComponents } from './flag-icons';
 
 const languages = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'ar', label: 'العربية' },
+  { value: 'ca', label: 'Català' },
   { value: 'cs', label: 'Česky' },
+  { value: 'sk', label: 'Slovenčina' },
   { value: 'da', label: 'Dansk' },
   { value: 'de', label: 'Deutsch' },
   { value: 'en', label: 'English' },
+  { value: 'fa', label: 'فارسی' },
   { value: 'es', label: 'Español' },
   { value: 'fr', label: 'Français' },
+  { value: 'he', label: 'עברית' },
   { value: 'it', label: 'Italiano' },
+  { value: 'hu', label: 'Magyar' },
   { value: 'lv', label: 'Latviešu' },
   { value: 'nl', label: 'Nederlands' },
   { value: 'pl', label: 'Polski' },
   { value: 'pt', label: 'Português' },
+  { value: 'ro', label: 'Română' },
   { value: 'tr', label: 'Türkçe' },
   { value: 'ru', label: 'Русский' },
   { value: 'uk', label: 'Українська' },
   { value: 'ko', label: '한국어' },
   { value: 'ja', label: '日本語' },
+  { value: 'mn', label: 'Монгол' },
   { value: 'zh', label: '简体中文' },
 ];
 
@@ -34,13 +43,19 @@ function FlagIcon({ locale }: { locale: string }) {
 }
 
 export function LanguageSwitcher({ className }: { className?: string }) {
-  const currentLocale = useLocale();
   const setLocale = useLocaleStore((state) => state.setLocale);
+  const choice = useLocaleStore((state) => state.locale) || 'auto';
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const { menuRef: listRef, onKeyDown: onListKeyDown } = useMenuNavigation<HTMLUListElement>({
+    open,
+    onClose: close,
+    triggerRef: buttonRef,
+  });
 
-  const current = languages.find((l) => l.value === currentLocale) ?? languages[0];
+  const current = languages.find((l) => l.value === choice) ?? languages[0];
 
   // Close on outside click
   useEffect(() => {
@@ -68,42 +83,45 @@ export function LanguageSwitcher({ className }: { className?: string }) {
     <div ref={containerRef} className={cn("relative", className)}>
       <button
         type="button"
+        ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-muted border border-border text-foreground hover:border-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors duration-150 cursor-pointer w-full"
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
         aria-expanded={open}
       >
         <FlagIcon locale={current.value} />
-        <span className="flex-1 text-left">{current.label}</span>
+        <span className="flex-1 text-start">{current.label}</span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-150", open && "rotate-180")} />
       </button>
 
       {open && (
         <ul
           ref={listRef}
-          role="listbox"
-          aria-activedescendant={`lang-${currentLocale}`}
-          className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-md border border-border bg-background shadow-lg py-1"
+          role="menu"
+          onKeyDown={onListKeyDown}
+          className="absolute start-0 z-50 mt-1 min-w-full w-max max-w-[min(16rem,80vw)] max-h-60 overflow-auto rounded-md border border-border bg-background shadow-lg py-1"
         >
           {languages.map((lang) => (
-            <li
-              key={lang.value}
-              id={`lang-${lang.value}`}
-              role="option"
-              aria-selected={lang.value === currentLocale}
-              onClick={() => {
-                setLocale(lang.value);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer transition-colors duration-100",
-                lang.value === currentLocale
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-foreground hover:bg-accent/50"
-              )}
-            >
-              <FlagIcon locale={lang.value} />
-              <span>{lang.label}</span>
+            <li key={lang.value} role="none">
+              <button
+                type="button"
+                id={`lang-${lang.value}`}
+                role="menuitemradio"
+                aria-checked={lang.value === choice}
+                onClick={() => {
+                  setLocale(lang.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-start cursor-pointer whitespace-nowrap transition-colors duration-100",
+                  lang.value === choice
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-foreground hover:bg-accent/50"
+                )}
+              >
+                <FlagIcon locale={lang.value} />
+                <span>{lang.label}</span>
+              </button>
             </li>
           ))}
         </ul>

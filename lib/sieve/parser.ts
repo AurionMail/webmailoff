@@ -36,7 +36,11 @@ const FIELD_FROM_HEADER: Record<string, FilterConditionField> = {
 function isValidCondition(c: unknown): boolean {
   if (!c || typeof c !== 'object') return false;
   const cond = c as Record<string, unknown>;
-  return typeof cond.field === 'string' && typeof cond.comparator === 'string' && typeof cond.value === 'string';
+  if (typeof cond.field !== 'string' || typeof cond.comparator !== 'string') return false;
+  // value may be a string OR a non-empty array of strings (Patch 11
+  // multi-value semantics). Accept both.
+  if (typeof cond.value === 'string') return true;
+  return Array.isArray(cond.value) && cond.value.every((v) => typeof v === 'string');
 }
 
 function isValidAction(a: unknown): boolean {
@@ -334,43 +338,150 @@ function parseAtom(raw: string): FilterCondition | null {
     }
   }
 
-  let m = /^header\s+:(contains|is|matches)\s+"((?:[^"\\]|\\.)*)"\s+"((?:[^"\\]|\\.)*)"$/.exec(s);
+  // Parse the value-tail of a header/body test: either a single quoted
+  // string or a Sieve list literal ["a", "b", ...]. Returns the unwrapped
+  // value(s), preserving the array shape when present so the caller can
+  // detect multi-value conditions.
+  const parseValueTail = (raw: string): string | string[] | null => {
+    const trimmed = raw.trim();
+    // List form
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      const inner = trimmed.slice(1, -1);
+      const items: string[] = [];
+      const re = /"((?:[^"\\]|\\.)*)"/g;
+      let mm: RegExpExecArray | null;
+      let cursor = 0;
+      while ((mm = re.exec(inner)) !== null) {
+        // Ensure only whitespace and commas appear between items
+        if (inner.slice(cursor, mm.index).replace(/[\s,]/g, '') !== '') return null;
+        items.push(unescapeSieveString(mm[1]));
+        cursor = mm.index + mm[0].length;
+      }
+      if (inner.slice(cursor).replace(/[\s,]/g, '') !== '') return null;
+      if (items.length === 0) return null;
+      return items.length === 1 ? items[0] : items;
+    }
+    // Single string form
+    const single = /^"((?:[^"\\]|\\.)*)"$/.exec(trimmed);
+    if (single) return unescapeSieveString(single[1]);
+    return null;
+  };
+
+  // Classify a :matches value (or values) into starts_with / ends_with /
+  // matches by inspecting wildcard positions. For multi-value, all items
+  // must share the same shape; otherwise we fall back to 'matches' and
+  // keep the wildcards verbatim.
+  const classifyMatches = (
+    values: string | string[],
+  ): { comparator: 'starts_with' | 'ends_with' | 'matches'; stripped: string | string[] } => {
+    const arr = Array.isArray(values) ? values : [values];
+    const isTrailing = (v: string) => {
+      const stars = [...v].filter((c) => c === '*').length;
+      return stars === 1 && v.endsWith('*');
+    };
+    const isLeading = (v: string) => {
+      const stars = [...v].filter((c) => c === '*').length;
+      return stars === 1 && v.startsWith('*');
+    };
+    if (arr.every(isTrailing)) {
+      const stripped = arr.map((v) => v.slice(0, -1));
+      return { comparator: 'starts_with', stripped: Array.isArray(values) ? stripped : stripped[0] };
+    }
+    if (arr.every(isLeading)) {
+      const stripped = arr.map((v) => v.slice(1));
+      return { comparator: 'ends_with', stripped: Array.isArray(values) ? stripped : stripped[0] };
+    }
+    return { comparator: 'matches', stripped: values };
+  };
+
+  // Match attachment-aware :mime :anychild tests before the generic header
+  // pattern - emitted by our own generator for field === 'attachment'.
+  // has_any: ":contains Content-Disposition attachment"
+  let m = /^header\s+:mime\s+:anychild\s+:contains\s+"Content-Disposition"\s+"attachment"$/.exec(s);
   if (m) {
-    const [, tag, headerName, rawValue] = m;
-    const value = unescapeSieveString(rawValue);
+    return { field: 'attachment', comparator: 'has_any', value: '' };
+  }
+  // has_type: ":matches <headers> <value-tail>"
+  // - Current emit form uses a header-list ["Content-Disposition", "Content-Type"]
+  //   to catch senders who put the filename only in Content-Type's name= param
+  //   (Microsoft SMTPSVC, PrintToMail.net, etc.).
+  // - Legacy emit form used a single "Content-Disposition" header - still
+  //   recognised here so rules saved before the fix remain editable.
+  // Each value item must be a "*.<ext>*" wildcard pattern.
+  const tryHasType = (rawHeaders: string, rawValue: string): FilterCondition | null => {
+    // Header part: accept either a single quoted string or a 2-element list
+    // containing exactly Content-Disposition + Content-Type (in any order).
+    const single = /^"Content-Disposition"$/.exec(rawHeaders.trim());
+    const listForm = /^\[\s*((?:"(?:[^"\\]|\\.)*"\s*,?\s*)+)\]$/.exec(rawHeaders.trim());
+    let headersOk = false;
+    if (single) {
+      headersOk = true;
+    } else if (listForm) {
+      const inner = listForm[1];
+      const items: string[] = [];
+      const re = /"((?:[^"\\]|\\.)*)"/g;
+      let mm: RegExpExecArray | null;
+      while ((mm = re.exec(inner)) !== null) items.push(unescapeSieveString(mm[1]));
+      const expected = new Set(['Content-Disposition', 'Content-Type']);
+      const got = new Set(items);
+      headersOk =
+        items.length === expected.size &&
+        [...expected].every((h) => got.has(h));
+    }
+    if (!headersOk) return null;
+    const tail = parseValueTail(rawValue);
+    if (tail === null) return null;
+    const arr = Array.isArray(tail) ? tail : [tail];
+    const exts: string[] = [];
+    for (const item of arr) {
+      const em = /^\*\.((?:[^*\\]|\\.)+)\*$/.exec(item);
+      if (!em) return null;
+      exts.push(unescapeSieveString(em[1]));
+    }
+    return { field: 'attachment', comparator: 'has_type', value: exts.length === 1 ? exts[0] : exts };
+  };
+  m = /^header\s+:mime\s+:anychild\s+:matches\s+(\[[\s\S]+?\]|"[^"]+")\s+([\s\S]+)$/.exec(s);
+  if (m) {
+    const result = tryHasType(m[1], m[2]);
+    if (result) return result;
+  }
+  // Unknown :mime :anychild pattern (e.g. from external scripts) - bail to
+  // opaque rendering so we don't silently misrepresent the script.
+  if (/^header\s+:mime\s+:anychild\b/.test(s)) {
+    return null;
+  }
+
+  m = /^header\s+:(contains|is|matches)\s+"((?:[^"\\]|\\.)*)"\s+([\s\S]+)$/.exec(s);
+  if (m) {
+    const [, tag, headerName, rawTail] = m;
+    const value = parseValueTail(rawTail);
+    if (value === null) return null;
     const { field, headerName: customHeaderName } = normalizeHeaderName(unescapeSieveString(headerName));
 
     let comparator: FilterComparator;
+    let finalValue: string | string[];
     if (tag === 'contains') {
       comparator = negated ? 'not_contains' : 'contains';
+      finalValue = value;
     } else if (tag === 'is') {
       comparator = negated ? 'not_is' : 'is';
+      finalValue = value;
     } else {
-      // :matches - distinguish starts_with / ends_with / matches
-      const starPositions = [...value].reduce<number[]>((acc, ch, idx) => (ch === '*' ? [...acc, idx] : acc), []);
-      if (starPositions.length === 1 && starPositions[0] === value.length - 1) {
-        comparator = 'starts_with';
-        const cond: FilterCondition = { field, comparator, value: value.slice(0, -1) };
-        if (customHeaderName !== undefined) cond.headerName = customHeaderName;
-        return cond;
-      }
-      if (starPositions.length === 1 && starPositions[0] === 0) {
-        comparator = 'ends_with';
-        const cond: FilterCondition = { field, comparator, value: value.slice(1) };
-        if (customHeaderName !== undefined) cond.headerName = customHeaderName;
-        return cond;
-      }
-      comparator = 'matches';
+      const classified = classifyMatches(value);
+      comparator = classified.comparator;
+      finalValue = classified.stripped;
     }
 
-    const cond: FilterCondition = { field, comparator, value };
+    const cond: FilterCondition = { field, comparator, value: finalValue };
     if (customHeaderName !== undefined) cond.headerName = customHeaderName;
     return cond;
   }
 
-  m = /^body\s+:(contains|is)\s+"((?:[^"\\]|\\.)*)"$/.exec(s);
+  m = /^body\s+:(contains|is)\s+([\s\S]+)$/.exec(s);
   if (m) {
-    return { field: 'body', comparator: m[1] === 'is' ? 'is' : 'contains', value: unescapeSieveString(m[2]) };
+    const value = parseValueTail(m[2]);
+    if (value === null) return null;
+    return { field: 'body', comparator: m[1] === 'is' ? 'is' : 'contains', value };
   }
 
   m = /^size\s+:(over|under)\s+(\d+)$/.exec(s);

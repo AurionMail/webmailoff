@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import QRCode from 'qrcode';
 import * as OTPAuth from 'otpauth';
-import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal } from 'lucide-react';
+import { Shield, Key, Smartphone, Lock, Trash2, Plus, Eye, EyeOff, Copy, Check, Loader2, Monitor, Terminal, QrCode, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import { useAccountSecurityStore, type AppPasswordInfo, type ApiKeyInfo, type AppCredentialInput } from '@/stores/account-security-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAccountStore } from '@/stores/account-store';
+import { apiFetch, getPathPrefix } from '@/lib/browser-navigation';
 import { toast } from '@/stores/toast-store';
 import { cn } from '@/lib/utils';
 import { sanitizeI18nHtml } from '@/lib/email-sanitization';
@@ -66,7 +69,7 @@ function PasswordChangeSection() {
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="pr-10"
+              className="pe-10"
             />
             <button
               type="button"
@@ -87,7 +90,7 @@ function PasswordChangeSection() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="pr-10"
+              className="pe-10"
             />
             <button
               type="button"
@@ -117,7 +120,7 @@ function PasswordChangeSection() {
           size="sm"
           disabled={isSaving || !currentPassword || !newPassword || !confirmPassword}
         >
-          {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+          {isSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
           {t('password.submit')}
         </Button>
       </form>
@@ -291,7 +294,7 @@ function TotpSection() {
       </SettingItem>
 
       {setupUrl && (
-        <div className="ml-4 p-3 bg-muted rounded-md space-y-3">
+        <div className="ms-4 p-3 bg-muted rounded-md space-y-3">
           <p className="text-xs text-muted-foreground">{t('totp.setup_instructions')}</p>
           {qrDataUrl && (
             <div className="flex justify-center">
@@ -312,7 +315,7 @@ function TotpSection() {
           {setupError && <p className="text-xs text-destructive">{setupError}</p>}
           <div className="flex gap-2">
             <Button size="sm" onClick={confirmSetup} disabled={isSaving || !password || !otpCode}>
-              {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
               {t('totp.confirm')}
             </Button>
             <Button size="sm" variant="ghost" onClick={cancelSetup}>{t('app_passwords.cancel')}</Button>
@@ -321,7 +324,7 @@ function TotpSection() {
       )}
 
       {disableOpen && (
-        <div className="ml-4 p-3 bg-muted rounded-md space-y-2">
+        <div className="ms-4 p-3 bg-muted rounded-md space-y-2">
           <p className="text-xs text-muted-foreground">{t('totp.disable_confirm_prompt')}</p>
           <Input
             type="password"
@@ -333,7 +336,7 @@ function TotpSection() {
           {setupError && <p className="text-xs text-destructive">{setupError}</p>}
           <div className="flex gap-2">
             <Button size="sm" variant="destructive" onClick={handleDisable} disabled={isSaving || !password}>
-              {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
               {t('totp.disable')}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => { setDisableOpen(false); setPassword(''); setSetupError(null); }}>
@@ -467,7 +470,7 @@ function CredentialSection({ icon: Icon, i18nNamespace, entries, onCreate, onRem
           <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
         </div>
         <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
-          <Plus className="w-3 h-3 mr-1" />
+          <Plus className="w-3 h-3 me-1" />
           {t('app_passwords.add')}
         </Button>
       </div>
@@ -518,7 +521,7 @@ function CredentialSection({ icon: Icon, i18nNamespace, entries, onCreate, onRem
           </div>
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={isSaving || !newDescription.trim()}>
-              {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
               {t('app_passwords.create')}
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
@@ -567,25 +570,271 @@ function ApiKeysSection() {
   );
 }
 
-function EncryptionSection() {
+function PublicKeysSection() {
   const t = useTranslations('settings.security');
-  const { encryptionType, isLoadingCrypto } = useAccountSecurityStore();
+  const tk = (key: string) => t(`public_keys.${key}`);
+  const {
+    publicKeys,
+    createPublicKey,
+    removePublicKey,
+    encryptionConfig,
+    updateEncryptionAtRest,
+    isSaving,
+    isLoadingAuth,
+  } = useAccountSecurityStore();
 
-  if (isLoadingCrypto) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [description, setDescription] = useState('');
+  const [publicKey, setPublicKey] = useState('');
+
+  // Encryption config dialog state
+  const [selectedKeyForEncryption, setSelectedKeyForEncryption] = useState<string | null>(null);
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<'Aes128' | 'Aes256'>('Aes256');
+  const [encryptOnAppend, setEncryptOnAppend] = useState(false);
+  const [allowSpamTraining, setAllowSpamTraining] = useState(false);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description.trim() || !publicKey.trim()) return;
+
+    try {
+      await createPublicKey({
+        description: description.trim(),
+        key: publicKey.trim(),
+      });
+      setDescription('');
+      setPublicKey('');
+      setShowAdd(false);
+      toast.success(tk('added'));
+    } catch (err) {
+      toast.error(tk('add_error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    try {
+      await removePublicKey(id);
+      toast.success(tk('removed'));
+    } catch (err) {
+      toast.error(tk('remove_error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleToggleEncryption = async (keyId: string) => {
+    const isCurrentlyActiveKey =
+      encryptionConfig.type !== 'Disabled' && encryptionConfig.publicKeyId === keyId;
+
+    if (isCurrentlyActiveKey) {
+      // Disable encryption
+      try {
+        await updateEncryptionAtRest({ type: 'Disabled' });
+        toast.success(t('encryption.disabled_success'));
+      } catch (err) {
+        toast.error(t('encryption.error'), err instanceof Error ? err.message : undefined);
+      }
+    } else {
+      // Open algorithm selection dialog for this key
+      setSelectedKeyForEncryption(keyId);
+      setSelectedAlgorithm('Aes256');
+      setEncryptOnAppend(false);
+      setAllowSpamTraining(false);
+    }
+  };
+
+  const handleEnableEncryptionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedKeyForEncryption) return;
+
+    try {
+      await updateEncryptionAtRest({
+        type: selectedAlgorithm,
+        publicKeyId: selectedKeyForEncryption,
+        encryptOnAppend,
+        allowSpamTraining,
+      });
+      setSelectedKeyForEncryption(null);
+      toast.success(t('encryption.enabled_success'));
+    } catch (err) {
+      toast.error(t('encryption.error'), err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  if (isLoadingAuth) {
     return (
-      <SettingItem label={t('encryption.label')} description={t('encryption.description')}>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-2">
+          <Lock className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{tk('title')}</h4>
+        </div>
         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </SettingItem>
+      </div>
     );
   }
 
-  const isEnabled = encryptionType !== 'Disabled';
   return (
-    <SettingItem label={t('encryption.label')} description={t('encryption.description')}>
-      <span className={cn('text-xs font-medium', isEnabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground')}>
-        {isEnabled ? t('encryption.active', { type: encryptionType }) : t('encryption.inactive')}
-      </span>
-    </SettingItem>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Lock className="w-4 h-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium text-foreground">{t('encryption.section_title')}</h4>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
+          <Plus className="w-3 h-3 me-1" />
+          {t('app_passwords.add')}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{t('encryption.description')}</p>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="p-3 bg-muted rounded-md space-y-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{tk('name_label')}</label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={tk('name_placeholder')}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{tk('key_label')}</label>
+            <textarea
+              value={publicKey}
+              onChange={(e) => setPublicKey(e.target.value)}
+              placeholder={tk('key_placeholder')}
+              rows={3}
+              required
+              className="w-full text-xs font-mono px-3 py-2 rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSaving || !description.trim() || !publicKey.trim()}>
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
+              {t('app_passwords.create')}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
+              {t('app_passwords.cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {selectedKeyForEncryption && (
+        <form onSubmit={handleEnableEncryptionSubmit} className="p-3 bg-muted border border-border rounded-md space-y-3">
+          <h5 className="text-xs font-semibold text-foreground">{t('encryption.configure_title')}</h5>
+          
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t('encryption.algorithm_label')}</label>
+            <select
+              value={selectedAlgorithm}
+              onChange={(e) => setSelectedAlgorithm(e.target.value as 'Aes128' | 'Aes256')}
+              className="w-full text-xs px-3 py-1.5 rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="Aes256">AES-256</option>
+              <option value="Aes128">AES-128</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={encryptOnAppend}
+                onChange={(e) => setEncryptOnAppend(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-ring"
+              />
+              {t('encryption.encrypt_on_append')}
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={allowSpamTraining}
+                onChange={(e) => setAllowSpamTraining(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-ring"
+              />
+              {t('encryption.allow_spam_training')}
+            </label>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button type="submit" size="sm" disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 me-1 animate-spin" /> : null}
+              {t('encryption.enable_button')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedKeyForEncryption(null)}
+            >
+              {t('app_passwords.cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {publicKeys.length > 0 ? (
+        <div className="space-y-1">
+          {publicKeys.map((key) => {
+            const isEncryptedWithThisKey =
+              encryptionConfig.type !== 'Disabled' && encryptionConfig.publicKeyId === key.id;
+
+            return (
+              <div key={key.id} className="flex items-start justify-between py-2 px-3 bg-muted/50 rounded-md gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground truncate">{key.description || key.id}</span>
+                    {isEncryptedWithThisKey && (
+                      <span className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 font-medium px-1.5 py-0.5 rounded border border-green-500/20">
+                        {encryptionConfig.type}
+                      </span>
+                    )}
+                  </div>
+                  {key.createdAt && (
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(key.createdAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  <code className="text-[10px] font-mono bg-background border border-border rounded px-1.5 py-0.5 text-muted-foreground truncate mt-1">
+                    {key.key}
+                  </code>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleEncryption(key.id)}
+                    disabled={isSaving}
+                    title={isEncryptedWithThisKey ? t('encryption.disable_tooltip') : t('encryption.enable_tooltip')}
+                    className={cn(
+                      isEncryptedWithThisKey
+                        ? 'text-green-600 hover:text-green-700 dark:text-green-400'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {isEncryptedWithThisKey ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemove(key.id)}
+                    disabled={isSaving || isEncryptedWithThisKey}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">{tk('none')}</p>
+      )}
+    </div>
   );
 }
 
@@ -638,25 +887,169 @@ function EmailClientSection() {
   );
 }
 
+// Cross-device QR login. A signed-in (OAuth/SSO) session mints a short-lived
+// pairing code via /api/auth/pair/create; we render it as a QR that the mobile
+// app scans to sign in without re-typing credentials. The QR payload carries
+// only the server URL and the one-time code — never tokens.
+function LinkDeviceSection() {
+  const t = useTranslations('settings.security');
+  const params = useParams();
+  const locale = params.locale as string;
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasGenerated, setHasGenerated] = useState(false);
+
+  // Tick the countdown down to zero, then drop the (now useless) QR so the
+  // user is nudged to generate a fresh one.
+  useEffect(() => {
+    if (remaining <= 0) {
+      setQrDataUrl(null);
+      return;
+    }
+    const timer = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [remaining]);
+
+  // Send the user to the IdP for a fresh login (prompt=login). On return the
+  // callback page sets the pairing re-auth proof and bounces back here, where
+  // the resume effect below re-runs generate().
+  const startReauth = useCallback(async () => {
+    try {
+      sessionStorage.setItem('pair_reauth_resume', '1');
+    } catch { /* sessionStorage unavailable */ }
+    const prefix = getPathPrefix(locale);
+    const redirectUri = `${window.location.origin}${prefix}/${locale}/auth/callback`;
+    const res = await apiFetch('/api/auth/sso/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ redirect_uri: redirectUri, locale, purpose: 'reauth' }),
+    });
+    if (!res.ok) {
+      setError(t('link_device.error'));
+      return;
+    }
+    const { authorize_url } = await res.json();
+    window.location.href = authorize_url;
+  }, [locale, t]);
+
+  // `fromResume` guards against a redirect loop: if we just completed re-auth
+  // and pair/create still demands it, surface an error instead of bouncing to
+  // the IdP again.
+  const generate = useCallback(async (fromResume = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Pair the account whose session cookie we'll actually refresh — the
+      // active account's slot.
+      const slot = useAccountStore.getState().getActiveAccount()?.cookieSlot ?? 0;
+      const res = await apiFetch('/api/auth/pair/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ slot }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        if (res.status === 401 && errBody?.error === 'reauth_required' && !fromResume) {
+          await startReauth();
+          return;
+        }
+        setError(t('link_device.error'));
+        return;
+      }
+      const data = await res.json();
+      const code = data.pairing_code as string;
+      const expiresIn = typeof data.expires_in === 'number' ? data.expires_in : 120;
+      // The phone redeems the code against THIS webmail (where the pairing
+      // record lives), so the QR carries the webmail base — origin plus any
+      // mount prefix — not the JMAP server URL. The JMAP server_url comes back
+      // in the redeem response.
+      const webmailBase = `${window.location.origin}${getPathPrefix()}`;
+      const payload = `bulwarkmail://pair?server=${encodeURIComponent(webmailBase)}&code=${encodeURIComponent(code)}`;
+      const dataUrl = await QRCode.toDataURL(payload, { width: 240, margin: 1 });
+      setQrDataUrl(dataUrl);
+      setRemaining(expiresIn);
+      setHasGenerated(true);
+    } catch {
+      setError(t('link_device.error'));
+    } finally {
+      setLoading(false);
+    }
+  }, [t, startReauth]);
+
+  // Auto-resume after returning from the step-up re-auth round-trip.
+  useEffect(() => {
+    let resume = false;
+    try {
+      resume = sessionStorage.getItem('pair_reauth_done') === '1';
+      if (resume) sessionStorage.removeItem('pair_reauth_done');
+    } catch { /* sessionStorage unavailable */ }
+    if (resume) void generate(true);
+  }, [generate]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <QrCode className="w-4 h-4 text-muted-foreground" />
+        <h4 className="text-sm font-medium text-foreground">{t('link_device.title')}</h4>
+      </div>
+      <p className="text-xs text-muted-foreground">{t('link_device.description')}</p>
+
+      {qrDataUrl && remaining > 0 && (
+        <div className="p-3 bg-muted/70 dark:bg-muted/40 rounded-md space-y-2">
+          <div className="flex justify-center">
+            <img src={qrDataUrl} alt="Pairing QR code" className="rounded bg-white p-2" />
+          </div>
+          <p className="text-xs text-muted-foreground text-center">{t('link_device.instructions')}</p>
+          <p className="text-[11px] text-muted-foreground text-center">
+            {t('link_device.expires_in', { seconds: remaining })}
+          </p>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      <Button variant="outline" size="sm" onClick={() => void generate()} disabled={loading}>
+        {loading ? (
+          <Loader2 className="w-3 h-3 me-1 animate-spin" />
+        ) : (
+          <QrCode className="w-3 h-3 me-1" />
+        )}
+        {hasGenerated ? t('link_device.regenerate') : t('link_device.generate')}
+      </Button>
+    </div>
+  );
+}
+
 export function AccountSecuritySettings() {
   const t = useTranslations('settings.security');
-  const { isStalwart, isProbing, probe, fetchAll, fetchAuthInfo } = useAccountSecurityStore();
-  const { isAuthenticated, authMode } = useAuthStore();
+  const { isStalwart, isProbing, probe, fetchAll, fetchAuthInfo, fetchPublicKeys, fetchCryptoInfo } = useAccountSecurityStore();
+  const { isAuthenticated, authMode, client } = useAuthStore();
   const isOAuth = authMode === 'oauth';
 
+  // Wait for `client` before probing. On reload the persisted `isAuthenticated`
+  // flips true before the async OAuth reconnect sets `client`; probing in that
+  // window reads a null client, decides the server isn't Stalwart, and caches
+  // that wrong verdict. Gating on `client` (which is set only after connect()
+  // populates the session capabilities) makes the probe run with real data.
   useEffect(() => {
-    if (isAuthenticated && isStalwart === null) {
+    if (isAuthenticated && client && isStalwart === null) {
       probe().then((detected) => {
         if (detected) {
           if (isOAuth) {
             fetchAuthInfo();
+            fetchPublicKeys();
+            fetchCryptoInfo();
           } else {
             fetchAll();
           }
         }
       });
     }
-  }, [isAuthenticated, isStalwart, probe, fetchAll, fetchAuthInfo, isOAuth]);
+  }, [isAuthenticated, client, isStalwart, probe, fetchAll, fetchAuthInfo, isOAuth, fetchPublicKeys, fetchCryptoInfo]);
 
   if (isProbing) {
     return (
@@ -670,9 +1063,25 @@ export function AccountSecuritySettings() {
   }
 
   if (isStalwart === false) {
+    // Even when Stalwart account-management isn't exposed (common for OAuth
+    // sessions, whose tokens may lack the management capability), the
+    // cross-device mobile pairing still works — it only needs the OAuth
+    // refresh-token cookie, not `urn:stalwart:jmap`. So surface the QR linker
+    // for OAuth sessions and show the "not available" note for the rest.
+    // Use t.raw (not t) because the message is hand-injected HTML; passing it
+    // through t() makes next-intl try to parse the <a> tag and throw
+    // INVALID_TAG.
     return (
       <SettingsSection title={t('title')} description={t('description')}>
-        <div className="text-sm text-muted-foreground py-4" dangerouslySetInnerHTML={{ __html: sanitizeI18nHtml(t('not_available')) }} />
+        {isOAuth ? (
+          <div className="space-y-6">
+            <LinkDeviceSection />
+            <div className="border-t border-border" />
+            <div className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeI18nHtml(t.raw('not_available')) }} />
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground py-4" dangerouslySetInnerHTML={{ __html: sanitizeI18nHtml(t.raw('not_available')) }} />
+        )}
       </SettingsSection>
     );
   }
@@ -706,21 +1115,15 @@ export function AccountSecuritySettings() {
           <>
             <div className="border-t border-border" />
             <EmailClientSection />
+            <div className="border-t border-border" />
+            <LinkDeviceSection />
           </>
         )}
-
-        {!isOAuth && (
-          <>
             <div className="border-t border-border" />
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <h4 className="text-sm font-medium text-foreground">{t('encryption.section_title')}</h4>
-              </div>
-              <EncryptionSection />
+              
+              <PublicKeysSection />
             </div>
-          </>
-        )}
       </div>
     </SettingsSection>
   );

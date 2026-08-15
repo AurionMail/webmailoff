@@ -49,6 +49,7 @@ set +u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 set -u
 ENV_FILE="${SCRIPT_DIR}/.env.local"
+REPO_URL="https://github.com/bulwarkmail/webmail.git"
 
 # Config values (defaults)
 CFG_APP_NAME="Bulwark Webmail"
@@ -63,6 +64,7 @@ CFG_OAUTH_ISSUER_URL=""
 CFG_SESSION_SECRET=""
 CFG_SETTINGS_SYNC_ENABLED="false"
 CFG_SETTINGS_DATA_DIR="./data/settings"
+CFG_TELEMETRY="false"
 CFG_LOG_FORMAT="text"
 CFG_LOG_LEVEL="info"
 CFG_APP_SHORT_NAME=""
@@ -733,6 +735,30 @@ screen_security_config() {
         echo -e "    ${DIM}You can add a SESSION_SECRET to .env.local at any time.${RESET}"
     fi
 
+    echo ""
+    hr
+    echo ""
+    echo -e "  ${BOLD}Anonymous Usage Stats${RESET}"
+    echo ""
+    echo -e "  Bulwark can send one anonymous heartbeat per day. It helps us see how"
+    echo -e "  many instances run, on what platforms, and which features are enabled"
+    echo -e "  so we can ${BOLD}make the product better${RESET}."
+    echo ""
+    echo -e "    ${STAR} ${BOLD}No private data${RESET} - no email addresses, hostnames, or IPs"
+    echo -e "    ${STAR} Just version, platform, and which features are turned on"
+    echo -e "    ${STAR} ${BOLD}Off by default${RESET} - you can change it any time in the admin UI"
+    echo ""
+
+    prompt_yesno "Enable anonymous telemetry to help improve Bulwark?" "$CFG_TELEMETRY" "CFG_TELEMETRY"
+
+    if [[ "$CFG_TELEMETRY" == "true" ]]; then
+        echo ""
+        echo -e "    ${OK} ${GREEN}Thanks! Telemetry will be enabled. We appreciate it.${RESET}"
+    else
+        echo ""
+        note "Telemetry stays off. No heartbeats will be sent."
+    fi
+
     draw_footer
     read -r
 }
@@ -948,6 +974,11 @@ screen_summary() {
     else
         echo -e "    Session Secret ........ ${DIM}Not set${RESET}"
     fi
+    if [[ "$CFG_TELEMETRY" == "true" ]]; then
+        echo -e "    Anonymous Telemetry ... ${GREEN}${BOLD}Enabled${RESET} ${DIM}(thank you!)${RESET}"
+    else
+        echo -e "    Anonymous Telemetry ... ${DIM}Off${RESET}"
+    fi
     echo ""
 
     # Logging
@@ -1093,6 +1124,20 @@ ENVEOF
 
     cat >> "$ENV_FILE" << ENVEOF
 
+# -- Anonymous Telemetry -------------------------------------------------------
+# Opt-in, anonymous heartbeats (no PII). Off by default; helps improve Bulwark.
+# Toggleable later in the admin UI unless this is set. See
+# https://bulwarkmail.org/docs/legal/privacy/telemetry
+ENVEOF
+
+    if [[ "$CFG_TELEMETRY" == "true" ]]; then
+        echo "BULWARK_TELEMETRY=on" >> "$ENV_FILE"
+    else
+        echo "# BULWARK_TELEMETRY=on" >> "$ENV_FILE"
+    fi
+
+    cat >> "$ENV_FILE" << ENVEOF
+
 # -- Logging -------------------------------------------------------------------
 LOG_FORMAT=${CFG_LOG_FORMAT}
 LOG_LEVEL=${CFG_LOG_LEVEL}
@@ -1150,6 +1195,58 @@ update_docker_compose_port() {
         sed -i.bak "s/\"3000:3000\"/\"${CFG_PORT}:3000\"/" "${SCRIPT_DIR}/docker-compose.yml" 2>/dev/null || true
         echo -e "    ${OK} Updated docker-compose.yml port mapping"
     fi
+}
+
+# Ensure a source checkout is available for build-based deployments.
+# When setup.sh is run on its own (e.g. piped via `curl ... | bash`), SCRIPT_DIR
+# resolves to the user's cwd, which has no package.json -- so npm/compose run in
+# the wrong place. In that case, clone the repo and repoint SCRIPT_DIR at it.
+ensure_repo() {
+    # Already inside a checkout -- nothing to do.
+    [[ -f "${SCRIPT_DIR}/package.json" ]] && return 0
+
+    echo ""
+    echo -e "  ${WARN} ${YELLOW}No source checkout found in ${SCRIPT_DIR}.${RESET}"
+    echo -e "       ${DIM}(setup.sh was run on its own, e.g. via curl | bash)${RESET}"
+    echo ""
+
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "    ${DIM}[dry-run] Would clone ${REPO_URL} into ./webmail${RESET}"
+        return 0
+    fi
+
+    if ! command -v git &>/dev/null; then
+        echo -e "    ${FAIL} ${RED}git is required to fetch the source but was not found.${RESET}"
+        echo -e "         ${DIM}Install git, or clone the repo manually and run setup.sh from inside it:${RESET}"
+        echo -e "         ${CYAN}git clone ${REPO_URL}${RESET}"
+        echo -e "         ${CYAN}cd webmail && bash setup.sh${RESET}"
+        show_cursor
+        exit 1
+    fi
+
+    local target="$(pwd)/webmail"
+    prompt_value "Directory to clone the source into" "$target" "target"
+
+    if [[ -e "$target" && -n "$(ls -A "$target" 2>/dev/null)" ]]; then
+        if [[ -f "$target/package.json" ]]; then
+            echo -e "    ${OK} Using existing checkout at ${target}"
+        else
+            echo -e "    ${FAIL} ${RED}${target} exists and is not an empty dir or a checkout.${RESET}"
+            show_cursor
+            exit 1
+        fi
+    else
+        (git clone --depth 1 "$REPO_URL" "$target" >/dev/null 2>&1) &
+        spinner $! "Cloning ${REPO_URL}"
+        if [[ ! -f "$target/package.json" ]]; then
+            echo -e "    ${FAIL} ${RED}Clone failed -- ${target}/package.json not found.${RESET}"
+            show_cursor
+            exit 1
+        fi
+    fi
+
+    SCRIPT_DIR="$target"
+    ENV_FILE="${SCRIPT_DIR}/.env.local"
 }
 
 run_deployment() {
@@ -1253,6 +1350,14 @@ screen_complete() {
 
     echo -e "  ${BOLD}Configuration${RESET}"
     echo ""
+
+    # Build-based methods need the repo source. If we're running detached
+    # (curl | bash), fetch it now and repoint SCRIPT_DIR/ENV_FILE before we
+    # write .env.local or run the build.
+    if [[ "$CFG_DEPLOY_METHOD" == "node" || "$CFG_DEPLOY_METHOD" == "compose" ]]; then
+        ensure_repo
+    fi
+
     write_env_file
 
     run_deployment
@@ -1340,6 +1445,11 @@ load_existing_config() {
     get_env_val "SESSION_SECRET";           [[ -n "$val" ]] && CFG_SESSION_SECRET="$val"
     get_env_val "SETTINGS_SYNC_ENABLED";    [[ -n "$val" ]] && CFG_SETTINGS_SYNC_ENABLED="$val"
     get_env_val "SETTINGS_DATA_DIR";        [[ -n "$val" ]] && CFG_SETTINGS_DATA_DIR="$val"
+    get_env_val "BULWARK_TELEMETRY"
+    case "$(echo "$val" | tr '[:upper:]' '[:lower:]')" in
+        on|true|1|yes)  CFG_TELEMETRY="true" ;;
+        off|false|0|no) CFG_TELEMETRY="false" ;;
+    esac
     get_env_val "LOG_FORMAT";               [[ -n "$val" ]] && CFG_LOG_FORMAT="$val"
     get_env_val "LOG_LEVEL";                [[ -n "$val" ]] && CFG_LOG_LEVEL="$val"
     get_env_val "LOGIN_COMPANY_NAME";       [[ -n "$val" ]] && CFG_LOGIN_COMPANY_NAME="$val"

@@ -11,6 +11,7 @@ import { useUpdateStore } from '@/stores/update-store';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getPathPrefix } from '@/lib/browser-navigation';
+import { clearCachedData } from '@/lib/clear-cached-data';
 import { SpamSiegeGame } from './spam-siege-game';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.0.0";
@@ -36,7 +37,7 @@ function VersionUpdateTag() {
   return (
     <span
       className={cn(
-        "ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium align-middle",
+        "ms-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium align-middle",
         important
           ? "bg-red-500/15 text-red-700 dark:text-red-300"
           : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
@@ -50,10 +51,12 @@ function VersionUpdateTag() {
 export function AboutDataSettings() {
   const t = useTranslations('settings.advanced');
   const tCommon = useTranslations('common');
+  const tSettings = useTranslations('settings');
   const { settingsSyncDisabled, updateSetting, resetToDefaults, exportSettings, importSettings } =
     useSettingsStore();
   const { settingsSyncEnabled } = useConfig();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showRefreshConfirm, setShowRefreshConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isFeatureEnabled } = usePolicyStore();
   const [showGame, setShowGame] = useState(false);
@@ -97,19 +100,28 @@ export function AboutDataSettings() {
       const json = event.target?.result as string;
       const success = importSettings(json);
       if (success) {
-        alert(t('../../settings.import_success'));
+        alert(tSettings('import_success'));
       } else {
-        alert(t('../../settings.import_error'));
+        alert(tSettings('import_error'));
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleRefreshCache = () => {
+    if (showRefreshConfirm) {
+      clearCachedData(); // reloads the page
+    } else {
+      setShowRefreshConfirm(true);
+      setTimeout(() => setShowRefreshConfirm(false), 5000);
+    }
   };
 
   const handleReset = () => {
     if (showResetConfirm) {
       resetToDefaults();
       setShowResetConfirm(false);
-      alert(t('../../settings.save_success'));
+      alert(tSettings('save_success'));
     } else {
       setShowResetConfirm(true);
       setTimeout(() => setShowResetConfirm(false), 5000);
@@ -121,7 +133,7 @@ export function AboutDataSettings() {
       {showGame && <SpamSiegeGame onClose={() => setShowGame(false)} />}
       <div className="rounded-lg border border-border bg-card p-5 mb-6">
         <div className="flex items-center gap-4">
-          <button onClick={handleLogoClick} className="flex items-center gap-4 flex-1 text-left focus:outline-none group/about cursor-pointer" aria-label="About">
+          <button onClick={handleLogoClick} className="flex items-center gap-4 flex-1 text-start focus:outline-none group/about cursor-pointer" aria-label="About">
             <div className="shrink-0">
               <img
                 src={`${getPathPrefix()}/branding/Bulwark_Logo_Color.svg`}
@@ -186,6 +198,16 @@ export function AboutDataSettings() {
           </>
         </SettingItem>
         )}
+
+        <SettingItem label={t('refresh_cache.label')} description={t('refresh_cache.description')}>
+          <Button
+            variant={showRefreshConfirm ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleRefreshCache}
+          >
+            {showRefreshConfirm ? tCommon('yes') : t('refresh_cache.button')}
+          </Button>
+        </SettingItem>
 
         <SettingItem label={t('reset_settings.label')} description={t('reset_settings.description')}>
           <Button

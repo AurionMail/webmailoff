@@ -183,6 +183,7 @@ export async function POST(request: NextRequest) {
       author: manifest.author as string,
       description: (manifest.description as string) || '',
       type: manifest.type as string,
+      ...(manifest.tier === 'privileged' ? { tier: 'privileged' } : {}),
       permissions: (manifest.permissions as string[]) || [],
       entrypoint: manifest.entrypoint as string,
       enabled: true,
@@ -191,6 +192,9 @@ export async function POST(request: NextRequest) {
         : {}),
       ...(manifest.settingsSchema && typeof manifest.settingsSchema === 'object'
         ? { settingsSchema: manifest.settingsSchema as ServerPlugin['settingsSchema'] }
+        : {}),
+      ...(manifest.locales && typeof manifest.locales === 'object'
+        ? { locales: manifest.locales as ServerPlugin['locales'] }
         : {}),
       ...(declaredFrameOrigins.length > 0
         ? { frameOrigins: declaredFrameOrigins }

@@ -12,6 +12,10 @@ import { useLongPress } from "@/hooks/use-long-press";
 import { useEmailStore } from "@/stores/email-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUIStore } from "@/stores/ui-store";
+import { getEmailTagIds } from "@/lib/thread-utils";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
+import { useTagDisplay } from "@/hooks/use-tag-display";
+import { TagBadge } from "./tag-badge";
 
 interface ThreadEmailItemProps {
   email: Email;
@@ -35,6 +39,11 @@ export function ThreadEmailItem({
   const isStarred = email.keywords?.$flagged;
   const isAnswered = email.keywords?.$answered;
   const isForwarded = email.keywords?.$forwarded;
+  const { sortTagIds } = useKeywordFormat();
+  const { variant: tagVariant } = useTagDisplay();
+  // A message inside an expanded thread carries its own tags; the collapsed
+  // header pools them, so without this they disappear on the way in.
+  const tagIds = sortTagIds(getEmailTagIds(email.keywords));
   const sender = email.from?.[0];
   const { selectedMailbox, selectedEmailIds, toggleEmailSelection, selectRangeEmails, clearSelection } = useEmailStore();
   const density = useSettingsStore((state) => state.density);
@@ -86,8 +95,8 @@ export function ThreadEmailItem({
       {...longPressHandlers}
       className={cn(
         "relative cursor-pointer select-none transition-all duration-150",
-        "pl-12 pr-4",
-        "border-l-2 border-l-transparent",
+        "ps-12 pe-4",
+        "border-s-2 border-l-transparent",
         selected
           ? "bg-selection border-l-primary"
           : "hover:bg-muted/50",
@@ -130,7 +139,7 @@ export function ThreadEmailItem({
 
         {/* Unread indicator */}
         {isUnread && (
-          <div className="absolute left-7 top-1/2 -translate-y-1/2">
+          <div className="absolute start-7 top-1/2 -translate-y-1/2">
             <Circle className="w-1.5 h-1.5 fill-unread text-unread" />
           </div>
         )}
@@ -178,6 +187,9 @@ export function ThreadEmailItem({
               {email.hasAttachment && (
                 <Paperclip className="w-3 h-3 text-muted-foreground" />
               )}
+              {tagIds.map((id) => (
+                <TagBadge key={id} tagId={id} variant={tagVariant} />
+              ))}
             </div>
 
             {/* Preview snippet */}

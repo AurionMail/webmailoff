@@ -48,22 +48,39 @@ describe('JMAPClient contact methods', () => {
   });
 
   describe('supportsContacts', () => {
-    it('should return true when contacts capability exists', () => {
+    function withAccountCapabilities(
+      client: JMAPClient,
+      accountCapabilities: Record<string, unknown>,
+      isPersonal = true,
+    ) {
+      Object.assign(client, {
+        capabilities: { 'urn:ietf:params:jmap:contacts': {} },
+        accounts: { 'account-1': { name: 'test', isPersonal, accountCapabilities } },
+      });
+    }
+
+    it('should return true when the account advertises the contacts capability', () => {
       const client = createClient();
-      Object.assign(client, { capabilities: { 'urn:ietf:params:jmap:contacts': {} } });
+      withAccountCapabilities(client, { 'urn:ietf:params:jmap:contacts': {} });
       expect(client.supportsContacts()).toBe(true);
     });
 
-    it('should return false when contacts capability is missing', () => {
+    it('should return false when the server advertises contacts but the account does not', () => {
       const client = createClient();
-      Object.assign(client, { capabilities: {} });
+      withAccountCapabilities(client, { 'urn:ietf:params:jmap:mail': {} });
       expect(client.supportsContacts()).toBe(false);
     });
 
-    it('should throw when capabilities is undefined', () => {
+    it('should treat non-personal (shared/group) accounts as capable', () => {
       const client = createClient();
-      Object.assign(client, { capabilities: undefined });
-      expect(() => client.supportsContacts()).toThrow();
+      withAccountCapabilities(client, {}, /* isPersonal */ false);
+      expect(client.supportsContacts()).toBe(true);
+    });
+
+    it('should return false when no session has been loaded', () => {
+      const client = createClient();
+      Object.assign(client, { capabilities: undefined, accounts: {} });
+      expect(client.supportsContacts()).toBe(false);
     });
   });
 
@@ -116,6 +133,31 @@ describe('JMAPClient contact methods', () => {
 
       const result = await client.getAddressBooks();
       expect(result).toEqual([]);
+    });
+
+    it('should throw on network error when throwOnError is set', async () => {
+      const client = createClient();
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+
+      await expect(client.getAddressBooks({ throwOnError: true })).rejects.toThrow('Network error');
+    });
+
+    it('should throw on a JMAP method error when throwOnError is set', async () => {
+      const client = createClient();
+      mockFetch({
+        methodResponses: [['error', { type: 'serverFail', description: 'Too many requests' }, '0']],
+      });
+
+      await expect(client.getAddressBooks({ throwOnError: true })).rejects.toThrow('Too many requests');
+    });
+
+    it('should still resolve to an empty list for a genuinely empty account', async () => {
+      const client = createClient();
+      mockFetch({
+        methodResponses: [['AddressBook/get', { list: [] }, '0']],
+      });
+
+      await expect(client.getAddressBooks({ throwOnError: true })).resolves.toEqual([]);
     });
   });
 
@@ -299,6 +341,48 @@ describe('JMAPClient contact methods', () => {
       });
       expect(result.id).toBe('new-id');
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('should generate a urn:uuid uid when none is provided (#644)', async () => {
+      const client = createClient();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/set', { created: { 'new-contact': { id: 'new-id' } } }, '0']],
+      });
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/get', { list: [{ ...mockContact, id: 'new-id' }] }, '0']],
+      });
+
+      await client.createContact({
+        emails: { email: { address: 'trusted@example.com' } },
+        addressBookIds: { 'ab-1': true },
+      });
+
+      const setBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+      const created = setBody.methodCalls[0][1].create['new-contact'];
+      expect(created.uid).toMatch(/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    });
+
+    it('should preserve a caller-provided uid', async () => {
+      const client = createClient();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/set', { created: { 'new-contact': { id: 'new-id' } } }, '0']],
+      });
+      mockFetchOnce(fetchSpy, {
+        methodResponses: [['ContactCard/get', { list: [{ ...mockContact, id: 'new-id' }] }, '0']],
+      });
+
+      await client.createContact({
+        uid: 'urn:uuid:12345678-1234-1234-1234-123456789abc',
+        addressBookIds: { 'ab-1': true },
+      });
+
+      const setBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+      const created = setBody.methodCalls[0][1].create['new-contact'];
+      expect(created.uid).toBe('urn:uuid:12345678-1234-1234-1234-123456789abc');
     });
 
     it('should throw on notCreated error with description', async () => {

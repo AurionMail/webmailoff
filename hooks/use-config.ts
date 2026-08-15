@@ -26,6 +26,12 @@ interface ConfigData {
   loginImprintUrl: string;
   loginPrivacyPolicyUrl: string;
   loginWebsiteUrl: string;
+  loginLogoMaxHeight: string;
+  loginLogoMaxWidth: string;
+  loginShowHeading: boolean;
+  loginShowSubtitle: boolean;
+  loginShowTotp: boolean;
+  loginShowVersion: boolean;
   demoMode: boolean;
   autoSsoEnabled: boolean;
   allowCustomJmapEndpoint: boolean;
@@ -105,6 +111,12 @@ export function useConfig(): AppConfig {
     loginImprintUrl: configCache?.loginImprintUrl || '',
     loginPrivacyPolicyUrl: configCache?.loginPrivacyPolicyUrl || '',
     loginWebsiteUrl: configCache?.loginWebsiteUrl || '',
+    loginLogoMaxHeight: configCache?.loginLogoMaxHeight || '',
+    loginLogoMaxWidth: configCache?.loginLogoMaxWidth || '',
+    loginShowHeading: configCache?.loginShowHeading ?? true,
+    loginShowSubtitle: configCache?.loginShowSubtitle ?? true,
+    loginShowTotp: configCache?.loginShowTotp ?? true,
+    loginShowVersion: configCache?.loginShowVersion ?? true,
     demoMode: configCache?.demoMode || false,
     autoSsoEnabled: configCache?.autoSsoEnabled || false,
     allowCustomJmapEndpoint: configCache?.allowCustomJmapEndpoint || false,
@@ -140,6 +152,12 @@ export function useConfig(): AppConfig {
         loginImprintUrl: configCache.loginImprintUrl,
         loginPrivacyPolicyUrl: configCache.loginPrivacyPolicyUrl,
         loginWebsiteUrl: configCache.loginWebsiteUrl,
+        loginLogoMaxHeight: configCache.loginLogoMaxHeight,
+        loginLogoMaxWidth: configCache.loginLogoMaxWidth,
+        loginShowHeading: configCache.loginShowHeading,
+        loginShowSubtitle: configCache.loginShowSubtitle,
+        loginShowTotp: configCache.loginShowTotp,
+        loginShowVersion: configCache.loginShowVersion,
         demoMode: configCache.demoMode,
         autoSsoEnabled: configCache.autoSsoEnabled,
         allowCustomJmapEndpoint: configCache.allowCustomJmapEndpoint,
@@ -176,6 +194,12 @@ export function useConfig(): AppConfig {
           loginImprintUrl: data.loginImprintUrl,
           loginPrivacyPolicyUrl: data.loginPrivacyPolicyUrl,
           loginWebsiteUrl: data.loginWebsiteUrl,
+          loginLogoMaxHeight: data.loginLogoMaxHeight,
+          loginLogoMaxWidth: data.loginLogoMaxWidth,
+          loginShowHeading: data.loginShowHeading,
+          loginShowSubtitle: data.loginShowSubtitle,
+          loginShowTotp: data.loginShowTotp,
+          loginShowVersion: data.loginShowVersion,
           demoMode: data.demoMode,
           autoSsoEnabled: data.autoSsoEnabled,
           allowCustomJmapEndpoint: data.allowCustomJmapEndpoint,

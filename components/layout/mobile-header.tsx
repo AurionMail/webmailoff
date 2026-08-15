@@ -14,6 +14,8 @@ interface MobileHeaderProps {
   onCompose?: () => void;
   onSearch?: () => void;
   className?: string;
+  /** Id of the sidebar this header's menu button toggles. */
+  sidebarId?: string;
 }
 
 export function MobileHeader({
@@ -23,6 +25,7 @@ export function MobileHeader({
   onCompose,
   onSearch,
   className,
+  sidebarId,
 }: MobileHeaderProps) {
   const t = useTranslations('sidebar');
   const { toggleSidebar, goBack, sidebarOpen } = useUIStore();
@@ -60,8 +63,10 @@ export function MobileHeader({
             "h-11 w-11",
             !showBack && sidebarOpen && "bg-accent"
           )}
-          aria-label={showBack ? "Go back" : "Toggle menu"}
+          data-sidebar-toggle={!showBack ? "" : undefined}
+          aria-label={showBack ? t('mobile.go_back') : t('mobile.toggle_menu')}
           aria-expanded={!showBack ? sidebarOpen : undefined}
+          aria-controls={!showBack ? sidebarId : undefined}
         >
           {showBack ? (
             <ArrowLeft className="h-5 w-5" />

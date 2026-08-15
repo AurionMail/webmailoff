@@ -6,8 +6,60 @@ import type { InstalledPlugin, Permission } from '../plugin-types';
 import { IMPLICIT_PERMISSIONS } from '../plugin-types';
 import { toast as appToast } from '@/stores/toast-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAccountStore } from '@/stores/account-store';
+import { useIdentityStore } from '@/stores/identity-store';
+import { useEmailStore } from '@/stores/email-store';
+import { useFilterStore } from '@/stores/filter-store';
+import { useMessageListTabsStore } from '@/stores/message-list-tabs-store';
+import {
+  KEYWORD_PALETTE,
+  useSettingsStore,
+  type KeywordDefinition,
+  type KeywordVisibility,
+} from '@/stores/settings-store';
+import type { MessageListTabsConfig } from '../plugin-types';
 import { apiFetch } from '../browser-navigation';
-import { awaitDialog } from './host-dialog';
+import { DEFAULT_KEYWORD_SCAN_LIMIT } from '../jmap/client';
+import { suggestKeywordColor } from '../keyword-discovery';
+import { MAX_KEYWORD_LENGTH } from '../keyword-nesting';
+import { KEYWORD_PREFIX } from '../thread-utils';
+import { awaitDialog, awaitPrompt, type PromptField } from './host-dialog';
+import { fileStorage } from '../plugin-storage';
+import { generateUUID } from '../utils';
+import { ContactCard, Identity } from '../jmap/types';
+import { EncryptionAtRestConfig, PublicKeyInfo, PublicKeyInput, useAccountSecurityStore } from '@/stores/account-security-store';
+
+/**
+ * Methods only callable from the privileged (same-origin) tier. These expose
+ * raw message bytes and raw submission, which an untrusted null-origin plugin
+ * must never reach. Enforced in `dispatchApiCall` IN ADDITION to the per-method
+ * permission gate.
+ */
+const PRIVILEGED_ONLY_METHODS = new Set<string>([
+  'jmap.fetchBlob',
+  'jmap.uploadBlob',
+  'jmap.sendRaw',
+  'jmap.submitRaw',
+  'jmap.importRaw',
+  // NOTE: upfiles.get is deliberately NOT tier-gated. It reads back a file the
+  // user just attached in this session - not arbitrary message bytes from the
+  // server (those stay behind jmap.fetchBlob above). Note that the id is not a
+  // secret from the plugin: onBeforeBlobUpload hands it to every registered
+  // handler, so any untrusted plugin granted email:blob-read can read the
+  // bytes of every file the user attaches. That grant is what the consent
+  // dialog for email:blob-read now says out loud.
+  'crypto.getOrCreateWebAuthn',
+  'crypto.getPublicKeys',
+  'crypto.createPublicKey',
+  'crypto.removePublicKey',
+  'crypto.getEncryptionAtRest',
+  'crypto.setEncryptionAtRest',
+  // Replacing the bytes of a file the user is about to send is strictly more
+  // dangerous than reading them, so the write stays privileged-only.
+  // This entry used to read `upfiles.set`, which matches no dispatched method
+  // and therefore gated nothing - the dispatcher calls it `upfiles.save`.
+  'upfiles.save',
+]);
 
 const PERM_PER_METHOD: Record<string, Permission | null> = {
   // storage is unscoped by the manifest - implicit.
@@ -23,6 +75,42 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // http
   'http.post': 'http:post',
   'http.fetch': 'http:fetch',
+  // jmap (privileged-tier only; see PRIVILEGED_ONLY_METHODS)
+  'jmap.fetchBlob': 'email:blob-read',
+  'jmap.uploadBlob': 'email:blob-write',
+  'jmap.sendRaw': 'email:raw-send',
+  'jmap.submitRaw': 'email:raw-send',
+  'jmap.importRaw': 'email:raw-send',
+  // Narrow read-only JMAP facade. This intentionally does not expose an
+  // arbitrary request primitive that could turn email:read into Email/set.
+  'jmap.getKeywords': 'email:read',
+  // Replace one message's complete keyword map. Kept separate from the raw
+  // request surface so email:write authorizes exactly this mutation.
+  'jmap.setKeywords': 'email:write',
+  'jmap.setKeyword': 'email:write',
+  'jmap.removeKeyword': 'email:write',
+  // uploaded files :
+  // upfiles.get reads back a just-attached file (see onBeforeBlobUpload) and
+  // is a read - it sits behind email:blob-read. To read a stored message
+  // blob, use jmap.fetchBlob. upfiles.save rewrites the staged file: it stays
+  // behind email:blob-write AND the privileged tier.
+  'upfiles.get' : 'email:blob-read',
+  'upfiles.save' : 'email:blob-write',
+  'crypto.getOrCreateWebAuthn': 'crypto:full',
+  'crypto.getPublicKeys': 'crypto:full',
+  'crypto.createPublicKey': 'crypto:full',
+  'crypto.removePublicKey': 'crypto:full',
+  'crypto.getEncryptionAtRest': 'crypto:full',
+  'crypto.setEncryptionAtRest': 'crypto:full',
+  // contact
+  'contact.get': 'contacts:read',
+  'contact.update': 'contacts:write',
+  'contact.create': 'contacts:write',
+  'contact.search': 'contacts:read',
+  // user
+  'user.getAccounts': 'account:read',
+  'user.getIdentities': 'identity:read',
+  'user.logout': 'auth:emit',
   // admin
   'admin.getConfig': 'admin:config',
   'admin.getAllConfig': 'admin:config',
@@ -31,7 +119,38 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // ui - any plugin can ask the host to render a modal or open a URL.
   'ui.confirm': null,
   'ui.alert': null,
+  'ui.prompt': null,
+  'ui.rerenderEmail': null,
+  'ui.rerenderFetchedEmails': null,
   'ui.openExternalUrl': null,
+  'ui.downloadFile': 'ui:download-file',
+  // email keyword mutations
+  'email.setKeyword': 'email:write',
+  'email.removeKeyword': 'email:write',
+  // Native keyword definitions are a deliberately narrow settings API: a
+  // plugin can read definitions, append missing ones, or reorder the complete
+  // existing set, but cannot overwrite or remove user-managed tags.
+  // Discovery/counts reveal mail metadata and therefore use email:read rather
+  // than a settings permission.
+  'keywords.list': 'settings:read',
+  'keywords.add': 'settings:write',
+  'keywords.reorder': 'settings:write',
+  'keywords.discover': 'email:read',
+  'keywords.getCounts': 'email:read',
+  'keywords.refreshCounts': 'email:read',
+  // message-list category tabs
+  'tabs.set': 'ui:message-list-tabs',
+  'tabs.clear': 'ui:message-list-tabs',
+  'tabs.getState': 'ui:message-list-tabs',
+  'tabs.refreshCounts': 'ui:message-list-tabs',
+  // categorize rewrites message keywords, so it needs the write permission
+  // (a tabs-only plugin can still render tabs without it).
+  'tabs.categorize': 'email:write',
+  // sieve (delivery-time classification)
+  'sieve.isSupported': 'filters:read',
+  'sieve.getActiveScript': 'filters:read',
+  'sieve.validateScript': 'filters:write',
+  'sieve.regenerate': 'filters:write',
 };
 
 function hasPermission(plugin: InstalledPlugin, perm: Permission): boolean {
@@ -98,6 +217,49 @@ function storageKeys(pluginId: string): string[] {
   return out;
 }
 
+// ─── user ─────────────────────────────────────────────────────
+interface AccountResponse {
+  id: string;
+  label: string;
+  serverUrl: string;
+  username: string;
+  displayName: string;
+  email: string;
+  avatarColor: string;
+  isConnected: boolean;
+  isDefault: boolean;
+  isActive: boolean;
+}
+function doUserGetAccounts(): AccountResponse[] {
+  const state = useAccountStore.getState();
+  const activeAccountId = state.activeAccountId;
+
+  // we remove sensitive fields from the account entries before returning to the plugin
+  // we add a new field isActive to indicate which account is currently active
+  const accounts = state.accounts.map((account) => ({
+    id: account.id,
+    label: account.label,
+    serverUrl: account.serverUrl,
+    username: account.username,
+    displayName: account.displayName,
+    email: account.email,
+    avatarColor: account.avatarColor,
+    isConnected: account.isConnected,
+    isDefault: account.isDefault,
+    isActive: account.id === activeAccountId,
+  }));
+
+  return accounts;
+}
+
+function doUserGetIdentities(): Identity[] {
+  return useIdentityStore.getState().identities;
+}
+
+async function doUserLogout(): Promise<void>{
+  return useAuthStore.getState().logout();
+}
+
 // ─── http.post (same-origin /api/*) ───────────────────────────
 
 /**
@@ -117,7 +279,38 @@ function isApiPostPathAllowed(path: string, allowlist: readonly string[]): boole
   return false;
 }
 
-async function doHttpPost(plugin: InstalledPlugin, path: string, body: unknown): Promise<{ ok: boolean; status: number; data: unknown }> {
+interface PluginHttpPostOptions {
+  headers?: Record<string, string>;
+}
+
+/**
+ * Namespace a plugin must use for its own upload metadata headers. Anything
+ * outside it (and `Content-Type`) is refused, so a plugin can never reach the
+ * credential headers the host attaches to the request.
+ */
+const PLUGIN_HEADER_PREFIX = 'x-plugin-';
+
+function applyPluginUploadHeaders(
+  provided: Record<string, string> | undefined,
+  target: Record<string, string>,
+): void {
+  for (const [name, value] of Object.entries(provided ?? {})) {
+    const lower = name.toLowerCase();
+    if (lower !== 'content-type' && !lower.startsWith(PLUGIN_HEADER_PREFIX)) {
+      throw new Error(
+        `Header ${name} is not allowed on a binary plugin upload (use Content-Type or an X-Plugin-* header)`,
+      );
+    }
+    target[name] = String(value);
+  }
+}
+
+async function doHttpPost(
+  plugin: InstalledPlugin,
+  path: string,
+  body: unknown,
+  options?: PluginHttpPostOptions,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
   if (typeof path !== 'string' || !path.startsWith('/api/')) {
     throw new Error('path must start with /api/');
   }
@@ -135,15 +328,33 @@ async function doHttpPost(plugin: InstalledPlugin, path: string, body: unknown):
     throw new Error(`Path ${url.pathname} not in plugin apiPostPaths allowlist`);
   }
   const { client } = useAuthStore.getState();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
+  let requestBody: BodyInit;
+
+  if (body instanceof Blob) {
+    // Binary upload: the plugin owns Content-Type and any X-Plugin-* metadata
+    // the receiving route needs. Stock behaviour for every other body type is
+    // unchanged - it is still serialized as JSON.
+    applyPluginUploadHeaders(options?.headers, headers);
+    const hasContentType = Object.keys(headers).some(h => h.toLowerCase() === 'content-type');
+    if (!hasContentType && body.type) {
+      headers['Content-Type'] = body.type;
+    }
+    requestBody = body;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    requestBody = JSON.stringify(body);
+  }
+
+  // Applied last so plugin-supplied headers can never override credentials.
   if (client) {
     headers['Authorization'] = client.getAuthHeader();
     headers['X-JMAP-Username'] = client.getUsername();
   }
-  const res = await fetch(url.pathname + url.search, {
+  const res = await apiFetch(url.pathname + url.search, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
+    body: requestBody,
   });
   const data = await res.json().catch(() => null);
   return { ok: res.ok, status: res.status, data };
@@ -201,6 +412,687 @@ async function doHttpFetch(plugin: InstalledPlugin, rawUrl: string, init?: Plugi
   };
 }
 
+// ─── jmap (privileged tier) ───────────────────────────────────
+
+/**
+ * Fetch the raw bytes of a blob by id, using the host's authenticated JMAP
+ * client. The plugin decides WHICH blobId to fetch (e.g. a pkcs7-mime part, or
+ * the full RFC822 message blob) and runs its own detection; the host only
+ * exposes the byte-fetch primitive. Returns a Uint8Array (structured-cloneable
+ * across the postMessage boundary).
+ */
+async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: string, rangeHeader?: number }): Promise<Uint8Array> {
+  if (typeof blobId !== 'string' || !blobId) throw new Error('jmap.fetchBlob: blobId required');
+  const { client } = useAuthStore.getState();
+  if (!client) throw new Error('jmap.fetchBlob: no active session');
+  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type, undefined, opts?.rangeHeader);
+  return new Uint8Array(buf);
+}
+
+async function doJmapUploadBlob(content: Uint8Array, name: string, type: string): Promise<{ blobId: string; size: number; type: string; }> {
+  const { client } = useAuthStore.getState();
+  if (!client) throw new Error('jmap.uploadBlob: no active session');
+  const file = new File([content as BlobPart], name, { type });
+  return await client.uploadBlob(file);
+}
+
+interface JmapSubmitRawOptions {
+  delayedUntil?: string;
+  envelopeRecipients?: string[];
+}
+
+/**
+ * Submit a fully-formed raw RFC822 message (e.g. one a plugin has signed and/or
+ * encrypted) via the host's raw-send path, which also files it into Sent. The
+ * plugin passes raw bytes; the host wraps them in a Blob.
+ */
+async function doJmapSendRaw(
+  rawBytes: ArrayBuffer | ArrayBufferView,
+  identityId: string,
+  opts?: JmapSubmitRawOptions,
+): Promise<unknown> {
+  if (typeof identityId !== 'string' || !identityId) throw new Error('jmap.sendRaw: identityId required');
+  const { client } = useAuthStore.getState();
+  if (!client) throw new Error('jmap.sendRaw: no active session');
+  const view = rawBytes instanceof ArrayBuffer
+    ? new Uint8Array(rawBytes)
+    : new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
+  // Copy into a fresh ArrayBuffer-backed array so the Blob part is definitely
+  // ArrayBuffer (not SharedArrayBuffer) — also detaches from the caller's view.
+  const copy = new Uint8Array(view.byteLength);
+  copy.set(view);
+  const blob = new Blob([copy.buffer], { type: 'message/rfc822' });
+  return useEmailStore.getState().sendRawEmail(
+    client,
+    blob,
+    identityId,
+    opts?.delayedUntil,
+    opts?.envelopeRecipients,
+  );
+}
+
+
+/**
+ * submit a fully-formed raw RFC822 message without putting it in sent box. 
+ */
+async function doJmapSubmitRaw(
+  rawBytes: ArrayBuffer | ArrayBufferView,
+  identityId: string,
+  opts?: JmapSubmitRawOptions,
+): Promise<unknown> {
+  if (typeof identityId !== 'string' || !identityId) {
+    throw new Error('jmap.submitRaw: identityId required');
+  }
+
+  const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('jmap.submitRaw: no active session');
+  }
+
+  const view = rawBytes instanceof ArrayBuffer
+    ? new Uint8Array(rawBytes)
+    : new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
+  
+  const copy = new Uint8Array(view.byteLength);
+  copy.set(view);
+  const blob = new Blob([copy.buffer], { type: 'message/rfc822' });
+
+  return client.submitRawEmail(
+    blob,
+    identityId,
+    opts?.delayedUntil,
+    opts?.envelopeRecipients,
+  );
+}
+
+interface JmapImportRawOptions {
+  keywords?: Record<string, boolean>;
+  accountId?: string;
+}
+
+/**
+ * Import a fully-formed raw RFC822 message into the user's mailbox.
+ */
+async function doJmapImportRaw(
+  rawBytes: ArrayBuffer | ArrayBufferView,
+  mailboxRoles: string[],
+  opts?: JmapImportRawOptions,
+): Promise<string> {
+
+  const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('jmap.importRaw: no active session');
+  }
+  let mailboxIds: Record<string, boolean> = {};
+
+    const mailboxes = await client.getMailboxes();
+    for (const role of mailboxRoles) {
+      const mailbox = mailboxes.find(mb => mb.role === role);
+      if (!mailbox) {
+        throw new Error(`Mailbox with role "${role}" not found`);
+      }
+      mailboxIds[mailbox.id] = true;
+    }
+
+    if (Object.keys(mailboxIds).length === 0) {
+      throw new Error('No valid mailboxes found for the specified roles');
+    }
+  const view = rawBytes instanceof ArrayBuffer
+    ? new Uint8Array(rawBytes)
+    : new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
+  
+  const copy = new Uint8Array(view.byteLength);
+  copy.set(view);
+  const blob = new Blob([copy.buffer], { type: 'message/rfc822' });
+
+  return client.importRawEmail(
+    blob,
+    mailboxIds,
+    opts?.keywords,
+    opts?.accountId,
+  );
+}
+
+async function doContactSearch(query: string): Promise<ContactCard[]> {
+    const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('contact.search: no active session');
+  }
+  return await client.searchContacts(query);
+}
+
+async function doContactGet(contactId: string): Promise<ContactCard | null> {
+    const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('contact.get: no active session');
+  }
+  return await client.getContact(contactId);
+}
+
+async function doContactUpdate(id: string, contact: Partial<ContactCard>): Promise<void> {
+    const { client } = useAuthStore.getState();
+  if (!client) {
+    throw new Error('contact.update: no active session');
+  }
+
+  await client.updateContact(id, contact);
+}
+
+async function doContactCreate(contact: ContactCard): Promise<ContactCard> {
+    const { client } = useAuthStore.getState();
+      if (!client) {
+    throw new Error('contact.create: no active session');
+  }
+
+  return await client.createContact(contact);
+}
+
+// ─── Crypto (privileged tier) ─────────────────────────────────────────────
+
+/**
+ * Retrieves or creates a WebAuthn passkey and extracts its PRF secret.
+ * This secret is typically used as a local master encryption key.
+ */
+async function doGetOrCreatePRF(
+    masterCredentialIdBytes: number[] | undefined, 
+    pluginId: string,
+    name?: string, 
+    displayName?: string,
+): Promise<{ credentialId: number[]; prfSecret: number[] } | string> {
+
+  // To avoid a privileged plugin to access secret created from another privileged plugin,
+  // we add the pluginID from manifest in salt.
+  const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1" + pluginId)
+    
+    // ─── CASE 1: Credential already exists (Authentication) ──────────────────
+    if (masterCredentialIdBytes && masterCredentialIdBytes.length > 0) {
+      const credentialId = new Uint8Array(masterCredentialIdBytes).buffer;
+      
+      // Request an assertion (login) while evaluating the PRF salt
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{ type: "public-key", id: credentialId }],
+          userVerification: "required", // Required to ensure user presence & intent (biometrics/PIN)
+          extensions: { prf: { eval: { first: PRF_SALT } } }
+        }
+      }) as PublicKeyCredential;
+
+      // Extract the derived symmetric key from the authenticator's output
+      const outputs = assertion.getClientExtensionResults();
+      const prfSecret = (outputs).prf?.results?.first;
+      if (!prfSecret) return 'Cannot get PRF secret from existing credential.';
+
+      return {
+        credentialId: masterCredentialIdBytes,
+        prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
+      };
+    }
+    
+    // ─── CASE 2: No masterCredentialIdBytes passed, create a new key (Registration) ──────────
+    else if (name && displayName) {
+      // Create the new passkey credential
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          rp: { name: "Bulwark Webmail", id: window.location.hostname },
+          user: {
+            id: crypto.getRandomValues(new Uint8Array(16)),
+            name: name,
+            displayName: displayName
+          },
+          // Supported cryptographic algorithms
+          pubKeyCredParams: [
+            { type: "public-key" as const, alg: -7 },   // ES256 (Recommended)
+            { type: "public-key" as const, alg: -257 }  // RS256 (Compatibility fallback)
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform", // Forces the use of hardware/OS-bound passkeys (TouchID, Windows Hello, etc.)
+            userVerification: "required"
+          },
+          extensions: { prf: {} } // Request PRF extension support from the authenticator
+        }
+      }) as PublicKeyCredential;
+      
+      const outputs = credential.getClientExtensionResults();
+
+      // Ensure the authenticator successfully enabled and supports the PRF extension
+      const isPrfEnabled = (outputs).prf?.enabled;
+      if (!isPrfEnabled) {
+        return 'The authenticator does not support or has rejected the PRF extension.';
+      }
+      
+      // Note: Since many authenticators do not return the PRF evaluation results 
+      // directly during creation, we immediately run an assertion (get) to fetch the initial secret.
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{
+            type: "public-key",
+            id: credential.rawId
+          }],
+          userVerification: "required",
+          extensions: {
+            prf: { eval: { first: PRF_SALT } }
+          }
+        }
+      }) as PublicKeyCredential;
+
+      const assertionOutputs = assertion.getClientExtensionResults();
+
+      const prfSecret = (assertionOutputs).prf?.results?.first;
+      if (!prfSecret) {
+        return 'Cannot get PRF secret from existing credential.';
+      }
+
+      return {
+        credentialId: Array.from(new Uint8Array(credential.rawId)),
+        prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
+      };
+    }
+    
+    // ─── CASE 3: Insufficient parameters provided ───────────────────────────
+    else {
+      throw new Error("Provide name and display name if you want to create a new PRF.");
+    }
+}
+
+async function getPublicKeys(): Promise<PublicKeyInfo[]> {
+  const store = useAccountSecurityStore.getState();
+  await store.fetchPublicKeys();
+  return store.publicKeys;
+}
+async function doCreatePublicKey(input: PublicKeyInput): Promise<string> {
+  const store = useAccountSecurityStore.getState();
+  return await store.createPublicKey(input);
+}
+async function doRemovePublicKey(keyId: string): Promise<void> {
+  const store = useAccountSecurityStore.getState();
+  return await store.removePublicKey(keyId);
+}
+async function doGetEncryptionAtRest(): Promise<EncryptionAtRestConfig> {
+  const store = useAccountSecurityStore.getState();
+  await store.fetchCryptoInfo();
+  return store.encryptionConfig;
+}
+async function doSetEncryptionAtRest(config: EncryptionAtRestConfig): Promise<void> {
+  const store = useAccountSecurityStore.getState();
+  return await store.updateEncryptionAtRest(config);
+}
+
+// ─── Uploaded files in IndexedDB (privileged tier) ──────────────────────────
+
+async function getFile(fileID:string): Promise<File | null> {
+  return await fileStorage.getFile(fileID)
+}
+
+async function saveFile(formerFileID:string, file: File): Promise<string> {
+  const fileId = generateUUID();
+  await fileStorage.saveFile(fileId, file);
+  await fileStorage.deleteFile(formerFileID);
+  return fileId;
+}
+
+// ─── Download files generated by the plugin. This is not user's files or attachments ──────────────────────────
+async function downloadFile(args: { content: string; filename: string; contentType?: string }): Promise<void> {
+    const { content, filename, contentType = 'application/json' } = args;
+
+    try {
+      const url = URL.createObjectURL(new Blob([content], { type: contentType }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a); 
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+     throw new Error(`Failed to download file: ${error}`);
+    }
+}
+
+// ─── Email keyword mutations ──────────────────────────────────
+
+// Syntactic JMAP keyword check (RFC 5788 charset, conservative). Semantics
+// (reserved keywords for category tabs) are enforced by the tabs store.
+const PLUGIN_KEYWORD_RE = /^[a-z0-9$][a-z0-9$_.:-]{0,127}$/i;
+
+function assertPluginKeyword(keyword: unknown): string {
+  if (typeof keyword !== 'string' || !PLUGIN_KEYWORD_RE.test(keyword)) {
+    throw new Error(`Invalid JMAP keyword "${String(keyword)}"`);
+  }
+  return keyword;
+}
+
+function assertPluginKeywords(value: unknown): Record<string, true> {
+  if (!isPlainObject(value)) {
+    throw new Error('jmap.setKeywords: keywords must be an object');
+  }
+  const entries = Object.entries(value);
+  if (entries.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
+    throw new Error(`jmap.setKeywords: at most ${MAX_PLUGIN_KEYWORD_DEFINITIONS} keywords are allowed`);
+  }
+  const keywords: Record<string, true> = {};
+  for (const [keyword, enabled] of entries) {
+    assertPluginKeyword(keyword);
+    if (enabled !== true) {
+      throw new Error(`jmap.setKeywords: keyword "${keyword}" must be true; omit it to remove it`);
+    }
+    keywords[keyword] = true;
+  }
+  return keywords;
+}
+
+function assertEmailId(value: unknown, method: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${method}: emailId is required`);
+  }
+  return value;
+}
+
+function assertOptionalAccountId(value: unknown, method: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${method}: accountId must be a non-empty string`);
+  }
+  return value;
+}
+
+function requireClient() {
+  const { client } = useAuthStore.getState();
+  if (!client) throw new Error('No active session');
+  return client;
+}
+
+// ─── Native keyword definitions ──────────────────────────────
+
+const MAX_PLUGIN_KEYWORD_DEFINITIONS = 500;
+const MAX_PLUGIN_KEYWORD_LABEL_LENGTH = 255;
+const VALID_VISIBILITIES = new Set<KeywordVisibility>(['show', 'hide', 'unread']);
+
+type PluginKeywordDefinitionInput = Omit<KeywordDefinition, 'color'> & { color?: string };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** RFC 8621 keyword syntax, applied to the complete `$label:<id>` value. */
+function isValidKeywordDefinitionId(id: string): boolean {
+  const keyword = KEYWORD_PREFIX + id;
+  if (id.length === 0 || keyword.length > MAX_KEYWORD_LENGTH) return false;
+  for (let i = 0; i < keyword.length; i++) {
+    const code = keyword.charCodeAt(i);
+    if (
+      code < 0x21 || code > 0x7e ||
+      code === 0x28 || code === 0x29 || code === 0x7b || code === 0x7d ||
+      code === 0x5d || code === 0x25 || code === 0x2a || code === 0x22 || code === 0x5c
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function assertKeywordDefinition(value: unknown, index: number): PluginKeywordDefinitionInput {
+  if (!isPlainObject(value)) {
+    throw new Error(`keywords.add: definitions[${index}] must be an object`);
+  }
+
+  const id = value.id;
+  const label = value.label;
+  const color = value.color;
+  const visibility = value.visibility;
+
+  if (typeof id !== 'string' || !isValidKeywordDefinitionId(id)) {
+    throw new Error(`keywords.add: definitions[${index}].id is not a valid JMAP label id`);
+  }
+  if (
+    typeof label !== 'string' || label.trim().length === 0 ||
+    label.length > MAX_PLUGIN_KEYWORD_LABEL_LENGTH
+  ) {
+    throw new Error(
+      `keywords.add: definitions[${index}].label must be 1-${MAX_PLUGIN_KEYWORD_LABEL_LENGTH} characters`,
+    );
+  }
+  if (
+    color !== undefined &&
+    (typeof color !== 'string' || !Object.prototype.hasOwnProperty.call(KEYWORD_PALETTE, color))
+  ) {
+    throw new Error(`keywords.add: definitions[${index}].color is not in the keyword palette`);
+  }
+  if (visibility !== undefined && !VALID_VISIBILITIES.has(visibility as KeywordVisibility)) {
+    throw new Error(`keywords.add: definitions[${index}].visibility is invalid`);
+  }
+
+  return {
+    id,
+    label: label.trim(),
+    ...(color === undefined ? {} : { color }),
+    ...(visibility === undefined ? {} : { visibility: visibility as KeywordVisibility }),
+  };
+}
+
+function assertKeywordDefinitionArray(value: unknown): PluginKeywordDefinitionInput[] {
+  if (!Array.isArray(value)) throw new Error('keywords.add: definitions must be an array');
+  if (value.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
+    throw new Error(`keywords.add: at most ${MAX_PLUGIN_KEYWORD_DEFINITIONS} definitions may be added at once`);
+  }
+  return value.map(assertKeywordDefinition);
+}
+
+function doKeywordsList(): KeywordDefinition[] {
+  return useSettingsStore.getState().emailKeywords.map((keyword) => ({ ...keyword }));
+}
+
+function doKeywordsAdd(value: unknown): { added: KeywordDefinition[]; skipped: string[] } {
+  const definitions = assertKeywordDefinitionArray(value);
+  const existing = useSettingsStore.getState().emailKeywords;
+  const known = new Set(existing.map((keyword) => keyword.id.toLowerCase()));
+  const takenColors = new Set(existing.map((keyword) => keyword.color));
+  const added: KeywordDefinition[] = [];
+  const skipped: string[] = [];
+
+  for (const definition of definitions) {
+    const foldedId = definition.id.toLowerCase();
+    if (known.has(foldedId)) {
+      skipped.push(definition.id);
+      continue;
+    }
+    known.add(foldedId);
+    const color = definition.color ?? suggestKeywordColor(definition.id, takenColors);
+    takenColors.add(color);
+    added.push({ ...definition, color });
+  }
+
+  if (added.length > 0) {
+    // One atomic append keeps concurrent plugin calls from partially
+    // overwriting the list and triggers the normal persist/settings-sync path.
+    useSettingsStore.setState((state) => ({
+      emailKeywords: [...state.emailKeywords, ...added],
+    }));
+  }
+
+  return { added: added.map((keyword) => ({ ...keyword })), skipped };
+}
+
+function doKeywordsReorder(value: unknown, rawOptions?: unknown): KeywordDefinition[] {
+  if (!Array.isArray(value)) {
+    throw new Error('keywords.reorder: ids must be an array');
+  }
+  if (value.some((id) => typeof id !== 'string')) {
+    throw new Error('keywords.reorder: ids must contain only strings');
+  }
+  if (rawOptions !== undefined && !isPlainObject(rawOptions)) {
+    throw new Error('keywords.reorder: options must be an object');
+  }
+  const options = rawOptions as Record<string, unknown> | undefined;
+  if (options && Object.keys(options).some((key) => key !== 'caseSensitive')) {
+    throw new Error('keywords.reorder: options contains an unknown property');
+  }
+  if (options?.caseSensitive !== undefined && typeof options.caseSensitive !== 'boolean') {
+    throw new Error('keywords.reorder: options.caseSensitive must be a boolean');
+  }
+  const caseSensitive = options?.caseSensitive === true;
+  const normalizeId = (id: string) => caseSensitive ? id : id.toLowerCase();
+  let result: KeywordDefinition[] = [];
+
+  // Validate and reorder against the state being replaced. Keeping the read
+  // inside the functional update prevents a concurrent settings write from
+  // being overwritten by a reorder built from an older label list.
+  useSettingsStore.setState((state) => {
+    const existing = state.emailKeywords;
+    if (value.length !== existing.length) {
+      throw new Error('keywords.reorder: ids must contain every existing label exactly once');
+    }
+
+    const byId = new Map(existing.map((keyword) => [normalizeId(keyword.id), keyword]));
+    if (byId.size !== existing.length) {
+      throw new Error('keywords.reorder: existing label ids are not unique');
+    }
+
+    const seen = new Set<string>();
+    const reordered: KeywordDefinition[] = [];
+    for (const id of value as string[]) {
+      const normalizedId = normalizeId(id);
+      if (seen.has(normalizedId)) {
+        throw new Error(`keywords.reorder: duplicate label id: ${id}`);
+      }
+      const keyword = byId.get(normalizedId);
+      if (!keyword) {
+        throw new Error(`keywords.reorder: unknown label id: ${id}`);
+      }
+      seen.add(normalizedId);
+      reordered.push(keyword);
+    }
+
+    // Reuse the existing definitions verbatim so ordering cannot change a
+    // label's name, colour, visibility, id casing, or any future metadata.
+    result = reordered;
+    return { emailKeywords: reordered };
+  });
+  return result.map((keyword) => ({ ...keyword }));
+}
+
+function assertKeywordIds(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > MAX_PLUGIN_KEYWORD_DEFINITIONS) {
+    throw new Error(`keywords.getCounts: ids must be an array of at most ${MAX_PLUGIN_KEYWORD_DEFINITIONS} strings`);
+  }
+  if (value.some((id) => typeof id !== 'string' || !isValidKeywordDefinitionId(id))) {
+    throw new Error('keywords.getCounts: ids contains an invalid label id');
+  }
+  return value as string[];
+}
+
+function doKeywordsGetCounts(value?: unknown): Record<string, { total: number; unread: number }> {
+  const ids = assertKeywordIds(value);
+  const counts = useEmailStore.getState().tagCounts;
+  if (!ids) {
+    return Object.fromEntries(
+      Object.entries(counts).map(([id, count]) => [id, { ...count }]),
+    );
+  }
+
+  const selected: Record<string, { total: number; unread: number }> = {};
+  for (const id of ids) {
+    const count = counts[id];
+    if (count) selected[id] = { ...count };
+  }
+  return selected;
+}
+
+function keywordDiscoveryOptions(value: unknown, method: string): { limit: number } | undefined {
+  if (value !== undefined && !isPlainObject(value)) {
+    throw new Error(`${method}: options must be an object`);
+  }
+  const rawLimit = value?.limit;
+  if (
+    rawLimit !== undefined &&
+    (typeof rawLimit !== 'number' || !Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > DEFAULT_KEYWORD_SCAN_LIMIT)
+  ) {
+    throw new Error(`${method}: limit must be an integer from 1 to ${DEFAULT_KEYWORD_SCAN_LIMIT}`);
+  }
+  return rawLimit === undefined ? undefined : { limit: rawLimit };
+}
+
+async function doJmapGetKeywords(value?: unknown) {
+  return requireClient().getKeywords(keywordDiscoveryOptions(value, 'jmap.getKeywords'));
+}
+
+async function doKeywordsDiscover(value?: unknown) {
+  return requireClient().discoverKeywords(keywordDiscoveryOptions(value, 'keywords.discover'));
+}
+
+async function doKeywordsRefreshCounts(): Promise<Record<string, { total: number; unread: number }>> {
+  await useEmailStore.getState().fetchTagCounts(requireClient());
+  return doKeywordsGetCounts();
+}
+
+// ─── Message-list category tabs ───────────────────────────────
+
+/**
+ * Resolve the currently viewed mailbox to its JMAP id + owning account, the
+ * same way email-store's fetchEmails does (shared mailboxes use namespaced
+ * store ids).
+ */
+function resolveSelectedMailboxForQuery(): { jmapMailboxId: string; accountId?: string } | null {
+  const { selectedMailbox, mailboxes } = useEmailStore.getState();
+  if (!selectedMailbox) return null;
+  const mailbox = mailboxes.find((mb) => mb.id === selectedMailbox);
+  if (!mailbox) return null;
+  return {
+    jmapMailboxId: mailbox.originalId || mailbox.id,
+    accountId: mailbox.isShared ? mailbox.accountId : undefined,
+  };
+}
+
+async function doTabsRefreshCounts(): Promise<Record<string, number>> {
+  const client = requireClient();
+  const resolved = resolveSelectedMailboxForQuery();
+  if (!resolved) return {};
+  await useMessageListTabsStore.getState().refreshCounts(client, resolved.jmapMailboxId, resolved.accountId);
+  return useMessageListTabsStore.getState().tabCounts;
+}
+
+async function doTabsCategorize(emailIds: unknown, tabId: unknown): Promise<boolean> {
+  if (!Array.isArray(emailIds) || emailIds.some((id) => typeof id !== 'string')) {
+    throw new Error('tabs.categorize: emailIds must be a string array');
+  }
+  if (typeof tabId !== 'string') throw new Error('tabs.categorize: tabId must be a string');
+  const client = requireClient();
+  const moved = await useMessageListTabsStore.getState().categorizeEmails(client, emailIds as string[], tabId);
+  if (moved) void doTabsRefreshCounts().catch(() => { /* counts refresh is best-effort */ });
+  return moved;
+}
+
+// ─── Sieve (delivery-time classification) ─────────────────────
+
+async function doSieveGetActiveScript(): Promise<{ id: string; name: string; content: string } | null> {
+  const client = requireClient();
+  if (!client.supportsSieve()) return null;
+  const scripts = await client.getSieveScripts();
+  const active = scripts.find((s) => s.isActive);
+  if (!active) return null;
+  const content = await client.getSieveScriptContent(active.blobId);
+  return { id: active.id, name: active.name, content };
+}
+
+/**
+ * Re-generate and re-upload the account's active Sieve script through the
+ * filter store, which runs the filterHooks.onSieveScriptGenerate transform -
+ * the supported way for a plugin to install/update its managed section
+ * (e.g. the inbox-category classifier) without clobbering user filters.
+ */
+async function doSieveRegenerate(): Promise<void> {
+  const client = requireClient();
+  if (!client.supportsSieve()) throw new Error('Sieve is not supported by this server');
+  const filterStore = useFilterStore.getState();
+  // Sync from the server first: a background plugin may call this before the
+  // filters settings page has ever populated the store.
+  await filterStore.fetchFilters(client);
+  await useFilterStore.getState().saveFilters(client);
+}
+
 // ─── admin config (same as before) ────────────────────────────
 
 async function adminGetAll(pluginId: string): Promise<Record<string, unknown>> {
@@ -234,7 +1126,15 @@ export async function dispatchApiCall(
   plugin: InstalledPlugin,
   method: string,
   args: unknown[],
+  opts?: { privileged?: boolean },
 ): Promise<unknown> {
+  // Tier gate: privileged-only methods are refused for untrusted (null-origin)
+  // instances even if the permission is somehow present. Defence-in-depth on
+  // top of the load-time tier resolution.
+  if (PRIVILEGED_ONLY_METHODS.has(method) && !opts?.privileged) {
+    throw new Error(`Method "${method}" requires the privileged plugin tier`);
+  }
+
   // Permission gate
   const requiredPerm = PERM_PER_METHOD[method];
   if (requiredPerm !== undefined && requiredPerm !== null) {
@@ -256,8 +1156,67 @@ export async function dispatchApiCall(
     case 'toast.info':    appToast.info(String(args[0] ?? '')); return undefined;
     case 'toast.warning': appToast.warning(String(args[0] ?? '')); return undefined;
 
-    case 'http.post':  return doHttpPost(plugin, args[0] as string, args[1]);
+    case 'http.post':  return doHttpPost(plugin, args[0] as string, args[1], args[2] as PluginHttpPostOptions | undefined);
     case 'http.fetch': return doHttpFetch(plugin, args[0] as string, args[1] as PluginFetchInit | undefined);
+
+    case 'jmap.fetchBlob': return doJmapFetchBlob(args[0] as string, args[1] as { name?: string; type?: string, rangeHeader?: number } | undefined);
+    case 'jmap.uploadBlob': return doJmapUploadBlob(args[0] as Uint8Array, args[1] as string, args[2] as string);
+    case 'jmap.sendRaw':   return doJmapSendRaw(
+      args[0] as ArrayBuffer | ArrayBufferView,
+      args[1] as string,
+      args[2] as { delayedUntil?: string; envelopeRecipients?: string[] } | undefined,
+    );
+    case 'jmap.submitRaw': return doJmapSubmitRaw(
+      args[0] as ArrayBuffer | ArrayBufferView,
+      args[1] as string,
+      args[2] as { delayedUntil?: string; envelopeRecipients?: string[] } | undefined,
+    );
+    case 'jmap.importRaw': return doJmapImportRaw(
+      args[0] as ArrayBuffer | ArrayBufferView,
+      args[1] as string[],
+      args[2] as { keywords?: Record<string, boolean>; accountId?: string } | undefined,
+    );
+    case 'jmap.getKeywords': return doJmapGetKeywords(args[0]);
+    case 'jmap.setKeywords': {
+      const emailId = assertEmailId(args[0], 'jmap.setKeywords');
+      const accountId = assertOptionalAccountId(args[2], 'jmap.setKeywords');
+      const keywords = assertPluginKeywords(args[1]);
+      await requireClient().updateEmailKeywords(emailId, keywords, accountId);
+      return undefined;
+    }
+    case 'jmap.setKeyword': {
+      const emailId = assertEmailId(args[0], 'jmap.setKeyword');
+      const keyword = assertPluginKeyword(args[1]);
+      const accountId = assertOptionalAccountId(args[2], 'jmap.setKeyword');
+      await requireClient().setKeyword(emailId, keyword, accountId);
+      return undefined;
+    }
+    case 'jmap.removeKeyword': {
+      const emailId = assertEmailId(args[0], 'jmap.removeKeyword');
+      const keyword = assertPluginKeyword(args[1]);
+      const accountId = assertOptionalAccountId(args[2], 'jmap.removeKeyword');
+      await requireClient().removeKeyword(emailId, keyword, accountId);
+      return undefined;
+    }
+    case 'upfiles.get' : return getFile(args[0] as string);
+    case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
+
+    case 'crypto.getOrCreateWebAuthn': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string, args[2] as string | undefined, args[3] as string | undefined);
+    case 'crypto.getPublicKeys': return getPublicKeys();
+    case 'crypto.createPublicKey': return doCreatePublicKey(args[0] as PublicKeyInput);
+    case 'crypto.removePublicKey': return doRemovePublicKey(args[0] as string);
+    case 'crypto.getEncryptionAtRest': return doGetEncryptionAtRest();
+    case 'crypto.setEncryptionAtRest': return doSetEncryptionAtRest(args[0] as EncryptionAtRestConfig);
+
+
+    case 'contact.get': return doContactGet(args[0] as string);
+    case 'contact.update': return doContactUpdate(args[0] as string, args[1] as Partial<ContactCard>);
+    case 'contact.create': return doContactCreate(args[0] as ContactCard);
+    case 'contact.search': return doContactSearch(args[0] as string);
+
+    case 'user.getAccounts':   return doUserGetAccounts();
+    case 'user.getIdentities': return doUserGetIdentities();
+    case 'user.logout' : return doUserLogout();
 
     case 'admin.getConfig':    return adminGet(plugin.id, args[0] as string);
     case 'admin.getAllConfig': return adminGetAll(plugin.id);
@@ -287,6 +1246,42 @@ export async function dispatchApiCall(
       });
       return undefined;
     }
+    case 'ui.prompt': {
+      const opts = (args[0] ?? {}) as { title?: string; message?: string; confirmLabel?: string; cancelLabel?: string; fields?: PromptField[] };
+      const fields: PromptField[] = Array.isArray(opts.fields)
+        ? opts.fields.map((f) => ({
+            name: String(f.name),
+            label: String(f.label),
+            type: f.type === 'password' ? 'password' : 'text',
+            placeholder: typeof f.placeholder === 'string' ? f.placeholder : undefined,
+            required: !!f.required,
+          }))
+        : [];
+      return awaitPrompt({
+        pluginId: plugin.id,
+        kind: 'prompt',
+        title: String(opts.title ?? plugin.name ?? 'Enter details'),
+        message: String(opts.message ?? ''),
+        confirmLabel: typeof opts.confirmLabel === 'string' ? opts.confirmLabel : undefined,
+        cancelLabel: typeof opts.cancelLabel === 'string' ? opts.cancelLabel : undefined,
+        fields,
+      });
+    }
+    case 'ui.rerenderEmail': {
+      // Re-run the onRenderEmailBody hook for the currently open message. Used
+      // by crypto plugins after they change decryption state (e.g. an S/MIME key
+      // was just unlocked) so the body re-decrypts without a full reload — which
+      // would wipe the in-memory session keys.
+      window.dispatchEvent(new CustomEvent('plugin:rerender-email'));
+      return undefined;
+    }
+    case 'ui.rerenderFetchedEmails': {
+      // Re-run the onEmailsFetched hook for the currently shown message list. 
+      // Used by crypto plugins after they change decryption state s
+      // so the preview or others properties re-decrypts without a full reload.
+      window.dispatchEvent(new CustomEvent('plugin:rerender-fetched-emails'));
+      return undefined;
+    }
     case 'ui.openExternalUrl': {
       const url = String(args[0] ?? '');
       // Only http(s) - the sandbox should not be able to navigate the host
@@ -299,6 +1294,59 @@ export async function dispatchApiCall(
       // Always open in a new tab; plugins must not be able to navigate the
       // host window (_self/_top/_parent) to an attacker-controlled origin.
       window.open(parsed.toString(), '_blank', 'noopener,noreferrer');
+      return undefined;
+    }
+    case 'ui.downloadFile': {
+      const opts = args[0] as { content: string; filename: string; contentType?: string };
+      return downloadFile(opts);
+    }
+
+    case 'email.setKeyword': {
+      const keyword = assertPluginKeyword(args[1]);
+      await requireClient().setKeyword(String(args[0]), keyword, args[2] as string | undefined);
+      return undefined;
+    }
+    case 'email.removeKeyword': {
+      const keyword = assertPluginKeyword(args[1]);
+      await requireClient().removeKeyword(String(args[0]), keyword, args[2] as string | undefined);
+      return undefined;
+    }
+
+    case 'keywords.list': return doKeywordsList();
+    case 'keywords.add': return doKeywordsAdd(args[0]);
+    case 'keywords.reorder': return doKeywordsReorder(args[0], args[1]);
+    case 'keywords.discover': return doKeywordsDiscover(args[0]);
+    case 'keywords.getCounts': return doKeywordsGetCounts(args[0]);
+    case 'keywords.refreshCounts': return doKeywordsRefreshCounts();
+
+    case 'tabs.set': {
+      // validateTabsConfig (inside registerTabs) throws a developer-readable
+      // error that surfaces as the api.tabs.set rejection in the sandbox.
+      useMessageListTabsStore.getState().registerTabs(plugin.id, args[0] as MessageListTabsConfig);
+      return undefined;
+    }
+    case 'tabs.clear': {
+      useMessageListTabsStore.getState().clearTabs(plugin.id);
+      return undefined;
+    }
+    case 'tabs.getState': {
+      const { tabs, activeTabId, tabCounts } = useMessageListTabsStore.getState();
+      return { tabs, activeTabId, tabCounts };
+    }
+    case 'tabs.refreshCounts': return doTabsRefreshCounts();
+    case 'tabs.categorize': return doTabsCategorize(args[0], args[1]);
+
+    case 'sieve.isSupported': {
+      const { client } = useAuthStore.getState();
+      return !!client?.supportsSieve();
+    }
+    case 'sieve.getActiveScript': return doSieveGetActiveScript();
+    case 'sieve.validateScript': {
+      if (typeof args[0] !== 'string') throw new Error('sieve.validateScript: content must be a string');
+      return requireClient().validateSieveScript(args[0]);
+    }
+    case 'sieve.regenerate': {
+      await doSieveRegenerate();
       return undefined;
     }
 

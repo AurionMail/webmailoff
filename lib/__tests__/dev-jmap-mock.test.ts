@@ -199,6 +199,81 @@ describe('dev-jmap mock server', () => {
     });
   });
 
+  describe('POST /api - PushSubscription lifecycle', () => {
+    it('creates, verifies, lists, and destroys a push subscription', async () => {
+      const relayFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(null, { status: 202 }),
+      );
+
+      try {
+        const createReq = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+          body: JSON.stringify({
+            methodCalls: [['PushSubscription/set', {
+              create: {
+                new: {
+                  deviceClientId: 'browser-device-1',
+                  url: 'https://notifications.relay.bulwarkmail.org/api/push/jmap/browser-device-1',
+                  types: ['Email'],
+                  expires: '2030-01-01T00:00:00.000Z',
+                },
+              },
+            }, 'c0']],
+          }),
+        });
+        const createRes = await POST(createReq, { params: Promise.resolve({ path: ['api'] }) });
+        const createData = await createRes.json();
+        const id = createData.methodResponses[0][1].created.new.id as string;
+        const verificationBody = JSON.parse(
+          String(relayFetch.mock.calls[0]?.[1]?.body),
+        ) as { verificationCode: string };
+
+        expect(id).toMatch(/^push-/);
+        expect(relayFetch).toHaveBeenCalledOnce();
+
+        const verifyReq = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+          body: JSON.stringify({
+            methodCalls: [['PushSubscription/set', {
+              update: { [id]: { verificationCode: verificationBody.verificationCode } },
+            }, 'v0']],
+          }),
+        });
+        const verifyRes = await POST(verifyReq, { params: Promise.resolve({ path: ['api'] }) });
+        const verifyData = await verifyRes.json();
+        expect(verifyData.methodResponses[0][1].updated[id]).toBeNull();
+
+        const getReq = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+          body: JSON.stringify({
+            methodCalls: [['PushSubscription/get', { ids: [id] }, 'g0']],
+          }),
+        });
+        const getRes = await POST(getReq, { params: Promise.resolve({ path: ['api'] }) });
+        const getData = await getRes.json();
+        expect(getData.methodResponses[0][1].list).toEqual([
+          expect.objectContaining({ id, deviceClientId: 'browser-device-1' }),
+        ]);
+
+        const destroyReq = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+          body: JSON.stringify({
+            methodCalls: [['PushSubscription/set', { destroy: [id] }, 'd0']],
+          }),
+        });
+        const destroyRes = await POST(destroyReq, { params: Promise.resolve({ path: ['api'] }) });
+        const destroyData = await destroyRes.json();
+        expect(destroyData.methodResponses[0][1].destroyed).toEqual([id]);
+      } finally {
+        relayFetch.mockRestore();
+      }
+    });
+  });
+
   describe('POST /api - back-references', () => {
     it('should resolve #ids from Email/query result', async () => {
       const req = makeRequest('http://localhost:3000/api/dev-jmap/api', {
@@ -229,6 +304,53 @@ describe('dev-jmap mock server', () => {
       });
       const res = await POST(req, { params: Promise.resolve({ path: ['api'] }) });
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api - request limits', () => {
+    it('should refuse a request with more method calls than it advertises', async () => {
+      const methodCalls = Array.from({ length: 17 }, (_, i) => [
+        'Email/query',
+        { accountId: 'dev-account-001', limit: 0, calculateTotal: true },
+        `c${i}`,
+      ]);
+      const req = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+        body: JSON.stringify({ methodCalls }),
+      });
+      const res = await POST(req, { params: Promise.resolve({ path: ['api'] }) });
+      const data = await res.json();
+      expect(res.status).toBe(400);
+      expect(data.type).toBe('urn:ietf:params:jmap:error:limit');
+      expect(data.limit).toBe('maxCallsInRequest');
+    });
+
+    it('should reject an over-sized /set with requestTooLarge', async () => {
+      const destroy = Array.from({ length: 501 }, (_, i) => `email-${i}`);
+      const req = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+        body: JSON.stringify({ methodCalls: [['Email/set', { accountId: 'dev-account-001', destroy }, '0']] }),
+      });
+      const res = await POST(req, { params: Promise.resolve({ path: ['api'] }) });
+      const data = await res.json();
+      expect(res.status).toBe(200);
+      expect(data.methodResponses[0][0]).toBe('error');
+      expect(data.methodResponses[0][1].type).toBe('requestTooLarge');
+    });
+
+    it('should reject an over-sized /get with requestTooLarge', async () => {
+      const ids = Array.from({ length: 501 }, (_, i) => `email-${i}`);
+      const req = makeRequest('http://localhost:3000/api/dev-jmap/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', host: 'localhost:3000' },
+        body: JSON.stringify({ methodCalls: [['Email/get', { accountId: 'dev-account-001', ids }, '0']] }),
+      });
+      const res = await POST(req, { params: Promise.resolve({ path: ['api'] }) });
+      const data = await res.json();
+      expect(data.methodResponses[0][0]).toBe('error');
+      expect(data.methodResponses[0][1].type).toBe('requestTooLarge');
     });
   });
 

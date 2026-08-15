@@ -3,10 +3,11 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { InstalledPlugin, PluginStatus } from '@/lib/plugin-types';
+import type { InstalledPlugin, PluginStatus, PluginTier } from '@/lib/plugin-types';
 import { pluginStorage } from '@/lib/plugin-storage';
 import { extractPlugin } from '@/lib/plugin-validator';
-import { loadPlugin, deactivatePlugin, setPluginStoreAccessor, setupAutoDisable } from '@/lib/plugin-loader';
+import { loadPlugin, deactivatePlugin, setPluginStoreAccessor, setupAutoDisable, setSandboxLocale } from '@/lib/plugin-loader';
+import { useLocaleStore } from '@/stores/locale-store';
 import { removeAllPluginHooks } from '@/lib/plugin-hooks';
 import { requestConsent } from '@/lib/plugin-sandbox/consent';
 import { sha256Hex } from '@/lib/plugin-sandbox/bundle-integrity';
@@ -17,6 +18,8 @@ import { IMPLICIT_PERMISSIONS } from '@/lib/plugin-types';
 import type { Permission } from '@/lib/plugin-types';
 
 let pluginInitializationPromise: Promise<void> | null = null;
+// One-time guard so we attach the locale->sandbox subscription only once.
+let localeSubscribed = false;
 
 // ─── Store Interface ─────────────────────────────────────────
 
@@ -73,6 +76,7 @@ export const usePluginStore = create<PluginStoreState>()(
           author: manifest.author,
           description: manifest.description,
           type: manifest.type,
+          ...(manifest.tier ? { tier: manifest.tier } : {}),
           permissions: manifest.permissions,
           entrypoint: manifest.entrypoint,
           enabled: false, // Start disabled, user must enable
@@ -258,6 +262,17 @@ export const usePluginStore = create<PluginStoreState>()(
             setPluginStatus: get().setPluginStatus,
           });
           setupAutoDisable();
+          // Keep the sandbox locale in step with the app locale. Set it
+          // synchronously *before* activation so background instances get the
+          // right locale in their init payload (the bug: the only wiring lived
+          // in the dead activateAllPlugins() path, so the sandbox locale stayed
+          // 'en' forever and plugin i18n never localized). Subscribe once for
+          // later language switches; those affect plugins/slots loaded after.
+          setSandboxLocale(useLocaleStore.getState().locale);
+          if (!localeSubscribed) {
+            localeSubscribed = true;
+            useLocaleStore.subscribe((s) => setSandboxLocale(s.locale));
+          }
 
           // Sync server-managed plugins before loading
           await syncServerPlugins(get, set);
@@ -310,6 +325,8 @@ interface ServerPluginInfo {
   author: string;
   description: string;
   type: string;
+  /** Requested execution tier (privileged plugins run same-origin). */
+  tier?: PluginTier;
   permissions: string[];
   entrypoint: string;
   forceEnabled: boolean;
@@ -324,6 +341,34 @@ interface ServerPluginInfo {
   apiPostPaths?: string[];
   /** Per-user settings schema, captured from the manifest server-side. */
   settingsSchema?: InstalledPlugin['settingsSchema'];
+  /** Plugin-declared i18n tables (locale -> key -> string), from the manifest. */
+  locales?: InstalledPlugin['locales'];
+}
+
+/**
+ * Server-owned metadata, passed through verbatim on every sync. Centralised in
+ * ONE place so a newly added passthrough field can't be silently dropped at one
+ * of several copy sites - which is exactly what previously lost `settingsSchema`
+ * (hence the old "schema drift" special-case) and then `locales`. Excludes
+ * fields the client owns (id, type, enabled/status, settings, adminApproved).
+ */
+function serverMeta(sp: ServerPluginInfo) {
+  return {
+    name: sp.name,
+    version: sp.version,
+    author: sp.author,
+    description: sp.description,
+    permissions: sp.permissions,
+    entrypoint: sp.entrypoint,
+    ...(sp.tier ? { tier: sp.tier } : {}),
+    managed: true as const,
+    forceEnabled: sp.forceEnabled,
+    bundleHash: sp.bundleHash,
+    httpOrigins: sp.httpOrigins,
+    apiPostPaths: sp.apiPostPaths,
+    settingsSchema: sp.settingsSchema,
+    locales: sp.locales,
+  };
 }
 
 const SERVER_MANAGED_KEY = 'server-managed-plugin-ids';
@@ -402,113 +447,57 @@ async function syncServerPlugins(
       const local = get().plugins.find(p => p.id === sp.id);
 
       if (!local) {
-        // New server plugin - download and install
+        // New server plugin - download bundle and install.
         const code = await downloadPluginBundle(sp.id, sp.bundleHash);
         if (!code) continue;
-
         await pluginStorage.saveCode(sp.id, code);
 
         const plugin: InstalledPlugin = {
           id: sp.id,
-          name: sp.name,
-          version: sp.version,
-          author: sp.author,
-          description: sp.description,
           type: sp.type as InstalledPlugin['type'],
-          permissions: sp.permissions,
-          entrypoint: sp.entrypoint,
           enabled: sp.forceEnabled,
           status: sp.forceEnabled ? 'enabled' : 'installed',
-          managed: true,
-          forceEnabled: sp.forceEnabled,
           adminApproved: true, // Server-managed plugins are always approved
           settings: {},
-          settingsSchema: sp.settingsSchema,
-          bundleHash: sp.bundleHash,
-          ...(sp.httpOrigins && sp.httpOrigins.length > 0
-            ? { httpOrigins: sp.httpOrigins }
-            : {}),
-          ...(sp.apiPostPaths && sp.apiPostPaths.length > 0
-            ? { apiPostPaths: sp.apiPostPaths }
-            : {}),
+          ...serverMeta(sp),
         };
+        set(state =>
+          state.plugins.some(p => p.id === sp.id)
+            ? {}
+            : { plugins: [...state.plugins, plugin] },
+        );
+        continue;
+      }
 
-        set(state => {
-          if (state.plugins.some(p => p.id === sp.id)) {
-            return {};
-          }
-          return { plugins: [...state.plugins, plugin] };
-        });
-      } else if (
+      // Existing plugin. Re-download the bundle only when the code actually
+      // changed, but ALWAYS re-derive server-owned metadata from one place
+      // (serverMeta) so no passthrough field is silently dropped on a
+      // metadata-only change. Only write when something differs, to avoid a
+      // needless persist/re-render on every sync.
+      const needsBundle =
         local.version !== sp.version ||
         // bundleHash mismatch covers re-uploads of the same version with new
-        // code. Falsy local hash (older installs that never carried one) also
-        // forces a refresh so we capture the hash on the next sync.
-        (sp.bundleHash && local.bundleHash !== sp.bundleHash)
-      ) {
-        // Version or content changed - re-download bundle
+        // code; a falsy local hash (older installs) also forces a refresh so
+        // we capture the hash on the next sync.
+        (!!sp.bundleHash && local.bundleHash !== sp.bundleHash);
+
+      if (needsBundle) {
         const code = await downloadPluginBundle(sp.id, sp.bundleHash);
         if (!code) continue;
-
         await pluginStorage.saveCode(sp.id, code);
+      }
 
+      // Force-enable in the same pass when the server flips it on, so the user
+      // doesn't need a second refresh for it to run.
+      const shouldAutoEnable = sp.forceEnabled && !local.enabled;
+      const next: InstalledPlugin = {
+        ...local,
+        ...serverMeta(sp),
+        ...(shouldAutoEnable ? { enabled: true, status: 'enabled' as const } : {}),
+      };
+      if (needsBundle || JSON.stringify(next) !== JSON.stringify(local)) {
         set(state => ({
-          plugins: state.plugins.map(p =>
-            p.id === sp.id
-              ? {
-                  ...p,
-                  name: sp.name,
-                  version: sp.version,
-                  author: sp.author,
-                  description: sp.description,
-                  permissions: sp.permissions,
-                  entrypoint: sp.entrypoint,
-                  managed: true,
-                  forceEnabled: sp.forceEnabled,
-                  bundleHash: sp.bundleHash,
-                  httpOrigins: sp.httpOrigins,
-                  apiPostPaths: sp.apiPostPaths,
-                  settingsSchema: sp.settingsSchema,
-                }
-              : p
-          ),
-        }));
-      } else if (local.managed !== true || local.forceEnabled !== sp.forceEnabled) {
-        // When forceEnabled flips on, enable the plugin in the same pass so
-        // the user doesn't need a second refresh for it to run.
-        const shouldAutoEnable = sp.forceEnabled && !local.enabled;
-        set(state => ({
-          plugins: state.plugins.map(p =>
-            p.id === sp.id
-              ? {
-                  ...p,
-                  managed: true,
-                  forceEnabled: sp.forceEnabled,
-                  settingsSchema: sp.settingsSchema,
-                  ...(shouldAutoEnable ? { enabled: true, status: 'enabled' as const } : {}),
-                }
-              : p
-          ),
-        }));
-      } else if (
-        JSON.stringify(local.settingsSchema ?? null) !== JSON.stringify(sp.settingsSchema ?? null)
-      ) {
-        // Schema drift: the bundle is current but the persisted plugin record
-        // pre-dates the server passing settingsSchema through, so the per-user
-        // settings UI was rendering empty. Patch the schema in place.
-        set(state => ({
-          plugins: state.plugins.map(p =>
-            p.id === sp.id ? { ...p, settingsSchema: sp.settingsSchema } : p
-          ),
-        }));
-      } else if (sp.forceEnabled && !local.enabled) {
-        // Force-enable if the server says so but client has it disabled
-        set(state => ({
-          plugins: state.plugins.map(p =>
-            p.id === sp.id
-              ? { ...p, enabled: true, status: 'enabled' as const, managed: true, forceEnabled: true }
-              : p
-          ),
+          plugins: state.plugins.map(p => (p.id === sp.id ? next : p)),
         }));
       }
     }

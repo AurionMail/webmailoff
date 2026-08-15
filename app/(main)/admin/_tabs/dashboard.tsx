@@ -32,7 +32,6 @@ export function DashboardTab() {
   const [themeCount, setThemeCount] = useState(0);
   const [policyRuleCount, setPolicyRuleCount] = useState(0);
   const [accountCounts, setAccountCounts] = useState<{ total: number; active7d: number } | null>(null);
-  const [jmapHealth, setJmapHealth] = useState<'unknown' | 'ok' | 'error'>('unknown');
 
   useEffect(() => {
     fetchDashboardData();
@@ -82,15 +81,6 @@ export function DashboardTab() {
       }
     }
 
-    if (configData?.jmapServerUrl) {
-      try {
-        const jmapRes = await apiFetch('/api/config');
-        setJmapHealth(jmapRes.ok ? 'ok' : 'error');
-      } catch {
-        setJmapHealth('error');
-      }
-    }
-
     const w: string[] = [];
     if (adminConfigRes.ok) {
       const sources = await adminConfigRes.json();
@@ -127,16 +117,6 @@ export function DashboardTab() {
         </SettingItem>
         <SettingItem label="JMAP Server" description={jmapUrl !== '-' ? jmapUrl : undefined}>
           <span className="text-sm text-foreground">{jmapHostname}</span>
-        </SettingItem>
-        <SettingItem label="JMAP Connection">
-          <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${
-            jmapHealth === 'ok' ? 'text-green-600 dark:text-green-400' : jmapHealth === 'error' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${
-              jmapHealth === 'ok' ? 'bg-green-500' : jmapHealth === 'error' ? 'bg-red-500' : 'bg-muted-foreground/40'
-            }`} />
-            {jmapHealth === 'ok' ? 'Connected' : jmapHealth === 'error' ? 'Error' : 'Unknown'}
-          </span>
         </SettingItem>
         <SettingItem label="Last Login">
           <span className="text-sm text-foreground">

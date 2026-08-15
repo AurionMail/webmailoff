@@ -1,23 +1,84 @@
 import { AuthenticationResults } from './jmap/types';
 import { parseUnsubscribeUrls } from './validation';
 
+type SpfResult = 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
+type SpfEntry = NonNullable<NonNullable<AuthenticationResults['spf']>['all']>[number];
+
+/**
+ * Severity ranking for SPF results. Higher = more severe / more actionable.
+ * A hard `fail` is a definitive policy violation and must outrank ambiguous
+ * states like `temperror`, so a spoofed message isn't softened to a
+ * "temporary failure" headline when one identity hard-fails.
+ */
+const SPF_SEVERITY: Record<SpfResult, number> = {
+  fail: 6,
+  softfail: 5,
+  permerror: 4,
+  temperror: 3,
+  neutral: 2,
+  none: 1,
+  pass: 0,
+};
+
+/**
+ * Whether the authentication results indicate the visible From identity can't
+ * be trusted (i.e. the message is likely spoofed). Used to suppress UI that
+ * would otherwise imply the message legitimately came from one of the user's
+ * own identities (e.g. the "via <identity>" badge).
+ */
+export function isAuthenticationSpoofed(auth?: AuthenticationResults): boolean {
+  if (!auth) return false;
+  // DMARC aligns the visible From with SPF/DKIM, so a DMARC fail is the
+  // strongest single spoofing signal.
+  if (auth.dmarc?.result === 'fail') return true;
+  // Otherwise a hard SPF fail with no valid DKIM signature means the sender
+  // isn't authorized for the envelope domain.
+  if (auth.spf?.result === 'fail' && auth.dkim?.result !== 'pass') return true;
+  return false;
+}
+
 /**
  * Parse Authentication-Results header to extract SPF, DKIM, DMARC results
  */
 export function parseAuthenticationResults(header: string): AuthenticationResults {
   const results: AuthenticationResults = {};
 
-  type SpfResult = 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
   type DkimResult = 'pass' | 'fail' | 'policy' | 'neutral' | 'temperror' | 'permerror';
   type DmarcResult = 'pass' | 'fail' | 'none';
   type DmarcPolicy = 'reject' | 'quarantine' | 'none';
 
-  // Parse SPF
-  const spfMatch = header.match(/spf=(\w+)(?:\s+\([^)]*\))?\s+(?:smtp\.(?:mailfrom|helo)=([^\s;]+))?/);
-  if (spfMatch) {
+  // Parse SPF. A single Authentication-Results header can carry more than one
+  // SPF result when the server evaluates multiple identities (HELO and MAIL
+  // FROM). Collect them all so a hard fail on any identity isn't softened to
+  // an ambiguous state recorded for another one.
+  const spfRegex = /spf=(\w+)(?:\s+\([^)]*\))?(?:\s+smtp\.(mailfrom|helo)=([^\s;]+))?/g;
+  const spfResults: SpfEntry[] = [];
+  let spfM: RegExpExecArray | null;
+  while ((spfM = spfRegex.exec(header)) !== null) {
+    spfResults.push({
+      result: spfM[1] as SpfResult,
+      identity: spfM[2] as SpfEntry['identity'],
+      domain: spfM[3],
+    });
+  }
+  if (spfResults.length > 0) {
+    const severity = (r: string) => SPF_SEVERITY[r as SpfResult] ?? -1;
+    // MAIL FROM is the primary SPF identity. Another identity (HELO) may only
+    // escalate the headline to a genuine failure state — a HELO `none` or
+    // `neutral` must not downgrade a MAIL FROM `pass`, since most senders
+    // publish no SPF record for their EHLO hostname.
+    const isFailure = (r: string) => severity(r) >= SPF_SEVERITY.temperror;
+    let primary =
+      spfResults.find((e) => e.identity === 'mailfrom') ?? spfResults[0];
+    for (const cur of spfResults) {
+      if (isFailure(cur.result) && severity(cur.result) > severity(primary.result)) {
+        primary = cur;
+      }
+    }
     results.spf = {
-      result: spfMatch[1] as SpfResult,
-      domain: spfMatch[2]
+      result: primary.result,
+      domain: primary.domain,
+      ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };
   }
 
@@ -58,7 +119,8 @@ export function parseAuthenticationResults(header: string): AuthenticationResult
  */
 export function parseSpamScore(header: string): { score: number; status: string } | null {
   // Try X-Spam-Status format: "No, score=-0.25"
-  const statusMatch = header.match(/^(Yes|No),?\s+score=([-\d.]+)/i);
+  // And try X-Spam-Score format (Stalwart): "ham, score=-0.25"
+  const statusMatch = header.match(/^(Yes|No|spam|ham),?\s+score=([-\d.]+)/i);
   if (statusMatch) {
     return {
       status: statusMatch[1].toLowerCase(),

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { isValidUnsubscribeUrl } from '@/lib/validation';
+import { isValidUnsubscribeUrl, parseMailtoUrl } from '@/lib/validation';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useIsDesktop } from '@/hooks/use-media-query';
 
@@ -14,12 +14,17 @@ interface UnsubscribeBannerProps {
     preferred?: 'http' | 'mailto';
   };
   senderEmail: string;
+  // Sends the unsubscribe message through the app's own account. This is a
+  // webmail client - handing a mailto: URL to the OS mail handler goes
+  // nowhere for most users.
+  onSendMailtoUnsubscribe: (fields: { to: string[]; subject?: string; body?: string }) => Promise<void>;
   onDismiss: () => void;
 }
 
 export function UnsubscribeBanner({
   listUnsubscribe,
   senderEmail: _senderEmail,
+  onSendMailtoUnsubscribe,
   onDismiss
 }: UnsubscribeBannerProps) {
   const t = useTranslations();
@@ -74,12 +79,18 @@ export function UnsubscribeBanner({
         setShowConfirm(false);
         setTimeout(onDismiss, 3000);
       } else {
-        const link = document.createElement('a');
-        link.href = unsubUrl;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Send the unsubscribe message ourselves and only report success
+        // once the server accepted it. The previous hidden-link click handed
+        // the mailto: to the OS mail handler and claimed success even though
+        // nothing was ever sent.
+        const fields = parseMailtoUrl(unsubUrl);
+        if (!fields) {
+          setError(true);
+          setProcessing(false);
+          setShowConfirm(false);
+          return;
+        }
+        await onSendMailtoUnsubscribe(fields);
 
         setSuccess(true);
         setProcessing(false);
@@ -96,7 +107,7 @@ export function UnsubscribeBanner({
 
   if (success) {
     return (
-      <span className="inline-flex items-center gap-1 ml-1">
+      <span className="inline-flex items-center gap-1 ms-1">
         <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
         <span className="text-xs text-green-600 dark:text-green-400">
           {t(unsubMethod === 'http'
@@ -110,7 +121,7 @@ export function UnsubscribeBanner({
 
   if (error) {
     return (
-      <span className="inline-flex items-center gap-1 ml-1">
+      <span className="inline-flex items-center gap-1 ms-1">
         <AlertCircle className="w-3 h-3 text-red-500 dark:text-red-400" />
         <button
           onClick={onDismiss}
@@ -136,7 +147,7 @@ export function UnsubscribeBanner({
         {showConfirm && isDesktop && (
           <div
             ref={popoverRef}
-            className="absolute top-full left-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-3 min-w-[220px]"
+            className="absolute top-full start-0 mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-3 min-w-[220px]"
           >
             <p className="text-sm text-foreground mb-2">
               {t('email_viewer.unsubscribe_banner.confirm_title')}
@@ -171,8 +182,8 @@ export function UnsubscribeBanner({
           }}
           title={t('email_viewer.unsubscribe_banner.confirm_title')}
           message={t(unsubMethod === 'http'
-            ? 'email_viewer.unsubscribe_banner.success_http'
-            : 'email_viewer.unsubscribe_banner.success_mailto'
+            ? 'email_viewer.unsubscribe_banner.confirm_message_http'
+            : 'email_viewer.unsubscribe_banner.confirm_message_mailto'
           )}
           confirmText={t('email_viewer.unsubscribe_banner.confirm_button')}
           cancelText={t('email_viewer.unsubscribe_banner.cancel')}

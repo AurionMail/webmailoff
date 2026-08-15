@@ -328,6 +328,552 @@ const solarizedCSS = `
   --color-chart-5: #6c71c4;
 }`;
 
+// Roundcube "Elastic" skin recreation.
+//
+// Colour tokens are lifted from skins/elastic/styles/colors.less (CC BY-SA):
+//   accent      #37beff   font        #27353a   border  #ddd
+//   error       #ff5552   success     #41b849   warning #ffd452
+//   task-menu    #2f3a3f (always dark, both modes)
+//   list-select  tint(#37beff, 90%) -> #ebf8ff
+// Dark mode mirrors @color-dark-* (background #21292c, font #c5d1d3, …).
+const elasticCSS = `
+:root {
+  --color-border: #dddddd;
+  --color-input: #ced4da;
+  --color-ring: #37beff;
+  --color-background: #ffffff;
+  --color-foreground: #27353a;
+  --color-primary: #37beff;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f4f4f4;
+  --color-secondary-foreground: #27353a;
+  --color-muted: #f4f4f4;
+  --color-muted-foreground: #737677;
+  --color-accent: #e6f6ff;
+  --color-accent-foreground: #0070a8;
+  --color-destructive: #ff5552;
+  --color-destructive-foreground: #ffffff;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #27353a;
+  --color-sidebar: #ffffff;
+  --color-sidebar-foreground: #27353a;
+  --color-sidebar-border: #dddddd;
+  --color-sidebar-accent: #ebf8ff;
+  --color-sidebar-accent-foreground: #27353a;
+  --color-card: #ffffff;
+  --color-card-foreground: #27353a;
+  --color-success: #41b849;
+  --color-success-foreground: #ffffff;
+  --color-warning: #ffd452;
+  --color-warning-foreground: #27353a;
+  --color-info: #37beff;
+  --color-info-foreground: #ffffff;
+  --color-selection: #ebf8ff;
+  --color-selection-foreground: #27353a;
+  --color-unread: #ffd452;
+  --color-chart-1: #37beff;
+  --color-chart-2: #41b849;
+  --color-chart-3: #ffd452;
+  --color-chart-4: #ff5552;
+  --color-chart-5: #9b59b6;
+  /* Elastic is a 14px Roboto skin with tighter list rows than Bulwark's default */
+  --font-size-base: 14px;
+  --list-item-height: 40px;
+}
+.dark {
+  --color-border: #4d6066;
+  --color-input: #4d6066;
+  --color-ring: #37beff;
+  --color-background: #21292c;
+  --color-foreground: #ffffff;
+  --color-primary: #37beff;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #2c373a;
+  --color-secondary-foreground: #ffffff;
+  --color-muted: #2c373a;
+  /* Roundcube keeps most text near the bright font colour, only true hints
+     dim out. Bulwark applies muted-foreground far more widely, so brighten it
+     toward @color-dark-font (#c5d1d3) to match Elastic's overall brightness. */
+  --color-muted-foreground: #b3bec1;
+  --color-accent: #374549;
+  --color-accent-foreground: #37beff;
+  --color-destructive: #ff5552;
+  --color-destructive-foreground: #ffffff;
+  --color-popover: #161b1d;
+  --color-popover-foreground: #ffffff;
+  --color-sidebar: #21292c;
+  --color-sidebar-foreground: #ffffff;
+  --color-sidebar-border: #4d6066;
+  --color-sidebar-accent: #374549;
+  --color-sidebar-accent-foreground: #c5d1d3;
+  --color-card: #1a2225;
+  --color-card-foreground: #ffffff;
+  --color-success: #41b849;
+  --color-success-foreground: #ffffff;
+  --color-warning: #ffd452;
+  --color-warning-foreground: #21292c;
+  --color-info: #37beff;
+  --color-info-foreground: #ffffff;
+  --color-selection: #374549;
+  --color-selection-foreground: #37beff;
+  --color-unread: #b88a00;
+  --color-chart-1: #37beff;
+  --color-chart-2: #41b849;
+  --color-chart-3: #ffd452;
+  --color-chart-4: #ff5552;
+  --color-chart-5: #b48ead;
+}`;
+
+// Component-level overrides that the colour tokens alone can't express:
+// Roboto typography and Elastic's signature dark "task menu" rail (which is
+// dark in both light and dark mode). Scoped under the skin body attribute so
+// it cleanly detaches when the theme is switched off.
+const elasticSkin = `
+body[data-theme-skin="builtin-roundcube-elastic"] {
+  font-family: Roboto, "Helvetica Neue", "Segoe UI", Arial, "Noto Sans", sans-serif;
+}
+
+/* ── Task menu (left navigation rail) ─────────────────────────── */
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary {
+  background-color: #2f3a3f !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.25) !important;
+}
+/* In dark mode the black hairline vanishes against the dark canvas - use a
+   light one so the rail still reads as a distinct column. (.dark lives on
+   <html>, so it must be an ancestor of the skinned <body>.) */
+.dark body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary {
+  border-right-color: rgba(255, 255, 255, 0.1) !important;
+}
+/* Light icons + labels on the dark rail */
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary a,
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary button,
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary .text-muted-foreground {
+  color: #e7edee !important;
+}
+/* Hover slab */
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary a:hover,
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary button:hover {
+  background-color: #41525a !important;
+  color: #ffffff !important;
+}
+/* Selected task: brighter slab, accent-blue glyph (matches Elastic) */
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary .bg-primary\\/10 {
+  background-color: #41525a !important;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] .w-14.bg-secondary .text-primary {
+  color: #37beff !important;
+}
+
+/* ── Flatten Bulwark's soft radii to Elastic's Bootstrap-flat look ── */
+/* Elastic uses ~4px corners on buttons/inputs/cards; rounded-full (pills,
+   avatars, toggles) is intentionally left alone. */
+body[data-theme-skin="builtin-roundcube-elastic"] .rounded-md,
+body[data-theme-skin="builtin-roundcube-elastic"] .rounded-lg,
+body[data-theme-skin="builtin-roundcube-elastic"] .rounded-xl,
+body[data-theme-skin="builtin-roundcube-elastic"] .rounded-2xl,
+body[data-theme-skin="builtin-roundcube-elastic"] .rounded-3xl,
+body[data-theme-skin="builtin-roundcube-elastic"] input,
+body[data-theme-skin="builtin-roundcube-elastic"] textarea,
+body[data-theme-skin="builtin-roundcube-elastic"] button:not(.rounded-full) {
+  border-radius: 4px !important;
+}
+
+/* ── Unify panel backgrounds like Roundcube ───────────────────── */
+/* In Elastic the folder list, message list and content pane all share one
+   canvas (white / dark); only the narrow task rail is dark. Bulwark's folder
+   sidebar uses \`bg-secondary\` (a grey panel), so repaint it with the main
+   background. The folder sidebar carries the \`border-r\` class; the dark task
+   rail uses \`bg-secondary\` WITHOUT it (inline-styled border), so this
+   qualifier leaves the rail dark. */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r {
+  background-color: var(--color-background) !important;
+}
+/* The empty "No conversation selected" pane uses a muted diagonal gradient;
+   flatten it to the plain canvas so the content area is one solid colour. */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-gradient-to-br.from-muted\\/30.to-muted\\/50 {
+  background: var(--color-background) !important;
+}
+
+/* The message-viewer body sits on a faint muted backing (bg-muted/30); flatten
+   it to the plain canvas so the whole content pane - search bar, action
+   toolbar, mail header and body - is one uniform background colour. The
+   search/toolbar/header are bordered \`bg-background\` strips, so they already
+   match once we leave them untinted. */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-muted\\/30 {
+  background-color: var(--color-background) !important;
+}
+
+/* ── Elastic primary buttons (.btn-primary) ──────────────────── */
+/* Solid accent fill, white label + icon, hairline border, focus halo. Light
+   = @color-main (#37beff); dark = @color-dark-main (darken 30% -> #006a9d)
+   with the bright #37beff outline, exactly like the on-switch. */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-primary.text-primary-foreground {
+  background-color: #37beff !important;
+  border: 1px solid #37beff !important;
+  color: #ffffff !important;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-primary.text-primary-foreground:hover {
+  background-color: #19b6fe !important;
+  border-color: #0bb0ff !important;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-primary.text-primary-foreground:focus-visible {
+  box-shadow: 0 0 0 0.2rem rgba(55, 190, 255, 0.3) !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] .bg-primary.text-primary-foreground {
+  background-color: #006a9d !important;
+  border-color: #37beff !important;
+  color: #ffffff !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] .bg-primary.text-primary-foreground:hover {
+  background-color: #0079b3 !important;
+}
+
+/* ── Elastic on/off switch (.custom-switch) ──────────────────── */
+/* Track + knob restyled to the Bootstrap-derived Elastic switch. The toggle
+   is a [role="switch"] button with a single inner <span> knob. */
+body[data-theme-skin="builtin-roundcube-elastic"] [role="switch"] {
+  background-color: #ced4da !important;
+  border: 1px solid #b8c0c8 !important;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] [role="switch"] > span {
+  background-color: #ffffff !important;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] [role="switch"][aria-checked="true"] {
+  background-color: #37beff !important;
+  border-color: #37beff !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] [role="switch"] {
+  background-color: #4d6066 !important;
+  border-color: #5d7077 !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] [role="switch"] > span {
+  background-color: #c5d1d3 !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] [role="switch"][aria-checked="true"] {
+  background-color: #006a9d !important;
+  border-color: #37beff !important;
+}
+
+/* ── Recipient name/email rendered as links (like Roundcube) ──── */
+/* Sender + recipient triggers (RecipientPopover) sit at \`text-foreground\`
+   and only turn blue on hover; Elastic shows them link-blue at rest
+   (@color-link #00acff, brighter in dark). The three-class combo is unique
+   to these recipient buttons. */
+body[data-theme-skin="builtin-roundcube-elastic"] button.hover\\:text-primary.hover\\:underline.cursor-pointer {
+  color: #00acff !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] button.hover\\:text-primary.hover\\:underline.cursor-pointer {
+  color: #37beff !important;
+}
+/* The sender's email address printed under the name is muted grey; Roundcube
+   shows it link-blue too. It's the div immediately after the name row
+   (.flex.items-center.flex-wrap), which the contact-card org line is not, so
+   this sibling selector scopes it to the sender email only. */
+body[data-theme-skin="builtin-roundcube-elastic"] .flex.items-center.flex-wrap + div.text-muted-foreground.truncate {
+  color: #00acff !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] .flex.items-center.flex-wrap + div.text-muted-foreground.truncate {
+  color: #37beff !important;
+}
+
+/* ── Elastic context / popup menus ───────────────────────────── */
+/* Roundcube highlights the hovered menu entry with a solid accent fill and
+   white text (@color-menu-hover-background: @color-main, @color-menu-hover:
+   #fff) - the same in light and dark. */
+body[data-theme-skin="builtin-roundcube-elastic"] [role="menu"] [role="menuitem"]:hover,
+body[data-theme-skin="builtin-roundcube-elastic"] [role="menu"] [role="menuitem"]:focus,
+body[data-theme-skin="builtin-roundcube-elastic"] [role="menu"] [role="menuitem"]:focus-visible {
+  background-color: #37beff !important;
+  color: #ffffff !important;
+}
+/* Icons (currentColor) and muted accessories (shortcuts, submenu chevron)
+   follow the white text on hover. */
+body[data-theme-skin="builtin-roundcube-elastic"] [role="menu"] [role="menuitem"]:hover svg,
+body[data-theme-skin="builtin-roundcube-elastic"] [role="menu"] [role="menuitem"]:focus svg,
+body[data-theme-skin="builtin-roundcube-elastic"] [role="menu"] [role="menuitem"]:hover .text-muted-foreground {
+  color: #ffffff !important;
+}
+
+/* ── Elastic folder list: unread count as a rounded pill ─────── */
+/* Roundcube shows the unread count in a small grey pill on the right, and no
+   badge at all when a folder has nothing unread. Bulwark renders plain
+   "unread / total" text; the counts container is
+   span.ml-2.flex-shrink-0.gap-1.items-baseline holding an unread span
+   (.font-semibold), an optional "/" (.text-muted-foreground/60) and the total
+   (.text-muted-foreground). Reshape it into a pill, drop the total + slash,
+   and hide the whole badge when there's no unread span. */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline {
+  align-items: center !important;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.2rem;
+  padding: 0 0.45rem;
+  border-radius: 0.75rem;
+  background-color: #e4e8ea;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline > span.text-muted-foreground,
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline > span.text-muted-foreground\\/60 {
+  display: none !important;
+}
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline > span {
+  color: #5e6b70 !important;
+  font-weight: 600 !important;
+}
+/* No unread span -> no badge (matches Sent/Drafts in Roundcube). */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline:not(:has(span.font-semibold)) {
+  display: none !important;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline {
+  background-color: #3f4e55;
+}
+.dark body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r span.ml-2.flex-shrink-0.gap-1.items-baseline > span {
+  color: #c9d3d5 !important;
+}
+
+/* A slightly bolder accent bar on the selected folder, like Elastic. */
+body[data-theme-skin="builtin-roundcube-elastic"] .bg-secondary.border-r .border-l-2.border-primary {
+  border-left-width: 3px !important;
+}`;
+
+// "Aurora Glass" - an ultra-modern glassmorphism skin. Vibrant indigo→cyan
+// accents float over a fixed gradient-mesh canvas; every structural surface
+// (nav rail, folder sidebar, cards, popovers, menus, dialogs, toolbars) is a
+// translucent frosted pane with heavy backdrop-blur + saturation, hairline
+// luminous borders and soft glow on the primary action.
+//
+// The colour tokens stay near-solid for legible text contrast; the frosted
+// translucency + blur all live in the skin, where a single selector can pair
+// an rgba background with the matching backdrop-filter.
+const auroraCSS = `
+:root {
+  --color-border: rgba(13, 18, 45, 0.10);
+  --color-input: rgba(13, 18, 45, 0.12);
+  --color-ring: #6d5cff;
+  --color-background: #eef1fb;
+  --color-foreground: #14162e;
+  --color-primary: #6d5cff;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #e3e7f7;
+  --color-secondary-foreground: #14162e;
+  --color-muted: #e7eaf6;
+  --color-muted-foreground: #5b6080;
+  --color-accent: #e0e7ff;
+  --color-accent-foreground: #4338ca;
+  --color-destructive: #f43f5e;
+  --color-destructive-foreground: #ffffff;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #14162e;
+  --color-sidebar: #eef1fb;
+  --color-sidebar-foreground: #14162e;
+  --color-sidebar-border: rgba(13, 18, 45, 0.08);
+  --color-sidebar-accent: rgba(109, 92, 255, 0.10);
+  --color-sidebar-accent-foreground: #4338ca;
+  --color-card: #ffffff;
+  --color-card-foreground: #14162e;
+  --color-success: #10b981;
+  --color-success-foreground: #ffffff;
+  --color-warning: #f59e0b;
+  --color-warning-foreground: #14162e;
+  --color-info: #06b6d4;
+  --color-info-foreground: #ffffff;
+  --color-selection: rgba(109, 92, 255, 0.14);
+  --color-selection-foreground: #4338ca;
+  --color-unread: #6d5cff;
+  --color-chart-1: #6d5cff;
+  --color-chart-2: #06b6d4;
+  --color-chart-3: #ec4899;
+  --color-chart-4: #f59e0b;
+  --color-chart-5: #10b981;
+}
+.dark {
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-input: rgba(255, 255, 255, 0.10);
+  --color-ring: #8b7bff;
+  --color-background: #06070f;
+  --color-foreground: #eef0ff;
+  --color-primary: #8b7bff;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: rgba(255, 255, 255, 0.06);
+  --color-secondary-foreground: #eef0ff;
+  --color-muted: rgba(255, 255, 255, 0.05);
+  --color-muted-foreground: #9aa0c4;
+  --color-accent: rgba(139, 123, 255, 0.16);
+  --color-accent-foreground: #c4bbff;
+  --color-destructive: #fb7185;
+  --color-destructive-foreground: #1a0b10;
+  --color-popover: #12132a;
+  --color-popover-foreground: #eef0ff;
+  --color-sidebar: #08091a;
+  --color-sidebar-foreground: #eef0ff;
+  --color-sidebar-border: rgba(255, 255, 255, 0.07);
+  --color-sidebar-accent: rgba(139, 123, 255, 0.18);
+  --color-sidebar-accent-foreground: #c4bbff;
+  --color-card: rgba(255, 255, 255, 0.04);
+  --color-card-foreground: #eef0ff;
+  --color-success: #34d399;
+  --color-success-foreground: #052e1f;
+  --color-warning: #fbbf24;
+  --color-warning-foreground: #1a1405;
+  --color-info: #22d3ee;
+  --color-info-foreground: #04222a;
+  --color-selection: rgba(139, 123, 255, 0.22);
+  --color-selection-foreground: #c4bbff;
+  --color-unread: #8b7bff;
+  --color-chart-1: #8b7bff;
+  --color-chart-2: #22d3ee;
+  --color-chart-3: #f472b6;
+  --color-chart-4: #fbbf24;
+  --color-chart-5: #34d399;
+}`;
+
+// Glassmorphism skin: the frosted translucency, backdrop-blur, gradient-mesh
+// canvas, luminous borders and glow that the colour tokens alone can't carry.
+// Scoped under the skin body attribute so it detaches cleanly on switch-off.
+const auroraSkin = `
+body[data-theme-skin="builtin-aurora-glass"] {
+  font-family: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* ── Gradient-mesh canvas ──────────────────────────────────────── */
+/* A multi-stop radial mesh painted onto the app-shell root (the unique
+   .bg-background.overflow-hidden container) so the frosted panes have
+   something luminous to blur. Painting it directly on the shell - rather than
+   a fixed body::before with z-indexed children - avoids creating stacking
+   contexts on portaled popups/dialogs (Radix portals render as direct <body>
+   children), which would otherwise break their layering. */
+body[data-theme-skin="builtin-aurora-glass"] .bg-background.overflow-hidden {
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(60rem 60rem at 12% -10%, rgba(109, 92, 255, 0.22), transparent 60%),
+    radial-gradient(50rem 50rem at 105% 5%, rgba(6, 182, 212, 0.18), transparent 55%),
+    radial-gradient(55rem 55rem at 80% 110%, rgba(236, 72, 153, 0.16), transparent 60%),
+    radial-gradient(45rem 45rem at -5% 95%, rgba(16, 185, 129, 0.12), transparent 55%);
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] .bg-background.overflow-hidden {
+  background-image:
+    radial-gradient(60rem 60rem at 12% -10%, rgba(109, 92, 255, 0.16), transparent 58%),
+    radial-gradient(50rem 50rem at 105% 5%, rgba(6, 182, 212, 0.11), transparent 52%),
+    radial-gradient(55rem 55rem at 80% 110%, rgba(236, 72, 153, 0.10), transparent 58%),
+    radial-gradient(45rem 45rem at -5% 95%, rgba(16, 185, 129, 0.07), transparent 52%);
+}
+
+/* ── Pill-soft radii everywhere ───────────────────────────────── */
+body[data-theme-skin="builtin-aurora-glass"] .rounded-md,
+body[data-theme-skin="builtin-aurora-glass"] .rounded-lg {
+  border-radius: 0.85rem !important;
+}
+body[data-theme-skin="builtin-aurora-glass"] .rounded-xl,
+body[data-theme-skin="builtin-aurora-glass"] .rounded-2xl {
+  border-radius: 1.25rem !important;
+}
+
+/* ── Frosted panes: the shared glass recipe ───────────────────── */
+/* Nav rail, folder sidebar, content backing, cards, popovers, dialogs and
+   menus all share one frosted treatment - translucent fill + heavy backdrop
+   blur + saturation so the mesh and neighbours bleed through softly. */
+body[data-theme-skin="builtin-aurora-glass"] .w-14.bg-secondary,
+body[data-theme-skin="builtin-aurora-glass"] .bg-secondary.border-r {
+  background-color: rgba(255, 255, 255, 0.55) !important;
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border-color: rgba(13, 18, 45, 0.08) !important;
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] .w-14.bg-secondary,
+.dark body[data-theme-skin="builtin-aurora-glass"] .bg-secondary.border-r {
+  background-color: rgba(8, 9, 22, 0.82) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* The "no conversation selected" empty pane sits inside an opaque
+   bg-background column, so it can't inherit the shell mesh - paint the same
+   gradient mesh directly onto it so the placeholder reads as glass too. */
+body[data-theme-skin="builtin-aurora-glass"] .bg-gradient-to-br.from-muted\\/30.to-muted\\/50 {
+  background-color: var(--color-background) !important;
+  background-image:
+    radial-gradient(50rem 50rem at 15% 0%, rgba(109, 92, 255, 0.22), transparent 60%),
+    radial-gradient(45rem 45rem at 100% 10%, rgba(6, 182, 212, 0.18), transparent 55%),
+    radial-gradient(50rem 50rem at 85% 105%, rgba(236, 72, 153, 0.16), transparent 60%) !important;
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] .bg-gradient-to-br.from-muted\\/30.to-muted\\/50 {
+  background-image:
+    radial-gradient(50rem 50rem at 15% 0%, rgba(109, 92, 255, 0.18), transparent 58%),
+    radial-gradient(45rem 45rem at 100% 10%, rgba(6, 182, 212, 0.12), transparent 52%),
+    radial-gradient(50rem 50rem at 85% 105%, rgba(236, 72, 153, 0.11), transparent 58%) !important;
+}
+/* The reading-pane message backing goes clear glass so the frosted panes and
+   gradient bleed through softly. */
+body[data-theme-skin="builtin-aurora-glass"] .bg-muted\\/30 {
+  background: transparent !important;
+}
+
+/* Cards, popovers and dialogs: brighter frosted glass with a luminous edge. */
+body[data-theme-skin="builtin-aurora-glass"] .bg-card,
+body[data-theme-skin="builtin-aurora-glass"] .bg-popover,
+body[data-theme-skin="builtin-aurora-glass"] [role="menu"],
+body[data-theme-skin="builtin-aurora-glass"] [role="dialog"],
+body[data-theme-skin="builtin-aurora-glass"] [role="listbox"] {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 12px 40px -12px rgba(20, 22, 46, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] .bg-card,
+.dark body[data-theme-skin="builtin-aurora-glass"] .bg-popover,
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="menu"],
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="dialog"],
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="listbox"] {
+  background-color: rgba(16, 17, 38, 0.86) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── Primary action: gradient fill + glow ─────────────────────── */
+body[data-theme-skin="builtin-aurora-glass"] .bg-primary.text-primary-foreground {
+  background-image: linear-gradient(135deg, #7c5cff 0%, #6d5cff 45%, #4f9bff 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 20px -4px rgba(109, 92, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+  transition: box-shadow 160ms ease, filter 160ms ease;
+}
+body[data-theme-skin="builtin-aurora-glass"] .bg-primary.text-primary-foreground:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 10px 30px -4px rgba(109, 92, 255, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] .bg-primary.text-primary-foreground {
+  background-image: linear-gradient(135deg, #8b7bff 0%, #6d5cff 50%, #22d3ee 130%) !important;
+  box-shadow: 0 6px 24px -4px rgba(139, 123, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* ── Selected folder / row: soft tinted glass + accent bar ────── */
+body[data-theme-skin="builtin-aurora-glass"] .bg-secondary.border-r .border-l-2.border-primary {
+  border-left-width: 3px !important;
+}
+
+/* ── On/off switch: gradient when active ──────────────────────── */
+body[data-theme-skin="builtin-aurora-glass"] [role="switch"][aria-checked="true"] {
+  background-image: linear-gradient(135deg, #7c5cff, #4f9bff) !important;
+  border-color: transparent !important;
+  box-shadow: 0 2px 10px -1px rgba(109, 92, 255, 0.6) !important;
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="switch"][aria-checked="true"] {
+  background-image: linear-gradient(135deg, #8b7bff, #22d3ee) !important;
+}
+
+/* ── Menu hover: tinted accent slab (keeps glass legible) ─────── */
+body[data-theme-skin="builtin-aurora-glass"] [role="menu"] [role="menuitem"]:hover,
+body[data-theme-skin="builtin-aurora-glass"] [role="menu"] [role="menuitem"]:focus,
+body[data-theme-skin="builtin-aurora-glass"] [role="menu"] [role="menuitem"]:focus-visible {
+  background-color: rgba(109, 92, 255, 0.14) !important;
+  color: var(--color-foreground) !important;
+}
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="menu"] [role="menuitem"]:hover,
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="menu"] [role="menuitem"]:focus,
+.dark body[data-theme-skin="builtin-aurora-glass"] [role="menu"] [role="menuitem"]:focus-visible {
+  background-color: rgba(139, 123, 255, 0.22) !important;
+}`;
+
 export const BUILTIN_THEMES: InstalledTheme[] = [
   {
     id: 'builtin-qui',
@@ -370,6 +916,32 @@ export const BUILTIN_THEMES: InstalledTheme[] = [
     description: 'Precision colors for machines and people by Ethan Schoonover',
     css: solarizedCSS,
     variants: ['light', 'dark'],
+    enabled: true,
+    builtIn: true,
+  },
+  {
+    id: 'builtin-roundcube-elastic',
+    name: 'Roundcube Elastic',
+    version: '1.0.0',
+    author: 'Built-in',
+    description: 'Faithful recreation of Roundcube\'s Elastic skin - Roboto, the #37beff blue, and the dark task-menu rail',
+    css: elasticCSS,
+    skin: elasticSkin,
+    variants: ['light', 'dark'],
+    typography: { fontSans: 'Roboto, "Helvetica Neue", Arial, sans-serif', baseFontSize: '14px' },
+    enabled: true,
+    builtIn: true,
+  },
+  {
+    id: 'builtin-aurora-glass',
+    name: 'Aurora Glass',
+    version: '1.0.0',
+    author: 'Built-in',
+    description: 'Ultra-modern glassmorphism - frosted blurred panes floating over a vibrant indigo→cyan gradient mesh, with glowing gradient actions',
+    css: auroraCSS,
+    skin: auroraSkin,
+    variants: ['light', 'dark'],
+    typography: { fontSans: '"Inter", "SF Pro Display", "Segoe UI", system-ui, sans-serif' },
     enabled: true,
     builtIn: true,
   },

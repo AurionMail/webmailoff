@@ -1,24 +1,10 @@
 import { parseHtmlSafely, sanitizeSignatureHtml } from '@/lib/email-sanitization';
+import { htmlToPlainText } from '@/lib/html-to-text';
 
 type SignatureSource = {
   textSignature?: string;
   htmlSignature?: string;
 };
-
-const BLOCK_TAGS = new Set([
-  'address',
-  'article',
-  'aside',
-  'blockquote',
-  'div',
-  'footer',
-  'header',
-  'li',
-  'nav',
-  'p',
-  'section',
-  'tr',
-]);
 
 function normalizeSignatureLineBreaks(value: string): string {
   return value
@@ -27,75 +13,6 @@ function normalizeSignatureLineBreaks(value: string): string {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-}
-
-function htmlToPlainText(html: string): string {
-  const document = parseHtmlSafely(html);
-  const chunks: string[] = [];
-
-  const appendText = (value: string) => {
-    if (!value) return;
-    const normalized = value.replace(/\s+/g, ' ');
-    if (!normalized.trim()) return;
-    const previous = chunks[chunks.length - 1];
-    if (previous && !previous.endsWith('\n') && !previous.endsWith(' ')) {
-      chunks.push(' ');
-    }
-    chunks.push(normalized);
-  };
-
-  const appendNewline = () => {
-    const previous = chunks[chunks.length - 1];
-    if (previous === '\n') return;
-    if (previous?.endsWith('\n')) return;
-    chunks.push('\n');
-  };
-
-  const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      appendText(node.textContent || '');
-      return;
-    }
-
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      return;
-    }
-
-    const element = node as HTMLElement;
-    const tagName = element.tagName.toLowerCase();
-
-    if (tagName === 'br') {
-      appendNewline();
-      return;
-    }
-
-    if (tagName === 'a') {
-      const text = element.textContent?.replace(/\s+/g, ' ').trim() || '';
-      const href = element.getAttribute('href')?.trim() || '';
-      const normalizedHref = href.replace(/^mailto:/i, '');
-      if (text && normalizedHref && text === normalizedHref) {
-        appendText(text);
-        return;
-      }
-      if (text && href && text !== href) {
-        appendText(`${text} <${href}>`);
-        return;
-      }
-    }
-
-    if (BLOCK_TAGS.has(tagName) && chunks.length > 0) {
-      appendNewline();
-    }
-
-    Array.from(element.childNodes).forEach(walk);
-
-    if (BLOCK_TAGS.has(tagName)) {
-      appendNewline();
-    }
-  };
-
-  Array.from(document.body.childNodes).forEach(walk);
-  return normalizeSignatureLineBreaks(chunks.join(''));
 }
 
 export function getPlainTextSignature(signature?: SignatureSource | null): string {
@@ -122,6 +39,35 @@ export function appendPlainTextSignature(
 
   const sep = options.separator === false ? '\n\n' : '\n\n-- \n';
   return `${body}${sep}${plainTextSignature}`;
+}
+
+/**
+ * Append a signature to an HTML body, preserving rich formatting. Used by the
+ * quick-reply path so an HTML signature keeps its markup instead of being
+ * flattened to plain text. Mirrors the composer's send-time signature block
+ * (`buildSignatureHtml` in email-composer.tsx).
+ */
+export function appendHtmlSignature(
+  htmlBody: string,
+  signature?: SignatureSource | null,
+  options: { separator?: boolean } = {},
+): string {
+  const sep = options.separator === false ? '<br><br>' : '<br><br>-- <br>';
+
+  if (signature?.htmlSignature?.trim()) {
+    return `${htmlBody}${sep}${sanitizeSignatureHtml(signature.htmlSignature)}`;
+  }
+
+  if (signature?.textSignature?.trim()) {
+    const escaped = signature.textSignature
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    return `${htmlBody}${sep}${escaped}`;
+  }
+
+  return htmlBody;
 }
 
 export function hasMeaningfulHtmlBody(html: string): boolean {

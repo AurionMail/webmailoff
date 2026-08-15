@@ -19,6 +19,12 @@ export function getDiscoveryValidator(): EndpointValidator | undefined {
 function getGlobalClientSecret(): string {
   const adminSecret = configManager.get<string>('oauthClientSecret', '');
   if (adminSecret) return adminSecret;
+
+  const adminFileSecret = readFileEnv(
+    configManager.get<string>('oauthClientSecretFile', ''),
+  );
+  if (adminFileSecret) return adminFileSecret;
+
   return process.env.OAUTH_CLIENT_SECRET || readFileEnv(process.env.OAUTH_CLIENT_SECRET_FILE) || '';
 }
 

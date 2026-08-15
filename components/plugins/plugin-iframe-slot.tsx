@@ -10,6 +10,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { SlotName } from '@/lib/plugin-types';
 import { get as getActivePlugin } from '@/lib/plugin-sandbox/registry';
 import { createSlotInstance, type SandboxInstance } from '@/lib/plugin-sandbox/host-bridge';
+import { snapshotHostTheme } from '@/lib/plugin-sandbox/host-theme';
+import { useThemeStore } from '@/stores/theme-store';
 
 interface Props {
   pluginId: string;
@@ -50,6 +52,7 @@ export function PluginIframeSlot({ pluginId, slot, extraProps }: Props) {
       slot,
       code: active.code,
       locale,
+      tier: active.tier,
       extraProps: extraProps ?? {},
       hostContainer: wrapperRef.current,
       onResize: (h) => setHeight(h),
@@ -68,6 +71,16 @@ export function PluginIframeSlot({ pluginId, slot, extraProps }: Props) {
   useEffect(() => {
     instanceRef.current?.updateProps(extraProps ?? {});
   }, [extraProps]);
+
+  // Re-theme the live slot iframe when the host theme changes (dark/light
+  // toggle or custom theme switch), without tearing down the iframe. Reacting
+  // to resolvedTheme + activeThemeId covers both; the snapshot reads the
+  // resolved DOM values so it picks up whichever is active.
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+  const activeThemeId = useThemeStore((s) => s.activeThemeId);
+  useEffect(() => {
+    instanceRef.current?.setTheme(snapshotHostTheme());
+  }, [resolvedTheme, activeThemeId]);
 
   if (show !== true) return null;
   return <div ref={wrapperRef} style={{ height, minHeight: height }} data-plugin-iframe-slot={`${pluginId}:${slot}`} />;

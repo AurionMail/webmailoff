@@ -1,4 +1,5 @@
 {
+  "meta_description": "使用 JMAP 协议的极简网页邮件客户端",
   "login": {
     "title": "网页邮箱",
     "username_label": "邮箱地址",
@@ -113,6 +114,7 @@
     "unified_archive": "所有归档",
     "unified_junk": "所有垃圾邮件",
     "all_accounts": "所有账户",
+    "unified_mailbox": "统一邮箱",
     "expand": "展开",
     "collapse": "收起",
     "expand_tooltip": "展开",
@@ -120,7 +122,8 @@
     "mobile": {
       "search": "搜索",
       "compose": "撰写邮件",
-      "go_back": "返回"
+      "go_back": "返回",
+      "toggle_menu": "切换菜单"
     },
     "clear_search": "清除搜索",
     "vacation_active": "假期自动回复已开启",
@@ -128,11 +131,19 @@
     "demo_reset": "重置",
     "demo_tour": "引导",
     "tags": "标签",
+    "show_all_tags": "显示全部（{count}）",
+    "show_fewer_tags": "收起",
     "folders": "文件夹",
     "mail": "邮件",
     "nav_label": "导航",
     "add_app": "应用",
-    "shared": "共享"
+    "shared": "共享",
+    "scheduled": "已计划",
+    "unified_all_unread": "全部未读",
+    "unified_all_starred": "全部加星标",
+    "unified_all_mail": "全部邮件",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "默认应用",
@@ -239,9 +250,27 @@
       "confirm_button": "清空文件夹",
       "junk_hint": "您可以清空垃圾邮件文件夹以永久删除所有邮件。",
       "trash_hint": "您可以清空已删除文件夹以永久删除所有邮件。"
-    }
+    },
+    "no_scheduled_emails": "没有计划发送的邮件",
+    "no_scheduled_emails_description": "计划稍后发送的邮件会显示在这里。",
+    "scheduled_count": "{count, plural, one {1 封计划发送邮件} other {# 封计划发送邮件}}",
+    "scheduled_actions_hint": "计划发送的邮件可以通过计划操作取消、重新计划或编辑。",
+    "cancel_scheduled_send": "取消发送",
+    "reschedule_send": "重新计划",
+    "cancel_and_edit": "取消并编辑",
+    "cancel_and_compose_again": "取消并重新撰写",
+    "reschedule_prompt": "输入新的日期/时间，例如 2026-05-04T15:30"
   },
   "email_viewer": {
+    "read_receipt": {
+      "prompt": "发件人请求已读回执：",
+      "send": "发送回执",
+      "ignore": "忽略",
+      "sent": "已读回执已发送。",
+      "send_failed": "无法发送已读回执",
+      "mdn_subject": "已读：{subject}",
+      "mdn_body": "这是您发送给 {recipient} 的邮件的已读回执。\n\n注意：此回执仅表示邮件已在收件人的计算机上显示，并不保证收件人已阅读或理解邮件内容。"
+    },
     "no_email_selected": "未选择邮件",
     "no_email_description": "从列表中选择一封邮件以在此查看",
     "no_conversation_selected": "未选择会话",
@@ -251,6 +280,8 @@
     "no_subject": "（无主题）",
     "no_body_content": "（无正文内容）",
     "no_preview_available": "无可用预览",
+    "show_quoted_text": "显示引用文本",
+    "hide_quoted_text": "隐藏引用文本",
     "loading_email": "正在加载邮件...",
     "loading": "正在加载…",
     "reply": "回复",
@@ -270,6 +301,7 @@
     "print": "打印",
     "view_source": "查看源码",
     "export_email": "导出为 .eml",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": "导入 .eml 或 .zip",
     "keyboard_shortcuts": "键盘快捷键（？）",
     "email_source": "邮件源码",
@@ -296,13 +328,15 @@
     "view_contact": "查看联系人",
     "message_details": "邮件详情",
     "more_reply_options": "更多回复选项",
-    "set_color": "设置颜色标签",
+    "set_tag": "设置颜色标签",
     "tag": "标签",
     "more_actions": "更多操作",
     "previous": "上一封",
     "next": "下一封",
     "move_to": "移动到…",
-    "remove_color": "删除标签",
+    "remove_tag": "删除标签",
+    "tag_filter_placeholder": "筛选标签",
+    "tag_no_matches": "没有匹配的标签",
     "more_count": "+{count} 更多",
     "characters_count": "{count} 个字符",
     "quick_reply_placeholder": "快速回复...",
@@ -371,17 +405,6 @@
       "message_id": "消息 ID",
       "list_info": "邮件列表信息"
     },
-    "color_tag": {
-      "title": "颜色标签",
-      "red": "红色",
-      "orange": "橙色",
-      "yellow": "黄色",
-      "green": "绿色",
-      "blue": "蓝色",
-      "purple": "紫色",
-      "pink": "粉色",
-      "none": "无"
-    },
     "tooltips": {
       "reply": "回复 (r)",
       "reply_all": "全部回复 (a)",
@@ -413,7 +436,9 @@
       "confirm_button": "确认",
       "cancel": "取消",
       "success_http": "取消订阅页面已在新标签页中打开",
-      "success_mailto": "取消订阅请求已发送",
+      "success_mailto": "退订邮件已发送",
+      "confirm_message_http": "退订页面将在新标签页中打开。",
+      "confirm_message_mailto": "将向发件人发送退订邮件。",
       "error": "无法取消订阅",
       "dismiss": "关闭"
     },
@@ -514,9 +539,40 @@
       "ai_verdict": "AI 判断",
       "account": "账户",
       "no_subject": "（无主题）"
-    }
+    },
+    "scheduled_banner": "计划于 {date} 发送",
+    "scheduled_send_created": "邮件已计划发送",
+    "cancel_scheduled_send": "取消发送",
+    "reschedule_send": "重新计划",
+    "cancel_and_edit": "取消并编辑",
+    "cancel_and_compose_again": "取消并重新撰写",
+    "reschedule_prompt": "输入新的日期/时间，例如 2026-05-04T15:30",
+    "scheduled_actions_only": "计划发送视图仅支持计划操作",
+    "undo_send_scheduled": "邮件已计划发送",
+    "undo_send": "撤销发送",
+    "contact_sidebar": {
+      "title": "联系人",
+      "close": "关闭侧边栏",
+      "action_email": "邮件",
+      "action_email_title": "发送邮件",
+      "action_copy": "复制",
+      "action_copy_title": "复制邮箱地址",
+      "action_edit_title": "编辑联系人",
+      "section_emails": "邮箱",
+      "section_phones": "电话",
+      "section_organizations": "组织",
+      "section_addresses": "地址",
+      "section_notes": "备注",
+      "not_in_contacts": "不在您的联系人中",
+      "add_to_contacts": "添加到联系人",
+      "copied": "已复制！",
+      "copy_failed": "复制失败"
+    },
+    "send_now": "立即发送"
   },
   "email_composer": {
+    "read_receipt_on": "已请求已读回执（点击以关闭）",
+    "read_receipt_off": "请求已读回执",
     "new_message": "新邮件",
     "reply": "回复",
     "reply_all": "全部回复",
@@ -533,8 +589,8 @@
     "send": "发送",
     "cancel": "取消",
     "attach": "附件",
-    "attach_photos": "照片和视频",
-    "attach_files": "文件",
+    "attach_photos": "Photos & Videos",
+    "attach_files": "Files",
     "discard": "丢弃",
     "discard_draft_title": "丢弃草稿？",
     "discard_draft_confirm": "您有未保存的更改。确定要丢弃这封草稿吗？",
@@ -577,8 +633,9 @@
     "save_as_template": "保存为模板",
     "validation": {
       "recipient_required": "请添加收件人",
-      "subject_required": "请添加主题",
-      "body_required": "请输入邮件内容或添加附件"
+      "body_required": "请输入邮件内容或添加附件",
+      "attachments_uploading": "附件仍在上传中，上传完成后将自动发送",
+      "attachment_upload_failed": "未发送 - 附件上传失败。请移除该附件后重试。"
     },
     "upload_progress": "正在上传 {uploaded} / {total}",
     "upload_cancel": "取消上传",
@@ -586,10 +643,10 @@
     "drop_files": "拖放要附加的文件",
     "show_less": "收起",
     "send_failed": "发送邮件失败",
+    "send_timeout": "服务器已停止响应。再次发送前请检查“已发送”文件夹——邮件可能已经发出。",
     "continue_draft": "继续编辑草稿",
     "close_draft_title": "保存或丢弃草稿？",
     "close_draft_message": "您有未保存的更改。要将其保存为草稿还是丢弃？",
-    "save_draft": "保存草稿",
     "smime_sign_on": "S/MIME 签名已启用",
     "smime_sign_off": "启用 S/MIME 签名",
     "smime_encrypt_on": "S/MIME 加密已启用",
@@ -605,9 +662,65 @@
       "send_anyway": "仍然发送",
       "back": "返回编辑"
     },
+    "empty_subject": {
+      "title": "没有主题就发送吗？",
+      "message": "此邮件没有主题。仍要发送吗？",
+      "dont_ask_again": "不再提示",
+      "send_anyway": "仍然发送",
+      "back": "返回编辑"
+    },
     "add_link": "添加链接",
     "link_url_prompt": "输入 URL",
-    "sending": "发送中..."
+    "sending": "发送中...",
+    "schedule_send": "计划发送",
+    "schedule_send_description": "选择服务器应何时发送此邮件。",
+    "schedule_send_required": "请选择日期和时间。",
+    "schedule_send_invalid": "请输入有效的日期和时间。",
+    "schedule_send_future": "请选择未来的日期和时间。",
+    "schedule_send_too_late": "该时间晚于服务器允许的范围。",
+    "schedule_send_unsupported": "此账户不支持计划发送。",
+    "schedule_send_cleanup_warning": "已创建计划发送，但清理草稿失败。",
+    "send_delay_unsupported": "此账户不支持发送延迟。",
+    "send_delay_unsupported_confirm": "此账户不支持发送延迟。是否立即发送？",
+    "recipient_edit_email": "编辑电子邮件地址",
+    "recipient_edit_name": "编辑显示名称",
+    "recipient_email_placeholder": "电子邮件地址",
+    "recipient_name_placeholder": "显示名称",
+    "autocomplete_search_server": "在服务器上搜索",
+    "autocomplete_searching": "搜索中...",
+    "toolbar": {
+      "bold": "加粗",
+      "italic": "斜体",
+      "underline": "下划线",
+      "strikethrough": "删除线",
+      "text_color": "文字颜色",
+      "remove_color": "移除颜色",
+      "heading_1": "标题 1",
+      "heading_2": "标题 2",
+      "bullet_list": "项目符号列表",
+      "ordered_list": "编号列表",
+      "quote": "引用",
+      "code_block": "代码块",
+      "align_left": "左对齐",
+      "align_center": "居中对齐",
+      "align_right": "右对齐",
+      "text_direction": "文字方向 (RTL/LTR)",
+      "link": "链接",
+      "table": "表格",
+      "clear_formatting": "清除格式",
+      "undo": "撤销",
+      "redo": "重做",
+      "add_row_above": "在上方添加行",
+      "add_row_below": "在下方添加行",
+      "add_column_before": "在前面添加列",
+      "add_column_after": "在后面添加列",
+      "delete_row": "删除行",
+      "delete_column": "删除列",
+      "toggle_header_row": "切换标题行",
+      "delete_table": "删除表格",
+      "pick_size": "选择大小"
+    },
+    "send_filing_warning": "已发送，但发送后的清理失败，可能会残留旧草稿。"
   },
   "confirm_dialog": {
     "confirm": "确认",
@@ -735,9 +848,14 @@
     "nl": "Nederlands",
     "pl": "Polski",
     "pt": "Português",
+    "he": "עברית",
     "ru": "Русский",
+    "sk": "Slovenčina",
     "uk": "Українська",
-    "zh": "简体中文"
+    "zh": "简体中文",
+    "fa": "فارسی",
+    "farsi": "فارسی",
+    "switch_to_farsi": "切换到波斯语"
   },
   "settings": {
     "title": "设置",
@@ -845,27 +963,60 @@
       "unified_mailbox": {
         "label": "统一邮箱",
         "description": "显示所有已连接账户的合并文件夹（收件箱、已发送等）",
+        "cross_account": {
+          "label": "Across all accounts",
+          "description": "Merge the unified mailbox across every connected account instead of staying within the active account."
+        },
         "include_group": {
           "label": "包含群组收件箱",
           "description": "在统一视图中也合并共享/群组收件箱。"
         }
       },
+      "all_mail": {
+        "folders_label": "Folders in All Mail",
+        "folders_description": "Choose which folders are merged into the All Mail view.",
+        "account_hint": "Applies to {account}.",
+        "no_folders": "No folders available."
+      },
       "colorful_sidebar_icons": {
         "label": "彩色侧边栏图标",
         "description": "按类型为文件夹和标签图标着色（蓝色收件箱、红色垃圾邮件、绿色已发送等）。禁用以获得单色侧边栏。"
+      },
+      "tint_list_rows": {
+        "label": "Tint List Rows by Tag Color",
+        "description": "Shade each message row with its first tag color. Disable to keep rows plain; tag dots and chips still show the color."
+      },
+      "show_folder_total_count": {
+        "label": "显示邮件总数",
+        "description": "在文件夹和标签旁边显示邮件总数，以及未读数量。停用后仅显示未读数量。"
+      },
+      "favicon_unread_badge": {
+        "label": "Unread Count on Tab Icon",
+        "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
       },
       "pro_interface": {
         "label": "Pro 界面（实验性）",
         "description": "仅限桌面的高级用户布局，支持多标签消息浏览和跨账户工作流。标准界面不受影响，您可以随时切换回来。",
         "open_label": "打开 Pro 界面",
         "back_to_standard": "返回标准"
+      },
+      "cross_unread": {
+        "label": "所有账户：未读",
+        "description": "在“所有账户”部分显示一个条目，列出所有账户的未读邮件，涵盖除垃圾邮件、已发送、归档、废纸篓和草稿之外的所有文件夹。"
+      },
+      "cross_starred": {
+        "label": "所有账户：加星标",
+        "description": "在“所有账户”部分显示一个条目，列出所有账户的加星标邮件，涵盖除垃圾邮件、已发送、归档、废纸篓和草稿之外的所有文件夹。"
+      },
+      "cross_all": {
+        "label": "所有账户：全部邮件",
+        "description": "在“所有账户”部分显示一个条目，列出所有账户的全部邮件，涵盖除垃圾邮件、已发送、归档、废纸篓和草稿之外的所有文件夹。"
       }
     },
     "keywords": {
       "title": "电子邮件标签",
       "description": "定义标签以使用颜色组织您的电子邮件。这些标签作为JMAP关键词存储在服务器上。",
       "add_keyword": "添加标签",
-      "reset_defaults": "重置为默认值",
       "label_field": "显示名称",
       "label_placeholder": "例如工作、个人、紧急",
       "id_field": "标签ID",
@@ -878,7 +1029,34 @@
       "add": "添加",
       "cancel": "取消",
       "migrating": "正在更新现有邮件的标签…",
-      "migration_error": "更新现有邮件的标签失败"
+      "migration_error": "更新现有邮件的标签失败",
+      "nesting": {
+        "label": "嵌套标签",
+        "description": "将标签嵌套在其他标签之下，并在侧边栏中以树形显示。"
+      },
+      "parent_field": "上级标签",
+      "no_parent": "无上级标签",
+      "too_long": "此标签路径过长（最多 {max} 个字符）",
+      "has_children_locked": "此标签下嵌套了其他标签，因此其名称和上级标签已锁定。请先移动或删除它们。",
+      "has_children_delete": "请先删除嵌套在此标签下的标签",
+      "visibility_field": "侧边栏显示",
+      "visibility": {
+        "show": "显示",
+        "unread": "有未读时显示",
+        "hide": "隐藏"
+      },
+      "unrecognized": {
+        "title": "从服务器恢复标签",
+        "description": "标签的名称和颜色保存在此浏览器中，但标签本身以 JMAP 关键词的形式存在于邮件上。扫描邮件以查找此处没有对应标签的关键词，然后重新添加它们。",
+        "scan": "扫描标签",
+        "rescan": "重新扫描",
+        "scanning": "正在扫描… {total} 封邮件中的 {scanned} 封",
+        "none": "邮件上的所有标签均已在此定义。",
+        "messages": "{count, plural, one {# 封邮件} other {# 封邮件}}",
+        "add_all": "全部添加（{count}）",
+        "partial": "仅扫描了 {total} 封邮件中最新的 {scanned} 封。仅用于较旧邮件的标签可能会遗漏。",
+        "error": "无法扫描邮件中的标签。"
+      }
     },
     "notifications": {
       "test_sound": "测试通知声音",
@@ -919,10 +1097,13 @@
         "description": "在此网站关闭时接收新邮件的系统通知。通过 Bulwark 推送中继传送；中继永远不会看到邮件内容。",
         "disable": "禁用",
         "enable": "启用",
+        "dismiss_aria": "关闭通知提示",
         "ios_hint": "在 iOS 上，请先将网站安装到主屏幕 – Safari 仅向已安装的 PWA 发送 Web Push。",
         "reenable": "重新注册",
         "relay_desc": "默认使用托管的 Bulwark 中继。仅当您自托管时才更改。",
         "relay_label": "推送中继",
+        "relay_locked": "由管理员设置",
+        "relay_locked_desc": "推送中继 URL 已由您的管理员设置，无法更改。",
         "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "在此设备上活动",
         "status_busy": "工作中…",
@@ -950,6 +1131,14 @@
         "preview_this_week": "本周：",
         "preview_older": "更早："
       },
+      "date_locale": {
+        "label": "Date format region",
+        "description": "How numeric dates are ordered (day, month, year)",
+        "auto": "Automatic (match language)",
+        "iso": "ISO 8601 (YYYY-MM-DD)",
+        "dmy": "Day/Month/Year",
+        "mdy": "Month/Day/Year"
+      },
       "time_format": {
         "label": "时间格式",
         "description": "选择 12 小时制或 24 小时制",
@@ -964,6 +1153,17 @@
       }
     },
     "email_behavior": {
+      "request_read_receipt": {
+        "label": "默认请求已读回执",
+        "description": "撰写新邮件时预先启用已读回执请求。"
+      },
+      "read_receipt_response": {
+        "label": "响应已读回执请求",
+        "description": "当收到的邮件请求已读回执时的处理方式。",
+        "ask": "每次询问",
+        "always": "始终发送",
+        "never": "从不发送"
+      },
       "title": "邮件行为",
       "description": "配置邮件的处理方式",
       "mark_read": {
@@ -978,8 +1178,16 @@
         "label": "删除操作",
         "description": "删除邮件后的行为",
         "trash": "移至已删除",
+        "trash_and_read": "移至已删除并标记为已读",
         "permanent": "永久删除",
         "warning": "邮件将被永久删除且无法恢复。此操作是不可逆转的。"
+      },
+      "message_spacing": {
+        "label": "邮件边距",
+        "description": "阅读时正文周围的边距",
+        "auto": "自动（推荐）",
+        "always": "始终添加边距",
+        "edge": "无边距"
       },
       "archive_mode": {
         "label": "归档方式",
@@ -1101,6 +1309,7 @@
         "archive": "归档",
         "tag": "标签",
         "spam": "标记为垃圾邮件",
+        "not_spam": "非垃圾邮件",
         "none_selected": "未选择任何操作",
         "mode_label": "显示模式",
         "mode_inline": "内嵌",
@@ -1127,6 +1336,10 @@
         "add": "Add",
         "remove": "删除"
       },
+      "empty_subject_warning": {
+        "label": "空主题提醒",
+        "description": "发送没有主题的邮件前请求确认。"
+      },
       "hide_inline_image_attachments": {
         "label": "在附件列表中隐藏内嵌图片",
         "description": "嵌入到邮件正文中的图片不会作为单独的附件显示"
@@ -1134,6 +1347,21 @@
       "attachment_image_previews": {
         "label": "在附件中显示图片预览",
         "description": "将图片附件显示为缩略图卡片，而不是通用文件图标"
+      },
+      "send_delay": {
+        "label": "撤销发送 / 发送延迟",
+        "description": "通过服务器端短暂窗口延迟普通发送。",
+        "off": "关闭",
+        "seconds": "{seconds} 秒",
+        "unsupported": "当前账户未声明支持延迟发送。该设置仍会为其他账户保存。"
+      },
+      "return_to_list_after_action": {
+        "label": "删除或标记为未读后返回列表",
+        "description": "删除打开的邮件或将其标记为未读后，返回邮件列表而不是打开下一封邮件。"
+      },
+      "rtl_editing": {
+        "label": "从右到左编辑支持",
+        "description": "在编辑器工具栏中添加方向按钮，可将段落设置为从左到右或从右到左"
       }
     },
     "composer": {
@@ -1219,6 +1447,11 @@
         "move_down": "下移",
         "drag_handle": "拖动以重新排序",
         "add": "添加账户"
+      },
+      "shared_accounts": {
+        "title": "与我共享",
+        "description": "您可以管理的群组和共享账户。选择一个以编辑其筛选器、休假自动回复、日历和联系人。",
+        "shared_label": "共享账户"
       }
     },
     "security": {
@@ -1308,7 +1541,16 @@
         "inactive": "未启用",
         "enabled": "启用静态加密",
         "disabled_success": "静态加密已禁用",
-        "error": "无法更新加密设置"
+        "error": "无法更新加密设置",
+        "algorithm_label": "加密算法",
+        "encrypt_on_append": "上传时加密新邮件",
+        "allow_spam_training": "在加密邮件前允许垃圾邮件训练",
+        "enable_encryption": "启用加密",
+        "enable_tooltip": "使用此密钥启用加密",
+        "configure_title": "使用此密钥启用加密",
+        "enable_button": "启用",
+        "disable_tooltip": "禁用加密",
+        "enabled_success": "静态加密已启用"
       },
       "email_client": {
         "title": "邮件客户端设置",
@@ -1317,6 +1559,24 @@
         "copy": "复制",
         "copied": "已复制",
         "password_instructions": "使用上面的 JMAP 用户名和应用密码登录您的邮件客户端。如果您还没有创建应用密码，请在上面的部分中创建。"
+      },
+      "link_device": {
+        "title": "关联移动应用",
+        "description": "无需输入任何内容即可登录 Bulwark Mail 移动应用。在此生成二维码，然后在应用的登录界面扫描。",
+        "generate": "显示二维码",
+        "regenerate": "显示新的二维码",
+        "instructions": "打开 Bulwark Mail 应用，在登录界面点按\"扫描二维码\"，然后将相机对准此处。",
+        "expires_in": "此二维码将在 {seconds} 秒后过期，且只能使用一次。",
+        "expired": "此二维码已过期。",
+        "generating": "生成中…",
+        "error": "无法创建配对码。请重试。"
+      },
+      "public_keys": {
+        "name_label": "公钥名称",
+        "name_placeholder": "例如：我的密钥",
+        "key_label": "公钥（S/MIME 或 PGP ASCII 格式）",
+        "key_placeholder": "在此粘贴您的公钥",
+        "none": "未配置公钥"
       }
     },
     "identities": {
@@ -1364,7 +1624,10 @@
         "subject_placeholder": "外出办公",
         "body_label": "邮件正文",
         "body_description": "纯文本邮件内容",
-        "body_placeholder": "感谢您的来信。我目前不在办公室，返回后会尽快回复您的邮件。"
+        "body_placeholder": "感谢您的来信。我目前不在办公室，返回后会尽快回复您的邮件。",
+        "html_label": "带格式的消息（HTML）",
+        "html_description": "添加带链接和样式的格式化版本。邮件客户端无法显示时，收件人将看到上面的纯文本。",
+        "html_placeholder": "撰写带格式的外出自动回复…"
       },
       "preview": {
         "title": "预览",
@@ -1380,6 +1643,7 @@
       }
     },
     "folders": {
+      "role_memos": "备忘录",
       "title": "文件夹",
       "description": "管理邮件文件夹并分配邮箱角色",
       "folder_list": "您的文件夹",
@@ -1395,6 +1659,8 @@
       "role_none": "无",
       "create_folder": "创建文件夹",
       "create_subfolder": "新建子文件夹",
+      "reorder": "拖动以重新排序",
+      "reorder_error": "文件夹重新排序失败",
       "subfolder_of": "{name} 内",
       "subfolder_name": "子文件夹名称",
       "new_folder_name": "文件夹名称",
@@ -1459,6 +1725,11 @@
         "label": "键盘快捷键",
         "description": "查看可用快捷键",
         "button": "查看快捷方式"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "重置设置",
@@ -1582,7 +1853,10 @@
       "actions": "操作",
       "add_action": "添加操作",
       "stop_processing": "停止处理后续规则",
+      "attachment_type_placeholder": "例如：pdf、doc、jpg",
+      "value_placeholder_multi": "值（多个用逗号分隔）",
       "condition_fields": {
+        "attachment": "附件",
         "from": "发件人",
         "to": "收件人",
         "cc": "抄送",
@@ -1592,6 +1866,8 @@
         "body": "正文"
       },
       "comparators": {
+        "has_any": "存在",
+        "has_type": "类型为",
         "contains": "包含",
         "not_contains": "不包含",
         "is": "等于",
@@ -1768,7 +2044,11 @@
     },
     "search_placeholder": "搜索设置",
     "search_clear": "清除搜索",
-    "search_no_results": "没有匹配的设置"
+    "search_no_results": "没有匹配的设置",
+    "scoped": {
+      "back": "返回我的账户",
+      "managing": "管理：{name}"
+    }
   },
   "errors": {
     "page_error_title": "出了点问题",
@@ -1795,15 +2075,20 @@
     "mark_unread": "标记为未读",
     "star": "加星标",
     "unstar": "取消星标",
+    "pin": "固定",
+    "unpin": "取消固定",
     "move_to": "移动到…",
     "archive": "归档",
     "delete": "删除",
     "mark_as_spam": "举报垃圾邮件",
     "not_spam": "不是垃圾邮件",
-    "color_tag": "标签",
-    "remove_color": "删除标签",
+    "tag": "标签",
     "items_selected": "已选择 {count} 封邮件",
-    "edit_draft": "编辑草稿"
+    "edit_draft": "编辑草稿",
+    "cancel_scheduled_send": "取消发送",
+    "reschedule_send": "重新计划",
+    "cancel_and_edit": "取消并编辑",
+    "cancel_and_compose_again": "取消并重新撰写"
   },
   "mailbox_context_menu": {
     "mark_folder_read": "将文件夹标记为已读",
@@ -1881,6 +2166,8 @@
       "expand_collapse": "展开/折叠会话"
     },
     "composer": {
+      "send": "发送邮件",
+      "schedule_send": "定时发送",
       "template_picker": "打开模板选择器"
     }
   },
@@ -2023,6 +2310,9 @@
       "title": "共享"
     },
     "address_books": {
+      "create": "新建通讯录",
+      "created": "通讯录已创建",
+      "create_failed": "创建通讯录失败",
       "title": "我的地址簿",
       "shared_prefix": "共享：{name}",
       "moved": "联系人已移至 {name}",
@@ -2126,6 +2416,9 @@
       "section_address_book": "地址簿",
       "select_address_book": "选择地址簿...",
       "section_identity": "姓名和身份",
+      "contact_type": "联系人类型",
+      "type_person": "个人",
+      "type_organization": "组织",
       "section_work": "工作与组织",
       "prefix": "前缀",
       "prefix_placeholder": "博士、先生、女士",
@@ -2210,7 +2503,7 @@
       "cancel": "取消",
       "creating": "创建中...",
       "updating": "更新中...",
-      "name_required": "至少需要名字或姓氏",
+      "name_required": "请输入名字、姓氏或组织",
       "email_invalid": "请输入有效的邮箱地址",
       "email_error_inline": "邮箱地址格式无效",
       "save_failed": "保存联系人失败",
@@ -2235,7 +2528,12 @@
       "members_label": "成员",
       "search_members": "搜索联系人以添加...",
       "no_members": "该群组中没有成员",
-      "member_count": "{count, plural, =0 {无成员} one {1 位成员} other {# 位成员}}"
+      "member_count": "{count, plural, =0 {无成员} one {1 位成员} other {# 位成员}}",
+      "send_email": "Send email to group",
+      "send_email_to": "To",
+      "send_email_cc": "Cc",
+      "send_email_bcc": "Bcc",
+      "no_member_emails": "This group has no members with an email address."
     },
     "import": {
       "title": "导入联系人",
@@ -2415,7 +2713,37 @@
       "every_n_weeks": "每 {count} 周",
       "every_n_months": "每 {count} 个月",
       "until": "直到",
-      "occurrences": "{count} 次出现"
+      "occurrences": "{count} 次出现",
+      "custom": "自定义…",
+      "edit_custom": "编辑自定义重复规则",
+      "every_n_years": "每 {count} 年",
+      "on_days": "{days}",
+      "on_day_n": "{day}日",
+      "on_the_nth": "{nth}{day}",
+      "in_month": "{month}",
+      "nth_1": "第一个",
+      "nth_2": "第二个",
+      "nth_3": "第三个",
+      "nth_4": "第四个",
+      "nth_last": "最后一个",
+      "editor_freq_day": "天",
+      "editor_freq_week": "周",
+      "editor_freq_month": "月",
+      "editor_freq_year": "年",
+      "editor_repeats_on": "重复于",
+      "editor_every": "每",
+      "editor_unit_days": "天",
+      "editor_unit_weeks": "周",
+      "editor_unit_months": "个月",
+      "editor_unit_years": "年",
+      "editor_on_day": "日期:",
+      "editor_on_the": "在",
+      "editor_in": "月份:",
+      "editor_ends": "结束",
+      "editor_never": "永不",
+      "editor_ends_on": "于",
+      "editor_ends_after": "次数:",
+      "editor_occurrences": "次"
     },
     "recurrence_scope": {
       "edit_title": "编辑重复事件",
@@ -2567,6 +2895,7 @@
       "name_placeholder": "日历名称",
       "color": "颜色",
       "change_color": "更改颜色",
+      "random_color": "随机新颜色",
       "add_calendar": "添加日历",
       "edit": "编辑",
       "delete": "删除",
@@ -2576,6 +2905,9 @@
       "default": "默认",
       "confirm_delete": "删除\"{name}\"？此日历中的所有活动都将被删除。",
       "confirm_clear": "清除\"{name}\"中的所有活动吗？此操作无法撤销。",
+      "set_default": "设为默认",
+      "default_updated": "默认日历已更新",
+      "error_default": "无法设置默认日历",
       "clear_events": "清除活动",
       "events_cleared": "{count} 个活动已清除",
       "error_clear": "无法清除日历活动",
@@ -2683,7 +3015,19 @@
       "sep": "9月",
       "oct": "10月",
       "nov": "11月",
-      "dec": "12月"
+      "dec": "12月",
+      "far": "Farvardin",
+      "ord": "Ordibehesht",
+      "kho": "Khordad",
+      "tir": "Tir",
+      "mor": "Mordad",
+      "sha": "Shahrivar",
+      "meh": "Mehr",
+      "aba": "Aban",
+      "aza": "Azar",
+      "dey": "Dey",
+      "bah": "Bahman",
+      "esf": "Esfand"
     },
     "nav_open_menu": "打开菜单"
   },
@@ -2738,6 +3082,7 @@
     "hint": "点击左侧的任意邮件即可开始，或参加下方的导览。"
   },
   "files": {
+    "open_in_new_tab": "在新标签页中打开",
     "title": "文件",
     "search_placeholder": "搜索文件...",
     "empty_state_title": "还没有文件",
@@ -2800,6 +3145,10 @@
     "duplicate": "创建副本",
     "duplicate_success": "复制成功",
     "duplicate_error": "复制失败",
+    "share": "Share",
+    "shared": "Shared",
+    "shared_with_me": "Shared with me",
+    "shared_by": "Shared by {name}",
     "create_file_success": "文件已创建",
     "create_file_error": "创建文件失败",
     "favorites": "收藏夹",
@@ -2843,7 +3192,9 @@
     "stability_warning": "大文件上传会导致服务器不稳定。已删除的文件可能不会立即从存储中清除。谨慎使用。",
     "no_accounts": "没有已连接的账户。",
     "open_folder_tree": "打开文件夹树",
-    "other_accounts": "其他账户"
+    "other_accounts": "其他账户",
+    "migration_title": "正在更新您的文件…",
+    "migration_description": "正在将文件夹和文件整理为正确的结构。此操作仅执行一次。"
   },
   "smime": {
     "your_certificates": "您的证书",
@@ -2999,5 +3350,33 @@
       "manager": "管理员",
       "custom": "自定义"
     }
+  },
+  "quote_header": {
+    "reply_line": "在 {date}，{from} 写道：",
+    "forwarded_separator": "---------- 转发邮件 ----------",
+    "from_label": "发件人",
+    "date_label": "日期",
+    "subject_label": "主题"
+  },
+  "pwa_install": {
+    "title": "安装 {appName}",
+    "description": "安装我们的应用，以获得快速访问和离线支持。",
+    "not_now": "暂不",
+    "install": "安装",
+    "dont_remind": "不再提醒",
+    "dismiss_aria": "关闭安装提示"
+  },
+  "deep_link": {
+    "message_not_found": "此邮件已不可用。",
+    "thread_not_found": "此会话已不可用。",
+    "folder_not_found": "此文件夹已不可用。",
+    "event_not_found": "此日程已不可用。",
+    "file_not_found": "此文件已不可用。",
+    "account_unavailable": "请登录该账户以打开此链接。",
+    "copy_message": "复制邮件链接",
+    "copy_conversation": "复制会话链接",
+    "copy_event": "复制日程链接",
+    "copied": "链接已复制",
+    "copy_failed": "无法复制链接"
   }
 }

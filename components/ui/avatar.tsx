@@ -270,6 +270,15 @@ export function Avatar({ name, email, contactPhotoUri, size = "md", className, d
           alt=""
           className="w-full h-full object-cover"
           onError={handleImgError}
+          // /api/favicon returns a 1x1 transparent PNG (HTTP 200) when no real
+          // favicon exists, to avoid spamming the DevTools console with 404s.
+          // Detect that sentinel by naturalWidth and fall back to initials.
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            if (isFavicon && img.naturalWidth <= 1) {
+              handleImgError();
+            }
+          }}
         />
       ) : (
         getInitials()

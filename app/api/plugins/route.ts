@@ -37,6 +37,9 @@ export async function GET() {
       author: p.author,
       description: p.description,
       type: p.type,
+      // Requested execution tier; clients gate the same-origin privileged
+      // sandbox on this (plus signature + approval + consent).
+      tier: p.tier,
       permissions: p.permissions,
       entrypoint: p.entrypoint,
       // Policy is the canonical source for force-enable. The per-plugin field
@@ -57,6 +60,9 @@ export async function GET() {
       // Per-user settings schema, captured from the manifest at upload/load
       // time so the client can render the settings UI without re-parsing.
       settingsSchema: p.settingsSchema,
+      // Plugin-declared i18n tables, so the sandbox can localize plugin
+      // strings via api.i18n.t().
+      locales: p.locales,
     }));
 
     // Only serve enabled themes

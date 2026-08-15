@@ -1,4 +1,4 @@
-export type FilePreviewKind = 'image' | 'html' | 'text' | 'markdown' | 'pdf' | 'audio' | 'video' | 'unsupported';
+export type FilePreviewKind = 'image' | 'html' | 'eml' | 'text' | 'markdown' | 'pdf' | 'audio' | 'video' | 'unsupported';
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico']);
 const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'opus']);
@@ -36,6 +36,12 @@ export function getFilePreviewKind(name?: string, type?: string): FilePreviewKin
 
   if (mimeType === 'text/html' || mimeType === 'application/xhtml+xml' || ext === 'html' || ext === 'htm') {
     return 'html';
+  }
+
+  // Embedded email message (e.g. a bounce/DSN, or forward-as-attachment).
+  // Rendered by parsing it and showing it like an email, not as a blob.
+  if (mimeType === 'message/rfc822' || ext === 'eml') {
+    return 'eml';
   }
 
   if (mimeType === 'application/pdf' || ext === 'pdf') {

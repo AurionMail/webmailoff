@@ -77,9 +77,11 @@ export function ResizeHandle({ onResizeStart, onResize, onResizeEnd, onDoubleCli
       onKeyDown={handleKeyDown}
       onDoubleClick={onDoubleClick}
       className={cn(
-        "flex-shrink-0 hover:bg-primary/30 active:bg-primary/50 transition-colors relative group",
+        // Centered over the seam with negative margins so the handle adds no
+        // net layout space (panes sit flush) while staying draggable.
+        "flex-shrink-0 hover:bg-primary/30 active:bg-primary/50 transition-colors relative group z-10",
         "focus-visible:outline-none focus-visible:bg-primary/40 focus-visible:ring-2 focus-visible:ring-primary/50",
-        isHorizontal ? "h-1 cursor-row-resize bg-border" : "w-1 cursor-col-resize",
+        isHorizontal ? "h-1 -my-0.5 cursor-row-resize bg-border" : "w-1 -mx-0.5 cursor-col-resize",
         className
       )}
     >

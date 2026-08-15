@@ -12,42 +12,82 @@ function escapeString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+// Normalise the condition value to a non-empty string array. Single-value
+// conditions stay one-element; arrays are filtered for empty strings.
+function toValueList(value: string | string[]): string[] {
+  const arr = Array.isArray(value) ? value : [value];
+  return arr.map((v) => (v ?? '').toString()).filter((v) => v.length > 0);
+}
+
+// Render one or many strings as a Sieve string-literal-or-list. Sieve treats
+// `header :contains "From" ["a", "b"]` as "any of a, b" (built-in OR within
+// the condition); the single-string form is emitted unchanged when len === 1
+// so existing scripts and tests stay byte-identical.
+function formatStringArg(values: string[], transform: (s: string) => string = (s) => s): string {
+  if (values.length === 1) {
+    return `"${escapeString(transform(values[0]))}"`;
+  }
+  return `[${values.map((v) => `"${escapeString(transform(v))}"`).join(', ')}]`;
+}
+
 function generateCondition(condition: FilterCondition): string {
   const { field, comparator, value } = condition;
 
   if (field === 'size') {
+    // Size is numeric, single value only.
+    const sizeValue = Array.isArray(value) ? value[0] : value;
     const op = comparator === 'greater_than' ? ':over' : ':under';
-    return `size ${op} ${value}`;
+    return `size ${op} ${sizeValue}`;
   }
+
+  const values = toValueList(value);
 
   if (field === 'body') {
     const matchType = comparator === 'is' ? ':is' : ':contains';
-    return `body ${matchType} "${escapeString(value)}"`;
+    return `body ${matchType} ${formatStringArg(values)}`;
+  }
+
+  if (field === 'attachment') {
+    // RFC 5703: :mime :anychild matches against headers of any MIME part.
+    // has_any tests Content-Disposition for "attachment"; has_type matches
+    // the file extension against the filename across BOTH Content-Disposition
+    // (filename= parameter) and Content-Type (name= parameter) - many older
+    // senders (Microsoft SMTPSVC, PrintToMail, etc.) put the filename only
+    // in Content-Type and leave Content-Disposition without a filename.
+    // RFC 5228 §5.7 allows a string-list for header names; the test passes
+    // if any listed header matches. Wildcard "*.<ext>*" catches quoted,
+    // unquoted, and RFC-2231-encoded forms alike since ".<ext>" appears as
+    // a literal substring in all of them.
+    // Multiple extensions become a Sieve value-list ["*.pdf*", "*.xml*"]
+    // = OR within the condition (any item matches → test passes).
+    if (comparator === 'has_any') {
+      return `header :mime :anychild :contains "Content-Disposition" "attachment"`;
+    }
+    const normalised = values.map((v) => v.replace(/^[.*]+/, '').trim()).filter(Boolean);
+    return `header :mime :anychild :matches ["Content-Disposition", "Content-Type"] ${formatStringArg(normalised, (ext) => `*.${ext}*`)}`;
   }
 
   const headerName = field === 'header'
     ? (condition.headerName || 'X-Unknown')
     : HEADER_MAP[field];
 
-  const escaped = escapeString(value);
-
   switch (comparator) {
     case 'contains':
-      return `header :contains "${headerName}" "${escaped}"`;
+      return `header :contains "${headerName}" ${formatStringArg(values)}`;
     case 'not_contains':
-      return `not header :contains "${headerName}" "${escaped}"`;
+      return `not header :contains "${headerName}" ${formatStringArg(values)}`;
     case 'is':
-      return `header :is "${headerName}" "${escaped}"`;
+      return `header :is "${headerName}" ${formatStringArg(values)}`;
     case 'not_is':
-      return `not header :is "${headerName}" "${escaped}"`;
+      return `not header :is "${headerName}" ${formatStringArg(values)}`;
     case 'starts_with':
-      return `header :matches "${headerName}" "${escaped}*"`;
+      return `header :matches "${headerName}" ${formatStringArg(values, (v) => `${v}*`)}`;
     case 'ends_with':
-      return `header :matches "${headerName}" "*${escaped}"`;
+      return `header :matches "${headerName}" ${formatStringArg(values, (v) => `*${v}`)}`;
     case 'matches':
-      return `header :matches "${headerName}" "${escaped}"`;
+      return `header :matches "${headerName}" ${formatStringArg(values)}`;
     default:
-      return `header :contains "${headerName}" "${escaped}"`;
+      return `header :contains "${headerName}" ${formatStringArg(values)}`;
   }
 }
 
@@ -89,6 +129,7 @@ function computeRequires(rules: FilterRule[], vacation?: VacationSieveConfig): s
   for (const rule of enabledRules) {
     for (const condition of rule.conditions) {
       if (condition.field === 'body') extensions.add('body');
+      if (condition.field === 'attachment') extensions.add('mime');
     }
     for (const action of rule.actions) {
       switch (action.type) {

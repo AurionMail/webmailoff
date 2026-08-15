@@ -9,6 +9,7 @@ import {
   assertWritable,
 } from './paths';
 import type { AdminConfigData, AdminStateData } from './types';
+import { readFileEnv } from '../read-file-env';
 
 const SCRYPT_KEYLEN = 64;
 const SCRYPT_COST = 16384; // 2^14
@@ -146,7 +147,7 @@ export async function initAdminPassword(): Promise<boolean> {
   }
 
   const hash = isHashed(envPassword) ? envPassword : await hashPassword(envPassword);
-  cachedConfig = { passwordHash: hash };
+  cachedConfig = { passwordHash: hash, passwordHashFile: undefined };
   cachedState = freshState();
   await writeConfigData(cachedConfig);
   await writeStateData(cachedState);
@@ -165,7 +166,16 @@ export async function initAdminPassword(): Promise<boolean> {
 export async function verifyAdminPassword(password: string): Promise<boolean> {
   if (!cachedConfig) cachedConfig = await readConfigData();
   if (!cachedConfig) return false;
-  return verifyPassword(password, cachedConfig.passwordHash);
+  if (cachedConfig.passwordHash) {
+    return verifyPassword(password, cachedConfig.passwordHash);
+  } else if (cachedConfig.passwordHashFile) {
+    let passwordHash = readFileEnv(cachedConfig.passwordHashFile);
+    if (passwordHash) {
+      return verifyPassword(password, passwordHash);
+    }
+  }
+  logger.error('The admin password hash could neither be retrieved from passwordHash nor from passwordHashFile in admin.json');
+  return false;
 }
 
 /**
@@ -176,7 +186,7 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
   if (!valid) return false;
 
   const hash = await hashPassword(newPassword);
-  cachedConfig = { passwordHash: hash };
+  cachedConfig = { passwordHash: hash, passwordHashFile: undefined };
   await writeConfigData(cachedConfig);
 
   cachedState = {
@@ -205,7 +215,7 @@ export async function setInitialAdminPassword(
   const existing = await readConfigData();
   if (existing && !options.allowOverwrite) return false;
   const hash = await hashPassword(newPassword);
-  cachedConfig = { passwordHash: hash };
+  cachedConfig = { passwordHash: hash, passwordHashFile: undefined };
   cachedState = freshState();
   await writeConfigData(cachedConfig);
   await writeStateData(cachedState);

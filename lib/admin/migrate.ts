@@ -11,6 +11,7 @@ import {
 import type { AdminConfigData, AdminStateData } from './types';
 
 const MIGRATION_MARKER = '.migrated-v2';
+const POLICY_UNIFIED_MARKER = '.migrated-unified-mailbox';
 
 interface LegacyAdminData {
   passwordHash: string;
@@ -60,6 +61,65 @@ export async function migrateLegacyAdminLayout(): Promise<void> {
 }
 
 /**
+ * One-shot policy migration for the Unified Mailbox rework. Before it, the
+ * cross views (crossUnread/crossStarred/crossAll) merged across every logged-in
+ * account, so an admin who had any of them enabled was already permitting
+ * cross-account aggregation. The new `unifiedCrossAccountEnabled` gate (default
+ * false) controls that capability, so enable it whenever a cross view was active
+ * - otherwise existing cross-account installs would silently lose the behaviour
+ * on upgrade (the per-user `unifiedCrossAccount` is AND-ed with this gate).
+ *
+ * Persisted + marker-guarded (not a per-load normalization) so a later admin
+ * decision to disable the gate survives restarts. Skipped on read-only config
+ * dirs - operators who locked their config must migrate manually (mirrors
+ * migrateLegacyAdminLayout). The deprecated `allMailViewEnabled` (a single-account
+ * view, never cross-account) deliberately does NOT trigger this.
+ */
+export async function migratePolicyUnifiedMailbox(): Promise<void> {
+  if (isConfigReadOnly()) return;
+
+  const markerPath = getConfigPath(POLICY_UNIFIED_MARKER);
+  if (existsSync(markerPath)) return;
+
+  try {
+    const policyPath = getConfigPath('policy.json');
+    if (existsSync(policyPath)) {
+      let parsed: Record<string, unknown> | null = null;
+      try {
+        parsed = JSON.parse(await readFile(policyPath, 'utf-8')) as Record<string, unknown>;
+      } catch {
+        logger.warn('policy.json is not valid JSON; skipping Unified Mailbox policy migration');
+      }
+      const features =
+        parsed && typeof parsed.features === 'object' && parsed.features
+          ? (parsed.features as Record<string, unknown>)
+          : null;
+      if (features) {
+        const hadCrossAccount = !!(
+          features.crossUnreadViewEnabled ||
+          features.crossStarredViewEnabled ||
+          features.crossAllViewEnabled
+        );
+        if (hadCrossAccount && features.unifiedCrossAccountEnabled !== true) {
+          features.unifiedCrossAccountEnabled = true;
+          const tmp = policyPath + '.tmp';
+          await writeFile(tmp, JSON.stringify(parsed, null, 2), 'utf-8');
+          await rename(tmp, policyPath);
+          logger.info('Migrated policy: enabled unifiedCrossAccountEnabled (cross-account views were active)');
+        }
+      }
+    }
+
+    await ensureConfigDir();
+    await writeFile(markerPath, new Date().toISOString(), 'utf-8');
+  } catch (error) {
+    logger.warn('Unified Mailbox policy migration failed; will retry on next boot', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
  * If the existing admin.json carries timestamp fields (legacy mixed layout),
  * split them into admin-state.json and rewrite admin.json without them.
  * Returns true if a migration was performed.
@@ -98,7 +158,7 @@ async function migrateAdminJson(): Promise<boolean> {
     lastLogin: data.lastLogin ?? null,
     passwordChangedAt: data.passwordChangedAt ?? now,
   };
-  const configData: AdminConfigData = { passwordHash: data.passwordHash };
+  const configData: AdminConfigData = { passwordHash: data.passwordHash, passwordHashFile: undefined };
 
   await ensureStateDir();
   const statePath = getStatePath('admin-state.json');

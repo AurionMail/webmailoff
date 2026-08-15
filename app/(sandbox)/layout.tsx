@@ -1,17 +1,14 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { Geist, Geist_Mono } from 'next/font/google';
-import '../globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+// The plugin sandbox iframe runs with an opaque origin (the `sandbox`
+// attribute in production excludes `allow-same-origin` for isolation). Any
+// asset request from this layout - bundled fonts, globals.css, etc. - is then
+// cross-origin from the "null" origin to the host origin and gets blocked
+// (fonts in particular require CORS). So this layout is intentionally minimal:
+// no font imports, no CSS imports. Plugins ship their own styles, and both the
+// plugin bundle and all host API calls travel over the postMessage RPC bridge,
+// so the sandbox never fetches same-origin assets itself.
 
 export const metadata: Metadata = {
   title: 'Plugin sandbox',
@@ -21,10 +18,7 @@ export const metadata: Metadata = {
 export default function PluginSandboxLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        style={{ margin: 0, padding: 0, background: 'transparent' }}
-      >
+      <body style={{ margin: 0, padding: 0, background: 'transparent' }}>
         {children}
       </body>
     </html>

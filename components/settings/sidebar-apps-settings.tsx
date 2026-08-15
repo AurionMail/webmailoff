@@ -150,6 +150,9 @@ function AppForm({
         <label className="text-sm font-medium">{t("show_on_mobile")}</label>
         <button
           type="button"
+          role="switch"
+          aria-checked={formData.showOnMobile}
+          aria-label={t("show_on_mobile")}
           onClick={() => setFormData({ ...formData, showOnMobile: !formData.showOnMobile })}
           className={cn(
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
@@ -330,7 +333,7 @@ export function SidebarAppsSettings() {
               onClick={() => setShowAddForm(true)}
               className="w-full"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 me-2" />
               {tApps("add_new")}
             </Button>
           )}

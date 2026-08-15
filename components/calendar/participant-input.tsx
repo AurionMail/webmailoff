@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHand
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Avatar } from "@/components/ui/avatar";
 import { useContactStore } from "@/stores/contact-store";
 
 interface Participant {
@@ -144,14 +145,17 @@ export const ParticipantInput = forwardRef<ParticipantInputHandle, ParticipantIn
                 role="option"
                 aria-selected={i === activeIndex}
                 onMouseDown={(e) => { e.preventDefault(); addParticipant(s); }}
-                className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
                   i === activeIndex ? "bg-accent text-accent-foreground" : "hover:bg-muted"
                 }`}
               >
-                <div className="font-medium truncate">{s.name || s.email}</div>
-                {s.name && (
-                  <div className="text-xs text-muted-foreground truncate">{s.email}</div>
-                )}
+                <Avatar name={s.name} email={s.email} size="sm" className="shrink-0 w-7 h-7 text-[10px]" />
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{s.name || s.email}</div>
+                  {s.name && (
+                    <div className="text-xs text-muted-foreground truncate">{s.email}</div>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

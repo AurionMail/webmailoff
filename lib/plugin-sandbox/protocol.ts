@@ -8,7 +8,8 @@
 // the boundary must be structured-cloneable: no functions, no DOM nodes, no
 // class instances.
 
-import type { SlotName } from '../plugin-types';
+import type { SlotName, PluginTier } from '../plugin-types';
+import type { ThemeSnapshot } from './host-theme';
 
 // ─── Sandbox mode ────────────────────────────────────────────
 
@@ -18,6 +19,12 @@ export type SandboxMode = 'background' | 'slot';
 export interface BackgroundInit {
   mode: 'background';
   pluginId: string;
+  /**
+   * Execution tier. 'privileged' iframes are same-origin (real WebCrypto +
+   * IndexedDB); 'untrusted' iframes are null-origin. Decided host-side by
+   * `resolvePluginTier`; the sandbox itself does not act on this field.
+   */
+  tier: PluginTier;
   /** Trimmed manifest visible to the plugin. No host secrets. */
   manifest: {
     id: string;
@@ -37,6 +44,8 @@ export interface BackgroundInit {
 export interface SlotInit {
   mode: 'slot';
   pluginId: string;
+  /** Execution tier (mirrors `BackgroundInit.tier`). */
+  tier: PluginTier;
   /** Slot name the iframe should render a component for. */
   slot: SlotName;
   /** Same bundle code as the background instance. */
@@ -62,6 +71,12 @@ export interface SlotInit {
    */
   extraProps: Record<string, unknown>;
   locale: string;
+  /**
+   * Resolved host theme (colour tokens, font stack, dark flag). The sandbox
+   * can't load globals.css/fonts cross-origin, so the runtime replays this as
+   * injected CSS + a `.dark` class. Host pushes updates via 'theme-change'.
+   */
+  theme: ThemeSnapshot;
 }
 
 export type InitPayload = BackgroundInit | SlotInit;
@@ -163,6 +178,9 @@ export interface HookInvokeMsg {
 
 export interface LocaleChangeMsg { type: 'locale-change'; locale: string; }
 
+/** Host → sandbox: the resolved theme changed; re-inject the slot's theme CSS. */
+export interface ThemeChangeMsg { type: 'theme-change'; theme: ThemeSnapshot; }
+
 export interface PropsUpdateMsg { type: 'props-update'; props: Record<string, unknown>; }
 
 export interface SlotShouldShowMsg {
@@ -178,6 +196,7 @@ export type HostToSandbox =
   | CallbackResponseMsg
   | HookInvokeMsg
   | LocaleChangeMsg
+  | ThemeChangeMsg
   | PropsUpdateMsg
   | SlotShouldShowMsg;
 
@@ -206,16 +225,40 @@ export function isSandboxMessage(value: unknown): value is SandboxToHost {
 
 // ─── Constants ───────────────────────────────────────────────
 
-/** Path used for the sandbox iframe `src`. Matched in `proxy.ts` for CSP. */
+/** Path used for the untrusted (null-origin) sandbox iframe `src`. Matched in
+ * `proxy.ts` for CSP. */
 export const SANDBOX_PATH = '/plugin-sandbox';
+
+/**
+ * Path used for the privileged (same-origin) sandbox iframe `src`. A distinct
+ * route so the iframe gets `allow-same-origin` (real WebCrypto + IndexedDB)
+ * while keeping the same CSP relaxations as the untrusted sandbox. Matched in
+ * `proxy.ts`. Renders the identical `SandboxRuntime`.
+ */
+export const SANDBOX_PRIVILEGED_PATH = '/plugin-sandbox-privileged';
 
 /** Methods callable by a plugin via api-request. Host enforces permissions. */
 export const API_METHODS = [
   'storage.get', 'storage.set', 'storage.remove', 'storage.keys',
   'http.post', 'http.fetch',
+  'crypto.getOrCreateWebAuthn', 'crypto.getPublicKeys', 'crypto.createPublicKey', 'crypto.removePublicKey', 'crypto.getEncryptionAtRest', 'crypto.setEncryptionAtRest',
+  'jmap.fetchBlob', 'jmap.uploadBlob', 'jmap.sendRaw',
+  // Narrow keyword helpers. Unlike the raw-blob methods, these are available
+  // to untrusted plugins with email:read/email:write as appropriate.
+  'jmap.getKeywords', 'jmap.setKeywords', 'jmap.setKeyword', 'jmap.removeKeyword',
+  'upfiles.get', 'upfiles.save',
+  'contact.get', 'contact.update', 'contact.create', 'contact.search',
   'admin.getConfig', 'admin.getAllConfig', 'admin.setConfig', 'admin.deleteConfig',
   'toast.success', 'toast.error', 'toast.info', 'toast.warning',
-  'ui.confirm', 'ui.alert', 'ui.openExternalUrl',
+  'ui.confirm', 'ui.alert', 'ui.prompt', 'ui.rerenderEmail', 'ui.rerenderFetchedEmails', 'ui.openExternalUrl', 'ui.downloadFile',
+  // Email keyword mutations (JMAP Email/set keyword patches).
+  'email.setKeyword', 'email.removeKeyword',
+  // Native tag definitions, discovery, and sidebar counts.
+  'keywords.list', 'keywords.add', 'keywords.reorder', 'keywords.discover', 'keywords.getCounts', 'keywords.refreshCounts',
+  // Message-list category tabs (Gmail-style inbox tabs).
+  'tabs.set', 'tabs.clear', 'tabs.getState', 'tabs.categorize', 'tabs.refreshCounts',
+  // Sieve integration for delivery-time classification plugins.
+  'sieve.isSupported', 'sieve.getActiveScript', 'sieve.validateScript', 'sieve.regenerate',
 ] as const;
 
 export type ApiMethod = (typeof API_METHODS)[number];

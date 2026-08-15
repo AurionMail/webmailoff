@@ -118,9 +118,10 @@ export function TelemetryTab() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Anonymous Usage Stats</h1>
         <p className="text-sm text-muted-foreground">
-          Bulwark sends one anonymous heartbeat per day so we can see how many instances are
-          running, on what platforms, and which features they use. <strong>Enabled by default</strong>;
-          one click below disables it. No email addresses, no hostnames, no IPs are sent.{' '}
+          Bulwark can send one anonymous heartbeat per day so we can see how many instances are
+          running, on what platforms, and which features they use. It&apos;s <strong>off by
+          default</strong>; one click below enables it and helps us make the product better. No
+          email addresses, no hostnames, no IPs are sent.{' '}
           <a
             href="https://bulwarkmail.org/docs/legal/privacy/telemetry"
             target="_blank"
@@ -138,8 +139,8 @@ export function TelemetryTab() {
             <div className="font-medium">Status</div>
             <div className="text-sm text-muted-foreground">
               {status.consent === 'pending' && 'Initialising - no heartbeats sent yet.'}
-              {status.consent === 'on' && 'Heartbeats are enabled (default).'}
-              {status.consent === 'off' && 'Heartbeats are off.'}
+              {status.consent === 'on' && 'Heartbeats are enabled. Thanks for helping us improve!'}
+              {status.consent === 'off' && 'Heartbeats are off (default).'}
               {envOverridden && (
                 <> Locked by <code>BULWARK_TELEMETRY</code> env var.</>
               )}

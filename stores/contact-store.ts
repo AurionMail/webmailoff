@@ -5,6 +5,48 @@ import type { IJMAPClient } from '@/lib/jmap/client-interface';
 import { generateUUID } from '@/lib/utils';
 import { debug } from '@/lib/debug';
 import { getClientByLocalAccountId } from './client-registry';
+import { sanitizeDisplayName, splitMailbox } from '@/lib/rfc5322-mailbox';
+
+/** One compose-autocomplete suggestion: a person, or a contact group. */
+type RecipientSuggestion = { name: string; email: string; group?: { id: string; memberCount: number } };
+
+/**
+ * Reduces every suggestion to a clean display name plus a bare address and
+ * collapses the ones that resolve to the same address.
+ *
+ * Contacts whose stored name is really a whole mailbox ("Jane <j@x.com>", the
+ * usual result of a flattened vCard import) otherwise show up next to the
+ * properly parsed card as a second, raw-looking suggestion, and picking that
+ * one composes a malformed recipient the receiving server rejects (#672).
+ * Groups carry no address and pass through untouched.
+ */
+function normalizeSuggestions(results: RecipientSuggestion[]): RecipientSuggestion[] {
+  const out: RecipientSuggestion[] = [];
+  const indexByEmail = new Map<string, number>();
+  for (const r of results) {
+    if (r.group) {
+      out.push(r);
+      continue;
+    }
+    const mailbox = splitMailbox(r.email);
+    if (!mailbox.email) continue;
+    // The name loses any address it carries; when that leaves nothing, the one
+    // the address field itself carried ("Jane <j@x.com>" stored as the address)
+    // stands in.
+    const name = sanitizeDisplayName(r.name) || mailbox.name || '';
+    const suggestion = { name: name === mailbox.email ? '' : name, email: mailbox.email };
+    const key = mailbox.email.toLowerCase();
+    const seenAt = indexByEmail.get(key);
+    if (seenAt === undefined) {
+      indexByEmail.set(key, out.length);
+      out.push(suggestion);
+    } else if (!out[seenAt].name && suggestion.name) {
+      // Keep the first hit's position but take a display name it was missing.
+      out[seenAt].name = suggestion.name;
+    }
+  }
+  return out;
+}
 
 /** One connected JMAP account for contact multi-account aggregation. */
 export interface ContactAccountClient {
@@ -13,10 +55,9 @@ export interface ContactAccountClient {
 }
 
 /**
- * Prefix used to namespace contact/address-book IDs that belong to a
- * non-active JMAP account when the Pro shell aggregates across accounts.
- * The active account's IDs are left untouched so existing single-account
- * code paths keep working unchanged.
+ * Prefix used to namespace contact/address-book IDs when the Pro shell
+ * aggregates across accounts. EVERY aggregated account is namespaced (including
+ * the active one); single-account paths carry no localAccountId and stay raw.
  */
 const CROSS_ACCOUNT_ID_DELIMITER = '::';
 
@@ -24,18 +65,21 @@ function buildCrossAccountIdPrefix(localAccountId: string): string {
   return `${localAccountId}${CROSS_ACCOUNT_ID_DELIMITER}`;
 }
 
+// EVERY aggregated account is namespaced, including the active one, so an id
+// stably identifies (account, entity) regardless of which account is active -
+// otherwise switching accounts flipped the id form and broke mutation routing /
+// selection. Invariant: namespaced iff `localAccountId` is set; `originalId`
+// holds the raw id. Mutations already resolve raw via `originalId ||
+// stripLocalAccountPrefix`, so they keep working. Mirrors the calendar store.
 function prefixAddressBooksWithLocalAccount(
   books: AddressBook[],
   localAccountId: string,
-  isActiveAccount: boolean,
 ): AddressBook[] {
-  if (isActiveAccount) {
-    return books.map((b) => ({ ...b, localAccountId }));
-  }
   const prefix = buildCrossAccountIdPrefix(localAccountId);
   return books.map((b) => ({
     ...b,
     id: `${prefix}${b.id}`,
+    originalId: b.originalId ?? b.id,
     localAccountId,
   }));
 }
@@ -43,15 +87,12 @@ function prefixAddressBooksWithLocalAccount(
 function prefixContactsWithLocalAccount(
   contacts: ContactCard[],
   localAccountId: string,
-  isActiveAccount: boolean,
 ): ContactCard[] {
-  if (isActiveAccount) {
-    return contacts.map((c) => ({ ...c, localAccountId }));
-  }
   const prefix = buildCrossAccountIdPrefix(localAccountId);
   return contacts.map((c) => ({
     ...c,
     id: `${prefix}${c.id}`,
+    originalId: c.originalId ?? c.id,
     localAccountId,
     addressBookIds: c.addressBookIds
       ? Object.fromEntries(
@@ -140,6 +181,69 @@ export function getContactPhotoUri(contact: ContactCard): string | undefined {
 
 export const TRUSTED_SENDERS_BOOK_NAME = 'Trusted Senders';
 
+/** In-flight trusted senders load, shared by all callers to keep it single-flight. */
+let trustedSendersLoadPromise: Promise<void> | null = null;
+
+/** Every e-mail address held by the given contacts, lowercased and de-duplicated. */
+export function collectContactEmails(contacts: ContactCard[]): string[] {
+  const seen = new Set<string>();
+  for (const contact of contacts) {
+    if (!contact.emails) continue;
+    for (const entry of Object.values(contact.emails)) {
+      const address = entry.address?.toLowerCase().trim();
+      if (address) seen.add(address);
+    }
+  }
+  return Array.from(seen);
+}
+
+/**
+ * Fold duplicate "Trusted Senders" books into the canonical one and delete the
+ * emptied leftovers (#730).  Contacts that already exist in the canonical book
+ * are dropped rather than copied, so merging never produces two cards for the
+ * same address.  A duplicate is only destroyed once every one of its contacts
+ * has been moved or removed - if any step fails the book is left untouched so
+ * no trusted sender is lost.
+ */
+export async function consolidateTrustedSenderBooks(
+  client: IJMAPClient,
+  canonicalBookId: string,
+  duplicates: AddressBook[],
+  knownEmails: string[]
+): Promise<string[]> {
+  const emails = new Set(knownEmails);
+
+  for (const duplicate of duplicates) {
+    try {
+      const contacts = await client.getContacts(duplicate.id, { throwOnError: true });
+      for (const contact of contacts) {
+        const addresses = collectContactEmails([contact]);
+        // Cards filed in other books too must never be destroyed - only unfiled
+        // from the duplicate.
+        const otherBookIds = Object.keys(contact.addressBookIds || {}).filter(id => id !== duplicate.id);
+        const addressBookIds: Record<string, boolean> = {};
+        for (const id of otherBookIds) addressBookIds[id] = true;
+
+        if (addresses.some(address => !emails.has(address))) {
+          addressBookIds[canonicalBookId] = true;
+          await client.updateContact(contact.id, { addressBookIds });
+          addresses.forEach(address => emails.add(address));
+        } else if (otherBookIds.length > 0) {
+          await client.updateContact(contact.id, { addressBookIds });
+        } else {
+          await client.deleteContact(contact.id);
+        }
+      }
+      await client.deleteAddressBook(duplicate.id);
+      debug.log('contacts', 'Merged duplicate trusted senders book:', duplicate.id);
+    } catch (error) {
+      debug.error('Failed to merge duplicate trusted senders book:', duplicate.id, error);
+    }
+  }
+
+  return Array.from(emails);
+}
+
 interface ContactStore {
   contacts: ContactCard[];
   addressBooks: AddressBook[];
@@ -155,14 +259,25 @@ interface ContactStore {
   trustedSendersLoaded: boolean;
   trustedSendersLoading: boolean;
 
+  // Recent recipients (from the Sent folder) for compose autocomplete - runtime only
+  recentRecipients: Array<{ name: string; email: string }>;
+  recentRecipientsLoaded: boolean;
+  sentMailboxId: string | null;
+
   selectedContactIds: Set<string>;
   lastSelectedContactId: string | null;
   activeTab: 'all' | 'groups';
 
+  // Directory (RFC 9670 principals) — other users/groups on the server, used to
+  // augment recipient autocomplete. Runtime only, not persisted.
+  directoryPrincipals: Array<{ name: string; email: string; description?: string }>;
+  directoryLoaded: boolean;
+
   fetchContacts: (client: IJMAPClient) => Promise<void>;
+  fetchDirectory: (client: IJMAPClient) => Promise<void>;
   fetchAddressBooks: (client: IJMAPClient) => Promise<void>;
-  fetchAllAccountsContacts: (accounts: ContactAccountClient[], activeLocalAccountId: string) => Promise<void>;
-  fetchAllAccountsAddressBooks: (accounts: ContactAccountClient[], activeLocalAccountId: string) => Promise<void>;
+  fetchAllAccountsContacts: (accounts: ContactAccountClient[]) => Promise<void>;
+  fetchAllAccountsAddressBooks: (accounts: ContactAccountClient[]) => Promise<void>;
   createContact: (client: IJMAPClient, contact: Partial<ContactCard>) => Promise<void>;
   updateContact: (client: IJMAPClient, id: string, updates: Partial<ContactCard>) => Promise<void>;
   deleteContact: (client: IJMAPClient, id: string) => Promise<void>;
@@ -177,7 +292,7 @@ interface ContactStore {
   setActiveTab: (tab: 'all' | 'groups') => void;
   clearContacts: () => void;
 
-  getAutocomplete: (query: string) => Array<{ name: string; email: string }>;
+  getAutocomplete: (query: string) => Array<{ name: string; email: string; group?: { id: string; memberCount: number } }>;
 
   getGroups: () => ContactCard[];
   getIndividuals: () => ContactCard[];
@@ -195,6 +310,7 @@ interface ContactStore {
   bulkDeleteContacts: (client: IJMAPClient | null, ids: string[]) => Promise<void>;
   bulkAddToGroup: (client: IJMAPClient | null, groupId: string, contactIds: string[]) => Promise<void>;
   moveContactToAddressBook: (client: IJMAPClient, contactIds: string[], addressBook: AddressBook) => Promise<void>;
+  createAddressBook: (client: IJMAPClient, name: string) => Promise<AddressBook>;
   renameAddressBook: (client: IJMAPClient, addressBook: AddressBook, newName: string) => Promise<void>;
   removeAddressBook: (client: IJMAPClient, addressBook: AddressBook) => Promise<void>;
   shareAddressBook: (client: IJMAPClient, addressBook: AddressBook, principalId: string, rights: AddressBookRights | null) => Promise<void>;
@@ -207,6 +323,11 @@ interface ContactStore {
   addToTrustedSendersBook: (client: IJMAPClient, email: string) => Promise<void>;
   removeFromTrustedSendersBook: (client: IJMAPClient, email: string) => Promise<void>;
   isTrustedAddressBookSender: (email: string) => boolean;
+
+  // Recent recipients (compose autocomplete, derived from the Sent folder)
+  loadRecentRecipients: (client: IJMAPClient, sentMailboxId: string) => Promise<void>;
+  // On-demand "search the server" for recipients not in the recent cache
+  searchRecipients: (client: IJMAPClient, query: string) => Promise<Array<{ name: string; email: string }>>;
 }
 
 export const useContactStore = create<ContactStore>()(
@@ -255,9 +376,14 @@ export const useContactStore = create<ContactStore>()(
       trustedSendersBookId: null,
       trustedSendersLoaded: false,
       trustedSendersLoading: false,
+      recentRecipients: [],
+      recentRecipientsLoaded: false,
+      sentMailboxId: null,
       selectedContactIds: new Set<string>(),
       lastSelectedContactId: null,
       activeTab: 'all' as const,
+      directoryPrincipals: [],
+      directoryLoaded: false,
 
       fetchContacts: async (client) => {
         set({ isLoading: true, error: null });
@@ -267,6 +393,28 @@ export const useContactStore = create<ContactStore>()(
         } catch (error) {
           console.error('Failed to fetch contacts:', error);
           set({ error: 'Failed to fetch contacts', isLoading: false });
+        }
+      },
+
+      fetchDirectory: async (client) => {
+        if (!client.supportsPrincipals()) return;
+        try {
+          const principals = await client.getPrincipals();
+          const entries: Array<{ name: string; email: string; description?: string }> = [];
+          for (const p of principals) {
+            // Stalwart reports a principal's account name in `email`; only those
+            // with an address are usable as recipients.
+            const email = p.email?.trim();
+            if (!email) continue;
+            entries.push({
+              name: p.description || p.name || email,
+              email,
+              description: p.description ?? undefined,
+            });
+          }
+          set({ directoryPrincipals: entries, directoryLoaded: true });
+        } catch (error) {
+          debug.error('Failed to fetch directory principals:', error);
         }
       },
 
@@ -280,18 +428,14 @@ export const useContactStore = create<ContactStore>()(
         }
       },
 
-      fetchAllAccountsContacts: async (accounts, activeLocalAccountId) => {
+      fetchAllAccountsContacts: async (accounts) => {
         set({ isLoading: true, error: null });
         try {
           const results = await Promise.all(
             accounts.map(async ({ client, localAccountId }) => {
               try {
                 const list = await client.getAllContacts();
-                return prefixContactsWithLocalAccount(
-                  list,
-                  localAccountId,
-                  localAccountId === activeLocalAccountId,
-                );
+                return prefixContactsWithLocalAccount(list, localAccountId);
               } catch (error) {
                 debug.error(`Failed to fetch contacts for account ${localAccountId}:`, error);
                 return [] as ContactCard[];
@@ -305,17 +449,13 @@ export const useContactStore = create<ContactStore>()(
         }
       },
 
-      fetchAllAccountsAddressBooks: async (accounts, activeLocalAccountId) => {
+      fetchAllAccountsAddressBooks: async (accounts) => {
         try {
           const results = await Promise.all(
             accounts.map(async ({ client, localAccountId }) => {
               try {
                 const list = await client.getAllAddressBooks();
-                return prefixAddressBooksWithLocalAccount(
-                  list,
-                  localAccountId,
-                  localAccountId === activeLocalAccountId,
-                );
+                return prefixAddressBooksWithLocalAccount(list, localAccountId);
               } catch (error) {
                 debug.error(`Failed to fetch address books for account ${localAccountId}:`, error);
                 return [] as AddressBook[];
@@ -474,6 +614,8 @@ export const useContactStore = create<ContactStore>()(
         error: null,
         selectedContactIds: new Set<string>(),
         activeTab: 'all',
+        directoryPrincipals: [],
+        directoryLoaded: false,
       }),
 
       getAutocomplete: (query) => {
@@ -481,20 +623,18 @@ export const useContactStore = create<ContactStore>()(
         if (!query || query.length < 1) return [];
 
         const lower = query.toLowerCase();
-        const results: Array<{ name: string; email: string }> = [];
+        const results: RecipientSuggestion[] = [];
 
         for (const contact of contacts) {
           if (contact.kind === 'group') {
+            // Suggest the group itself as a single entry (Outlook-style);
+            // the composer turns it into one chip carrying the members.
             const groupName = getContactDisplayName(contact);
-            if (groupName.toLowerCase().includes(lower)) {
-              const members = get().getGroupMembers(contact.id);
-              for (const member of members) {
-                const memberName = getContactDisplayName(member);
-                const memberEmails = member.emails ? Object.values(member.emails) : [];
-                for (const emailEntry of memberEmails) {
-                  if (!emailEntry.address) continue;
-                  results.push({ name: memberName, email: emailEntry.address });
-                }
+            if (groupName && groupName.toLowerCase().includes(lower)) {
+              const memberCount = get().getGroupMembers(contact.id)
+                .filter(m => getContactPrimaryEmail(m).trim()).length;
+              if (memberCount > 0) {
+                results.push({ name: groupName, email: '', group: { id: contact.id, memberCount } });
               }
             }
             continue;
@@ -516,7 +656,53 @@ export const useContactStore = create<ContactStore>()(
           if (results.length >= 10) break;
         }
 
-        return results;
+        // Augment with directory principals (other users on the server, RFC 9670).
+        // Contacts take precedence, so skip any address already suggested.
+        const { directoryPrincipals } = get();
+        if (directoryPrincipals.length > 0) {
+          const seen = new Set(results.map(r => r.email.toLowerCase()));
+          for (const p of directoryPrincipals) {
+            if (results.length >= 10) break;
+            const addr = p.email.toLowerCase();
+            if (seen.has(addr)) {
+              const betterName = p.description || p.name;
+              if (betterName && betterName !== p.email) {
+                const existing = results.find(r => r.email.toLowerCase() === addr);
+                if (existing && (!existing.name || existing.name === existing.email)) {
+                  existing.name = betterName;
+                }
+              }
+              continue;
+            }
+            if (p.name.toLowerCase().includes(lower) || addr.includes(lower) || (p.description && p.description.toLowerCase().includes(lower))) {
+              const displayName = p.description || p.name;
+              const name = displayName !== p.email ? displayName : '';
+              results.push({ name, email: p.email });
+              seen.add(addr);
+            }
+          }
+        }
+
+        // Finally fold in recent recipients from the Sent folder (people you've
+        // written to - the OWA-style autocomplete cache). Contacts and directory
+        // principals take precedence, so skip any address already suggested (no
+        // duplicates). These carry the display name from the message, so match
+        // on name or address.
+        const { recentRecipients } = get();
+        if (recentRecipients.length > 0 && results.length < 10) {
+          const seenRecent = new Set(results.map(r => r.email.toLowerCase()));
+          for (const rec of recentRecipients) {
+            if (results.length >= 10) break;
+            const addr = rec.email.toLowerCase();
+            if (seenRecent.has(addr)) continue;
+            if (addr.includes(lower) || (rec.name && rec.name.toLowerCase().includes(lower))) {
+              results.push({ name: rec.name, email: rec.email });
+              seenRecent.add(addr);
+            }
+          }
+        }
+
+        return normalizeSuggestions(results);
       },
 
       getGroups: () => {
@@ -790,6 +976,22 @@ export const useContactStore = create<ContactStore>()(
         }
       },
 
+      createAddressBook: async (client, name) => {
+        set({ error: null });
+        const trimmed = name.trim();
+        if (!trimmed) throw new Error('Address book name is required');
+        try {
+          // New books always belong to the active account; the caller refreshes
+          // the list afterwards (single- or multi-account aware) so the freshly
+          // created book lands in state with its full server-set properties.
+          return await client.createAddressBook(trimmed);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Failed to create address book';
+          set({ error: msg });
+          throw error;
+        }
+      },
+
       renameAddressBook: async (client, addressBook, newName) => {
         set({ error: null });
         const trimmed = newName.trim();
@@ -883,35 +1085,97 @@ export const useContactStore = create<ContactStore>()(
         }
       },
 
-      loadTrustedSendersBook: async (client) => {
-        if (get().trustedSendersLoading) return;
-        set({ trustedSendersLoading: true });
+      loadRecentRecipients: async (client, sentMailboxId) => {
+        if (sentMailboxId) set({ sentMailboxId });
+        if (get().recentRecipientsLoaded || !sentMailboxId) return;
         try {
-          debug.log('contacts', 'Loading trusted senders address book');
-          const books = await client.getAddressBooks();
-          let book = books.find(b => b.name === TRUSTED_SENDERS_BOOK_NAME);
-          if (!book) {
-            debug.log('contacts', 'Creating new trusted senders address book');
-            book = await client.createAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+          // Read the Sent folder and collect the people we've written to, so
+          // compose autocomplete can suggest them (OWA-style). getEmails sorts
+          // receivedAt desc, so keeping the first occurrence per address yields
+          // the most recent one plus its display name.
+          const { emails } = await client.getEmails(sentMailboxId, undefined, 300, 0);
+          const byEmail = new Map<string, { name: string; email: string }>();
+          for (const email of emails) {
+            for (const r of [...(email.to || []), ...(email.cc || [])]) {
+              if (!r.email) continue;
+              const key = r.email.toLowerCase().trim();
+              if (!key || byEmail.has(key)) continue;
+              byEmail.set(key, { name: (r.name || '').trim(), email: r.email });
+            }
           }
-          const bookId = book.id;
-          debug.log('contacts', 'Trusted senders book id:', bookId);
-          const contacts = await client.getContacts(bookId);
-          debug.log('contacts', 'Loaded', contacts.length, 'trusted sender contacts');
-          const emails = contacts.flatMap(c =>
-            c.emails ? Object.values(c.emails).map(e => e.address.toLowerCase().trim()) : []
-          ).filter(Boolean);
-          set({ trustedSendersBookId: bookId, trustedSenderEmails: emails, trustedSendersLoaded: true, trustedSendersLoading: false });
+          set({ recentRecipients: Array.from(byEmail.values()), recentRecipientsLoaded: true });
+          debug.log('contacts', 'Loaded', byEmail.size, 'recent recipients from Sent');
         } catch (error) {
-          debug.error('Failed to load trusted senders address book:', error);
-          set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+          debug.error('Failed to load recent recipients:', error);
+          set({ recentRecipientsLoaded: true });
         }
       },
 
+      searchRecipients: async (client, query) => {
+        const { sentMailboxId } = get();
+        const q = query.trim();
+        if (!sentMailboxId || q.length < 1) return [];
+        try {
+          return await client.searchSentRecipients(q, sentMailboxId);
+        } catch (error) {
+          debug.error('Recipient server search failed:', error);
+          return [];
+        }
+      },
+
+      loadTrustedSendersBook: async (client) => {
+        // Share the in-flight load so parallel callers (mail view, settings,
+        // the modal, addToTrustedSendersBook) can never create the book twice.
+        if (trustedSendersLoadPromise) return trustedSendersLoadPromise;
+        set({ trustedSendersLoading: true });
+
+        trustedSendersLoadPromise = (async () => {
+          try {
+            debug.log('contacts', 'Loading trusted senders address book');
+            // Must throw rather than yield [] on failure: treating a failed
+            // fetch as "no book yet" minted a duplicate on every hiccup (#730).
+            const books = await client.getAddressBooks({ throwOnError: true });
+            // Sort so every client picks the same book when duplicates exist.
+            const matches = books
+              .filter(b => b.name === TRUSTED_SENDERS_BOOK_NAME)
+              .sort((a, b) => a.id.localeCompare(b.id));
+
+            let book = matches[0];
+            if (!book) {
+              debug.log('contacts', 'Creating new trusted senders address book');
+              book = await client.createAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+            }
+            const bookId = book.id;
+            debug.log('contacts', 'Trusted senders book id:', bookId);
+            const contacts = await client.getContacts(bookId, { throwOnError: true });
+            debug.log('contacts', 'Loaded', contacts.length, 'trusted sender contacts');
+            let emails = collectContactEmails(contacts);
+
+            if (matches.length > 1) {
+              debug.log('contacts', 'Found', matches.length, 'trusted senders books, merging duplicates');
+              emails = await consolidateTrustedSenderBooks(client, bookId, matches.slice(1), emails);
+            }
+
+            set({ trustedSendersBookId: bookId, trustedSenderEmails: emails, trustedSendersLoaded: true, trustedSendersLoading: false });
+          } catch (error) {
+            debug.error('Failed to load trusted senders address book:', error);
+            set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+          } finally {
+            trustedSendersLoadPromise = null;
+          }
+        })();
+
+        return trustedSendersLoadPromise;
+      },
+
       addToTrustedSendersBook: async (client, email) => {
-        const normalizedEmail = email.toLowerCase().trim();
+        // Parse "Name <email>" format to extract display name and email
+        const trimmed = email.trim();
+        const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+        const displayName = angleMatch ? angleMatch[1].trim() : undefined;
+        const emailAddress = (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
         const { trustedSenderEmails } = get();
-        if (trustedSenderEmails.includes(normalizedEmail)) return;
+        if (trustedSenderEmails.includes(emailAddress)) return;
 
         let bookId = get().trustedSendersBookId;
         if (!bookId) {
@@ -920,17 +1184,21 @@ export const useContactStore = create<ContactStore>()(
         }
         if (!bookId) throw new Error('Could not find or create trusted senders address book');
 
-        debug.log('contacts', 'Adding trusted sender:', normalizedEmail, 'to book:', bookId);
+        debug.log('contacts', 'Adding trusted sender:', emailAddress, 'to book:', bookId);
         await client.createContact({
           addressBookIds: { [bookId]: true },
-          emails: { email: { address: normalizedEmail } },
+          ...(displayName ? { name: { full: displayName } } : {}),
+          emails: { email: { address: emailAddress } },
         });
-        set((state) => ({ trustedSenderEmails: [...state.trustedSenderEmails, normalizedEmail] }));
+        set((state) => ({ trustedSenderEmails: [...state.trustedSenderEmails, emailAddress] }));
         debug.log('contacts', 'Trusted sender added successfully');
       },
 
       removeFromTrustedSendersBook: async (client, email) => {
-        const normalizedEmail = email.toLowerCase().trim();
+        // Parse "Name <email>" format to extract just the email address
+        const trimmed = email.trim();
+        const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+        const normalizedEmail = (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
         const { trustedSendersBookId } = get();
         if (!trustedSendersBookId) return;
 
@@ -947,7 +1215,10 @@ export const useContactStore = create<ContactStore>()(
       },
 
       isTrustedAddressBookSender: (email) => {
-        const normalizedEmail = email.toLowerCase().trim();
+        // Parse "Name <email>" format to extract just the email address
+        const trimmed = email.trim();
+        const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+        const normalizedEmail = (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
         return get().trustedSenderEmails.includes(normalizedEmail);
       },
 

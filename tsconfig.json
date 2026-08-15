@@ -37,6 +37,9 @@
   ],
   "exclude": [
     "node_modules",
-    "repos"
+    "repos",
+    "examples",
+    "integration",
+    ".next/dev/types"
   ]
 }

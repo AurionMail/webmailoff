@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useTranslations, useFormatter } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
+import { isDocumentRTL } from '@/i18n/direction';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCalendarStore } from '@/stores/calendar-store';
 import { useSettingsStore } from '@/stores/settings-store';
@@ -374,7 +375,7 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
   const [actionError, setActionError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const [pickerPosition, setPickerPosition] = useState<{ top: number; left?: number; right?: number } | null>(null);
   const pickerTriggerRef = useRef<HTMLButtonElement>(null);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>('');
   const [rawIcsMethod, setRawIcsMethod] = useState<InvitationMethod>('unknown');
@@ -553,40 +554,10 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
     const replyToForRsvp = parsedEvent.replyTo
       || (parsedEvent.organizerCalendarAddress ? { imip: parsedEvent.organizerCalendarAddress } : null);
 
-    const imipStatus = status.toUpperCase() as 'ACCEPTED' | 'TENTATIVE' | 'DECLINED';
-    const organizerEmail = parsedEvent?.replyTo?.imip?.replace('mailto:', '')
-      || parsedEvent?.organizerCalendarAddress?.replace('mailto:', '')
-      || summary?.organizerEmail
-      || null;
-
-    // Send the iMIP REPLY email to the organizer (client-side scheduling).
-    // Called after updating the local calendar event. Best-effort - if it
-    // fails we still report the RSVP as sent since the calendar was updated.
-    const sendImipReply = async () => {
-      if (!organizerEmail || !parsedEvent?.uid || !currentUserEmail) {
-        return;
-      }
-
-      try {
-        await client.sendImipReply({
-          organizerEmail,
-          organizerName: summary?.organizer || undefined,
-          attendeeEmail: currentUserEmail,
-          attendeeName: myParticipant?.participant.name || undefined,
-          uid: parsedEvent.uid,
-          summary: parsedEvent.title,
-          dtStart: parsedEvent.start || undefined,
-          dtEnd: summary?.end || undefined,
-          timeZone: parsedEvent.timeZone || undefined,
-          isAllDay: parsedEvent.showWithoutTime || false,
-          sequence: parsedEvent.sequence,
-          status: imipStatus,
-        });
-      } catch {
-        // Best-effort: don't block the RSVP success notification
-      }
-    };
-
+    // The iMIP REPLY to the organizer is sent by the server: rsvpEvent /
+    // updateEvent below pass sendSchedulingMessages=true to CalendarEvent/set
+    // and Stalwart queues the iTIP REPLY itself. A manual client-side reply
+    // here produced duplicate emails.
     try {
       const eventForRsvp = existingEvent
         ? await resolveExistingEventForRsvp()
@@ -601,7 +572,6 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
       );
       if (eventForRsvp && existingEventParticipant) {
         await rsvpEvent(client, eventForRsvp.id, existingEventParticipant.id, status, replyToForRsvp);
-        await sendImipReply();
         setRsvpStatus(status);
         setActionNotice(t('rsvp_sent'));
         setState('parsed');
@@ -613,9 +583,13 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
         } else {
           await updateEvent(client, eventForRsvp.id, {
             participants: repairedParticipants,
-            replyTo: replyToForRsvp ?? undefined,
+            // Stalwart routes the iTIP REPLY via the stored ORGANIZER
+            // (organizerCalendarAddress; the RFC 8984 replyTo is retired).
+            // Only repair a missing organizer - attendees may not modify it.
+            ...(replyToForRsvp?.imip && !eventForRsvp.organizerCalendarAddress
+              ? { organizerCalendarAddress: replyToForRsvp.imip }
+              : {}),
           }, true);
-          await sendImipReply();
           setRsvpStatus(status);
           setActionNotice(t('rsvp_sent'));
           setState('parsed');
@@ -632,7 +606,6 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
             || (newEvent && currentUserEmail ? findParticipantByEmail(newEvent, currentUserEmail) : null);
           if (newEvent && participant) {
             await rsvpEvent(client, newEvent.id, participant.id, status, replyToForRsvp);
-            await sendImipReply();
             setRsvpStatus(status);
             setActionNotice(t('rsvp_sent'));
           } else {
@@ -1054,7 +1027,11 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
                   }
                   if (pickerTriggerRef.current) {
                     const rect = pickerTriggerRef.current.getBoundingClientRect();
-                    setPickerPosition({ top: rect.bottom + 4, left: rect.left });
+                    setPickerPosition(
+                      isDocumentRTL()
+                        ? { top: rect.bottom + 4, right: window.innerWidth - rect.right }
+                        : { top: rect.bottom + 4, left: rect.left }
+                    );
                   }
                   setShowCalendarPicker(true);
                 }}
@@ -1069,7 +1046,7 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
               {showCalendarPicker && calendars.length > 1 && pickerPosition && typeof document !== 'undefined' && createPortal(
                 <div
                   className="fixed w-52 bg-background rounded-lg shadow-lg border border-border z-50 py-1"
-                  style={{ top: pickerPosition.top, left: pickerPosition.left }}
+                  style={{ top: pickerPosition.top, left: pickerPosition.left, right: pickerPosition.right }}
                 >
                   <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
                     {t('select_calendar')}
@@ -1081,7 +1058,7 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
                         setShowCalendarPicker(false);
                         handleImport(cal.id);
                       }}
-                      className="w-full px-3 py-1.5 text-sm text-left hover:bg-muted flex items-center gap-2"
+                      className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted flex items-center gap-2"
                     >
                       <span
                         className="w-3 h-3 rounded-full flex-shrink-0"
@@ -1123,7 +1100,7 @@ export function CalendarInvitationBanner({ email }: CalendarInvitationBannerProp
           )}
 
           {isProcessing && (
-            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-auto" />
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ms-auto" />
           )}
         </div>
         )}

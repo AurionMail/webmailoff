@@ -1,4 +1,5 @@
 {
+  "meta_description": "JMAP protokolünü kullanan minimalist web posta istemcisi",
   "login": {
     "title": "Webmail",
     "username_label": "E-posta",
@@ -113,6 +114,7 @@
     "unified_archive": "Tüm Arşiv",
     "unified_junk": "Tüm Önemsiz",
     "all_accounts": "Tüm Hesaplar",
+    "unified_mailbox": "Birleşik Posta Kutusu",
     "expand": "Genişlet",
     "collapse": "Daralt",
     "expand_tooltip": "Genişlet",
@@ -120,7 +122,8 @@
     "mobile": {
       "search": "Ara",
       "compose": "Yeni E-posta",
-      "go_back": "Geri git"
+      "go_back": "Geri git",
+      "toggle_menu": "Menüyü aç/kapat"
     },
     "clear_search": "Aramayı temizle",
     "vacation_active": "Tatil otomatik yanıtı aktif",
@@ -128,11 +131,19 @@
     "demo_reset": "Sıfırla",
     "demo_tour": "Tur",
     "tags": "Etiketler",
+    "show_all_tags": "Tümünü göster ({count})",
+    "show_fewer_tags": "Daha az göster",
     "folders": "Klasörler",
     "shared": "Paylaşılan",
     "mail": "Posta",
     "nav_label": "Gezinme",
-    "add_app": "Uygulamalar"
+    "add_app": "Uygulamalar",
+    "scheduled": "Zamanlandı",
+    "unified_all_unread": "Tüm okunmamışlar",
+    "unified_all_starred": "Tüm yıldızlılar",
+    "unified_all_mail": "Tüm postalar",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "Varsayılan uygulamalar",
@@ -239,9 +250,27 @@
       "confirm_button": "Klasörü boşalt",
       "junk_hint": "Tüm iletileri kalıcı olarak kaldırmak için Önemsiz klasörünü boşaltabilirsiniz.",
       "trash_hint": "Tüm iletileri kalıcı olarak kaldırmak için Çöp Kutusu klasörünü boşaltabilirsiniz."
-    }
+    },
+    "no_scheduled_emails": "Zamanlanmış e-posta yok",
+    "no_scheduled_emails_description": "Daha sonra gönderilecek iletiler burada görünür.",
+    "scheduled_count": "{count, plural, one {1 zamanlanmış e-posta} other {# zamanlanmış e-posta}}",
+    "scheduled_actions_hint": "Zamanlanmış iletiler zamanlama işlemlerinden iptal edilebilir, yeniden zamanlanabilir veya düzenlenebilir.",
+    "cancel_scheduled_send": "Göndermeyi iptal et",
+    "reschedule_send": "Yeniden zamanla",
+    "cancel_and_edit": "İptal et ve düzenle",
+    "cancel_and_compose_again": "İptal et ve yeniden yaz",
+    "reschedule_prompt": "Yeni tarih/saat girin, ör. 2026-05-04T15:30"
   },
   "email_viewer": {
+    "read_receipt": {
+      "prompt": "Gönderen bir okundu bilgisi istiyor:",
+      "send": "Bilgi gönder",
+      "ignore": "Yoksay",
+      "sent": "Okundu bilgisi gönderildi.",
+      "send_failed": "Okundu bilgisi gönderilemedi",
+      "mdn_subject": "Okundu: {subject}",
+      "mdn_body": "Bu, {recipient} adresine gönderdiğiniz iletinin okundu bilgisidir.\n\nNot: Bu bilgi yalnızca iletinin alıcının bilgisayarında görüntülendiğini belirtir. Alıcının içeriği okuduğunu veya anladığını garanti etmez."
+    },
     "no_email_selected": "E-posta seçilmedi",
     "no_email_description": "Burada görüntülemek için listeden bir e-posta seçin",
     "no_conversation_selected": "Konuşma seçilmedi",
@@ -251,6 +280,8 @@
     "no_subject": "(Konu Yok)",
     "no_body_content": "(İçerik yok)",
     "no_preview_available": "Önizleme kullanılamıyor",
+    "show_quoted_text": "Alıntılanan metni göster",
+    "hide_quoted_text": "Alıntılanan metni gizle",
     "loading_email": "E-posta yükleniyor...",
     "loading": "Yükleniyor...",
     "reply": "Yanıtla",
@@ -270,6 +301,7 @@
     "print": "Yazdır",
     "view_source": "Kaynağı görüntüle",
     "export_email": ".eml olarak dışa aktar",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml veya .zip içe aktar",
     "keyboard_shortcuts": "Klavye kısayolları (?)",
     "email_source": "E-posta Kaynağı",
@@ -296,13 +328,15 @@
     "view_contact": "Kişiyi görüntüle",
     "message_details": "İleti Ayrıntıları",
     "more_reply_options": "Daha fazla yanıt seçeneği",
-    "set_color": "Etiket ayarla",
+    "set_tag": "Etiket ayarla",
     "tag": "Etiket",
     "more_actions": "Diğer işlemler",
     "previous": "Önceki",
     "next": "Sonraki",
     "move_to": "Şuraya taşı...",
-    "remove_color": "Etiketi kaldır",
+    "remove_tag": "Etiketi kaldır",
+    "tag_filter_placeholder": "Etiketleri filtrele",
+    "tag_no_matches": "Eşleşen etiket yok",
     "more_count": "+{count} daha",
     "characters_count": "{count} karakter",
     "quick_reply_placeholder": "Hızlı yanıt yazın...",
@@ -371,17 +405,6 @@
       "message_id": "İleti Kimliği",
       "list_info": "Liste Bilgisi"
     },
-    "color_tag": {
-      "title": "Renk Etiketi",
-      "red": "Kırmızı",
-      "orange": "Turuncu",
-      "yellow": "Sarı",
-      "green": "Yeşil",
-      "blue": "Mavi",
-      "purple": "Mor",
-      "pink": "Pembe",
-      "none": "Yok"
-    },
     "tooltips": {
       "reply": "Yanıtla (r)",
       "reply_all": "Tümünü Yanıtla (a)",
@@ -413,7 +436,9 @@
       "confirm_button": "Onayla",
       "cancel": "İptal",
       "success_http": "Abonelik iptali sayfası yeni sekmede açıldı",
-      "success_mailto": "Abonelik iptali isteği e-posta istemcinize gönderildi",
+      "success_mailto": "Abonelikten çıkma e-postası gönderildi",
+      "confirm_message_http": "Abonelikten çıkma sayfası yeni sekmede açılacak.",
+      "confirm_message_mailto": "Gönderene abonelikten çıkma e-postası gönderilecek.",
       "error": "Abonelik iptal edilemedi",
       "dismiss": "Kapat"
     },
@@ -514,9 +539,40 @@
       "ai_verdict": "Yapay zeka kararı",
       "account": "Hesap",
       "no_subject": "(konu yok)"
-    }
+    },
+    "scheduled_banner": "{date} tarihinde gönderilmek üzere zamanlandı",
+    "scheduled_send_created": "E-posta gönderim için zamanlandı",
+    "cancel_scheduled_send": "Göndermeyi iptal et",
+    "reschedule_send": "Yeniden zamanla",
+    "cancel_and_edit": "İptal et ve düzenle",
+    "cancel_and_compose_again": "İptal et ve yeniden yaz",
+    "reschedule_prompt": "Yeni tarih/saat girin, ör. 2026-05-04T15:30",
+    "scheduled_actions_only": "Zamanlandı görünümü yalnızca zamanlama işlemlerini destekler",
+    "undo_send_scheduled": "İleti gönderim için zamanlandı",
+    "undo_send": "Göndermeyi geri al",
+    "contact_sidebar": {
+      "title": "Kişi",
+      "close": "Kenar çubuğunu kapat",
+      "action_email": "E-posta",
+      "action_email_title": "E-posta gönder",
+      "action_copy": "Kopyala",
+      "action_copy_title": "E-postayı kopyala",
+      "action_edit_title": "Kişiyi düzenle",
+      "section_emails": "E-postalar",
+      "section_phones": "Telefonlar",
+      "section_organizations": "Kuruluşlar",
+      "section_addresses": "Adresler",
+      "section_notes": "Notlar",
+      "not_in_contacts": "Kişilerinizde yok",
+      "add_to_contacts": "Kişilere ekle",
+      "copied": "Kopyalandı!",
+      "copy_failed": "Kopyalanamadı"
+    },
+    "send_now": "Şimdi gönder"
   },
   "email_composer": {
+    "read_receipt_on": "Okundu bilgisi istendi (devre dışı bırakmak için tıklayın)",
+    "read_receipt_off": "Okundu bilgisi iste",
     "new_message": "Yeni İleti",
     "reply": "Yanıtla",
     "reply_all": "Tümünü Yanıtla",
@@ -533,8 +589,8 @@
     "send": "Gönder",
     "cancel": "İptal",
     "attach": "Ekle",
-    "attach_photos": "Fotoğraflar ve videolar",
-    "attach_files": "Dosyalar",
+    "attach_photos": "Photos & Videos",
+    "attach_files": "Files",
     "discard": "Vazgeç",
     "discard_draft_title": "Taslaktan vazgeçilsin mi?",
     "discard_draft_confirm": "Kaydedilmemiş değişiklikleriniz var. Bu taslaktan vazgeçmek istiyor musunuz?",
@@ -580,8 +636,9 @@
     "save_as_template": "Şablon Olarak Kaydet",
     "validation": {
       "recipient_required": "Göndermek için bir alıcı ekleyin",
-      "subject_required": "Bir konu ekleyin",
-      "body_required": "Bir ileti yazın veya dosya ekleyin"
+      "body_required": "Bir ileti yazın veya dosya ekleyin",
+      "attachments_uploading": "Ekler hâlâ yükleniyor — yükleme bitince gönderilecek",
+      "attachment_upload_failed": "Gönderilmedi - bir ek yüklenemedi. Eki kaldırıp tekrar deneyin."
     },
     "upload_progress": "{uploaded} / {total} yükleniyor",
     "upload_cancel": "Yüklemeyi iptal et",
@@ -589,10 +646,10 @@
     "drop_files": "Eklemek için dosyaları buraya bırakın",
     "show_less": "Daha az göster",
     "send_failed": "E-posta gönderilemedi",
+    "send_timeout": "Sunucu yanıt vermeyi bıraktı. Yeniden göndermeden önce Gönderilenler klasörünü kontrol edin — ileti gönderilmiş olabilir.",
     "continue_draft": "Taslağa devam et",
     "close_draft_title": "Taslak kaydedilsin mi yoksa silinsin mi?",
     "close_draft_message": "Kaydedilmemiş değişiklikleriniz var. Bunu taslak olarak kaydetmek ister misiniz yoksa vazgeçmek mi?",
-    "save_draft": "Taslağı Kaydet",
     "smime_sign_on": "S/MIME imzalama etkin",
     "smime_sign_off": "S/MIME imzalamayı etkinleştir",
     "smime_encrypt_on": "S/MIME şifreleme etkin",
@@ -607,7 +664,63 @@
       "message": "İletinizde \"{keyword}\" geçiyor ancak hiçbir dosya eklenmemiş. Yine de gönderilsin mi?",
       "send_anyway": "Yine de gönder",
       "back": "Düzenlemeye dön"
-    }
+    },
+    "empty_subject": {
+      "title": "Konu olmadan gönderilsin mi?",
+      "message": "Bu iletinin konusu yok. Yine de gönderilsin mi?",
+      "dont_ask_again": "Bir daha sorma",
+      "send_anyway": "Yine de gönder",
+      "back": "Düzenlemeye dön"
+    },
+    "schedule_send": "Göndermeyi zamanla",
+    "schedule_send_description": "Sunucunun bu iletiyi ne zaman göndereceğini seçin.",
+    "schedule_send_required": "Bir tarih ve saat seçin.",
+    "schedule_send_invalid": "Geçerli bir tarih ve saat girin.",
+    "schedule_send_future": "Gelecekte bir tarih ve saat seçin.",
+    "schedule_send_too_late": "Bu zaman sunucunun izin verdiğinden daha geç.",
+    "schedule_send_unsupported": "Bu hesap için zamanlanmış gönderim desteklenmiyor.",
+    "schedule_send_cleanup_warning": "Zamanlanmış gönderim oluşturuldu, ancak taslak temizliği başarısız oldu.",
+    "send_delay_unsupported": "Bu hesap için gönderim gecikmesi desteklenmiyor.",
+    "send_delay_unsupported_confirm": "Bu hesap gönderim gecikmesini desteklemiyor. Hemen gönderilsin mi?",
+    "recipient_edit_email": "E-posta adresini düzenle",
+    "recipient_edit_name": "Görünen adı düzenle",
+    "recipient_email_placeholder": "E-posta adresi",
+    "recipient_name_placeholder": "Görünen ad",
+    "autocomplete_search_server": "Sunucuda ara",
+    "autocomplete_searching": "Aranıyor...",
+    "toolbar": {
+      "bold": "Kalın",
+      "italic": "İtalik",
+      "underline": "Altı çizili",
+      "strikethrough": "Üstü çizili",
+      "text_color": "Metin rengi",
+      "remove_color": "Rengi kaldır",
+      "heading_1": "Başlık 1",
+      "heading_2": "Başlık 2",
+      "bullet_list": "Madde işaretli liste",
+      "ordered_list": "Numaralı liste",
+      "quote": "Alıntı",
+      "code_block": "Kod bloğu",
+      "align_left": "Sola hizala",
+      "align_center": "Ortala",
+      "align_right": "Sağa hizala",
+      "text_direction": "Metin yönü (RTL/LTR)",
+      "link": "Bağlantı",
+      "table": "Tablo",
+      "clear_formatting": "Biçimlendirmeyi temizle",
+      "undo": "Geri al",
+      "redo": "Yinele",
+      "add_row_above": "Üste satır ekle",
+      "add_row_below": "Alta satır ekle",
+      "add_column_before": "Öncesine sütun ekle",
+      "add_column_after": "Sonrasına sütun ekle",
+      "delete_row": "Satırı sil",
+      "delete_column": "Sütunu sil",
+      "toggle_header_row": "Başlık satırını aç/kapat",
+      "delete_table": "Tabloyu sil",
+      "pick_size": "Boyut seç"
+    },
+    "send_filing_warning": "Gönderildi - ancak sonrasındaki temizleme başarısız oldu, eski bir taslak kalabilir."
   },
   "confirm_dialog": {
     "confirm": "Onayla",
@@ -735,9 +848,14 @@
     "nl": "Nederlands",
     "pl": "Polski",
     "pt": "Português",
+    "he": "עברית",
     "ru": "Русский",
+    "sk": "Slovenčina",
     "uk": "Українська",
-    "zh": "简体中文"
+    "zh": "简体中文",
+    "fa": "فارسی",
+    "farsi": "فارسی",
+    "switch_to_farsi": "Farsçaya geç"
   },
   "settings": {
     "title": "Ayarlar",
@@ -845,27 +963,60 @@
       "unified_mailbox": {
         "label": "Birleşik Posta Kutusu",
         "description": "Bağlı tüm hesaplardaki birleşik klasörleri (Gelen Kutusu, Gönderilenler vb.) göster",
+        "cross_account": {
+          "label": "Across all accounts",
+          "description": "Merge the unified mailbox across every connected account instead of staying within the active account."
+        },
         "include_group": {
           "label": "Grup gelen kutularını dahil et",
           "description": "Paylaşılan/grup gelen kutularını da birleşik görünüme dahil et."
         }
       },
+      "all_mail": {
+        "folders_label": "Folders in All Mail",
+        "folders_description": "Choose which folders are merged into the All Mail view.",
+        "account_hint": "Applies to {account}.",
+        "no_folders": "No folders available."
+      },
       "colorful_sidebar_icons": {
         "label": "Renkli Kenar Çubuğu Simgeleri",
         "description": "Klasör ve etiket simgelerini türe göre renklendir (mavi Gelen Kutusu, kırmızı İstem Dışı vb.). Tek renkli kenar çubuğu için kapatın."
+      },
+      "tint_list_rows": {
+        "label": "Tint List Rows by Tag Color",
+        "description": "Shade each message row with its first tag color. Disable to keep rows plain; tag dots and chips still show the color."
+      },
+      "show_folder_total_count": {
+        "label": "Toplam mesaj sayısını göster",
+        "description": "Klasörlerin ve etiketlerin yanında, okunmamış sayısının yanı sıra toplam mesaj sayısını gösterir. Yalnızca okunmamışları göstermek için devre dışı bırakın."
+      },
+      "favicon_unread_badge": {
+        "label": "Unread Count on Tab Icon",
+        "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
       },
       "pro_interface": {
         "label": "Pro Arayüz (Deneysel)",
         "description": "Yalnızca masaüstü için güçlü kullanıcı düzeni: çoklu sekmede ileti gezme ve hesaplar arası iş akışları. Standart arayüz etkilenmez; istediğiniz zaman geri dönebilirsiniz.",
         "open_label": "Pro Arayüzü Aç",
         "back_to_standard": "Standarda dön"
+      },
+      "cross_unread": {
+        "label": "Tüm hesaplar: Okunmamış",
+        "description": "Tüm hesaplar bölümünde, tüm hesaplardaki okunmamış postaları listeleyen bir giriş gösterir; önemsiz, gönderilmiş, arşiv, çöp ve taslaklar dışındaki tüm klasörleri kapsar."
+      },
+      "cross_starred": {
+        "label": "Tüm hesaplar: Yıldızlı",
+        "description": "Tüm hesaplar bölümünde, tüm hesaplardaki yıldızlı postaları listeleyen bir giriş gösterir; önemsiz, gönderilmiş, arşiv, çöp ve taslaklar dışındaki tüm klasörleri kapsar."
+      },
+      "cross_all": {
+        "label": "Tüm hesaplar: Tüm postalar",
+        "description": "Tüm hesaplar bölümünde, tüm hesaplardaki tüm postaları listeleyen bir giriş gösterir; önemsiz, gönderilmiş, arşiv, çöp ve taslaklar dışındaki tüm klasörleri kapsar."
       }
     },
     "keywords": {
       "title": "E-posta Etiketleri",
       "description": "E-postalarınızı renklerle düzenlemek için etiketler tanımlayın. Bunlar sunucuda JMAP anahtar sözcükleri olarak saklanır.",
       "add_keyword": "Etiket Ekle",
-      "reset_defaults": "Varsayılanlara Sıfırla",
       "label_field": "Görünen Ad",
       "label_placeholder": "ör. İş, Kişisel, Acil",
       "id_field": "Etiket Kimliği",
@@ -878,7 +1029,34 @@
       "add": "Ekle",
       "cancel": "İptal",
       "migrating": "Mevcut e-postalardaki etiket güncelleniyor…",
-      "migration_error": "Mevcut e-postalardaki etiket güncellenemedi"
+      "migration_error": "Mevcut e-postalardaki etiket güncellenemedi",
+      "nesting": {
+        "label": "İç içe etiketler",
+        "description": "Etiketleri başka etiketlerin altına yerleştirin ve kenar çubuğunda ağaç olarak gösterin."
+      },
+      "parent_field": "Üst etiket",
+      "no_parent": "Üst etiket yok",
+      "too_long": "Bu etiket yolu çok uzun (en fazla {max} karakter)",
+      "has_children_locked": "Bunun altında başka etiketler var, bu nedenle adı ve üst etiketi kilitli. Önce onları taşıyın veya kaldırın.",
+      "has_children_delete": "Önce bunun altındaki etiketleri kaldırın",
+      "visibility_field": "Kenar çubuğunda görünürlük",
+      "visibility": {
+        "show": "Göster",
+        "unread": "Okunmamış varsa göster",
+        "hide": "Gizle"
+      },
+      "unrecognized": {
+        "title": "Etiketleri sunucudan kurtar",
+        "description": "Etiket adları ve renkleri bu tarayıcıda saklanır, ancak etiketlerin kendisi JMAP anahtar sözcükleri olarak e-postalarınızda bulunur. Burada karşılığı olmayan anahtar sözcükler için postanızı tarayın ve bunları geri ekleyin.",
+        "scan": "Etiketleri tara",
+        "rescan": "Yeniden tara",
+        "scanning": "Taranıyor… {total} e-postadan {scanned} tanesi",
+        "none": "E-postalarınızdaki tüm etiketler burada zaten tanımlı.",
+        "messages": "{count, plural, one {# e-posta} other {# e-posta}}",
+        "add_all": "{count} etiketin tümünü ekle",
+        "partial": "{total} e-postadan yalnızca en yeni {scanned} tanesi tarandı. Yalnızca eski postalarda kullanılan etiketler eksik olabilir.",
+        "error": "Postanız etiketler için taranamadı."
+      }
     },
     "notifications": {
       "test_sound": "Bildirim sesini test et",
@@ -919,10 +1097,13 @@
         "description": "Bu site kapalıyken yeni postalar için sistem bildirimleri alın. Bulwark push röle aracılığıyla iletilir; röle posta içeriğini asla görmez.",
         "disable": "Devre dışı bırak",
         "enable": "Etkinleştir",
+        "dismiss_aria": "Bildirim istemini kapat",
         "ios_hint": "iOS'ta önce siteyi ana ekranınıza yükleyin – Safari Web Push'u yalnızca yüklü PWA'lara teslim eder.",
         "reenable": "Yeniden kaydet",
         "relay_desc": "Varsayılan olarak barındırılan Bulwark rölesini kullanır. Yalnızca kendiniz barındırıyorsanız değiştirin.",
         "relay_label": "Push röle",
+        "relay_locked": "Yönetici tarafından ayarlandı",
+        "relay_locked_desc": "Push röle URL'si yöneticiniz tarafından ayarlandı ve değiştirilemez.",
         "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Bu cihazda etkin",
         "status_busy": "Çalışıyor…",
@@ -950,6 +1131,14 @@
         "preview_this_week": "Bu hafta:",
         "preview_older": "Daha eski:"
       },
+      "date_locale": {
+        "label": "Date format region",
+        "description": "How numeric dates are ordered (day, month, year)",
+        "auto": "Automatic (match language)",
+        "iso": "ISO 8601 (YYYY-MM-DD)",
+        "dmy": "Day/Month/Year",
+        "mdy": "Month/Day/Year"
+      },
       "time_format": {
         "label": "Saat Biçimi",
         "description": "12 saatlik veya 24 saatlik saat arasında seçin",
@@ -964,6 +1153,17 @@
       }
     },
     "email_behavior": {
+      "request_read_receipt": {
+        "label": "Varsayılan olarak okundu bilgisi iste",
+        "description": "Yeni bir ileti yazarken okundu bilgisi isteğini önceden etkinleştir."
+      },
+      "read_receipt_response": {
+        "label": "Okundu bilgisi isteklerine yanıt ver",
+        "description": "Gelen bir ileti okundu bilgisi istediğinde ne yapılacağı.",
+        "ask": "Her seferinde sor",
+        "always": "Her zaman gönder",
+        "never": "Asla gönderme"
+      },
       "title": "E-posta Davranışı",
       "description": "E-postaların nasıl işleneceğini yapılandırın",
       "mark_read": {
@@ -978,8 +1178,16 @@
         "label": "Silme İşlemi",
         "description": "Bir e-postayı sildiğinizde ne olacağı",
         "trash": "Çöp Kutusuna Taşı",
+        "trash_and_read": "Çöp Kutusuna Taşı ve okundu olarak işaretle",
         "permanent": "Kalıcı Olarak Sil",
         "warning": "E-postalar kalıcı olarak silinecek ve kurtarılamayacak. Bu işlem geri alınamaz."
+      },
+      "message_spacing": {
+        "label": "İleti boşluğu",
+        "description": "Okuyucuda ileti gövdesinin çevresindeki boşluk",
+        "auto": "Otomatik (önerilen)",
+        "always": "Her zaman boşluk ekle",
+        "edge": "Kenardan kenara"
       },
       "archive_mode": {
         "label": "Arşivle",
@@ -1101,6 +1309,7 @@
         "archive": "Arşivle",
         "tag": "Etiketle",
         "spam": "Spam Olarak İşaretle",
+        "not_spam": "Önemsiz değil",
         "none_selected": "Hiç işlem seçilmedi",
         "mode_label": "Görüntüleme Modu",
         "mode_inline": "Satır içi",
@@ -1127,6 +1336,10 @@
         "add": "Ekle",
         "remove": "Kaldır"
       },
+      "empty_subject_warning": {
+        "label": "Boş konu uyarısı",
+        "description": "Konusu olmayan bir ileti gönderilmeden önce onay iste."
+      },
       "hide_inline_image_attachments": {
         "label": "Satır içi görüntüleri eklerden gizle",
         "description": "İleti gövdesine gömülü görseller ayrı ek olarak listelenmez"
@@ -1134,6 +1347,21 @@
       "attachment_image_previews": {
         "label": "Eklerde resim önizlemelerini göster",
         "description": "Resim eklerini, genel dosya simgeleri yerine küçük resim kartları olarak göster"
+      },
+      "send_delay": {
+        "label": "Göndermeyi geri al / gönderim gecikmesi",
+        "description": "Normal gönderimleri sunucu tarafında kısa bir süre geciktirin.",
+        "off": "Kapalı",
+        "seconds": "{seconds} saniye",
+        "unsupported": "Geçerli hesap gecikmeli gönderim desteği bildirmiyor. Ayar diğer hesaplar için kaydedilmeye devam eder."
+      },
+      "return_to_list_after_action": {
+        "label": "Silme veya okunmadı olarak işaretlemeden sonra listeye dön",
+        "description": "Açık iletiyi sildikten veya okunmadı olarak işaretledikten sonra, sonraki iletiyi açmak yerine ileti listesine dön."
+      },
+      "rtl_editing": {
+        "label": "Sağdan sola düzenleme desteği",
+        "description": "Düzenleyici araç çubuğuna paragrafları soldan sağa veya sağdan sola ayarlayabileceğiniz bir yön düğmesi ekler"
       }
     },
     "composer": {
@@ -1219,6 +1447,11 @@
         "move_down": "Aşağı taşı",
         "drag_handle": "Sıralamak için sürükleyin",
         "add": "Hesap ekle"
+      },
+      "shared_accounts": {
+        "title": "Benimle paylaşılanlar",
+        "description": "Yönetebileceğiniz grup ve paylaşılan hesaplar. Filtrelerini, tatil yanıtlayıcısını, takvimlerini ve kişilerini düzenlemek için birini seçin.",
+        "shared_label": "Paylaşılan hesap"
       }
     },
     "security": {
@@ -1308,7 +1541,16 @@
         "inactive": "Devre dışı",
         "enabled": "Bekleme süresi şifrelemesi etkinleştirildi",
         "disabled_success": "Bekleme süresi şifrelemesi devre dışı bırakıldı",
-        "error": "Şifreleme ayarları güncellenemedi"
+        "error": "Şifreleme ayarları güncellenemedi",
+        "algorithm_label": "Şifreleme algoritması",
+        "encrypt_on_append": "Yeni e-postaları yüklenirken şifrele",
+        "allow_spam_training": "E-postalar şifrelenmeden önce spam eğitimine izin ver",
+        "enable_encryption": "Şifrelemeyi etkinleştir",
+        "enable_tooltip": "Bu anahtarla şifrelemeyi etkinleştir",
+        "configure_title": "Bu anahtarla şifrelemeyi etkinleştir",
+        "enable_button": "Etkinleştir",
+        "disable_tooltip": "Şifrelemeyi devre dışı bırak",
+        "enabled_success": "Bekleme süresi şifrelemesi etkinleştirildi"
       },
       "email_client": {
         "title": "E-posta İstemcisi Kurulumu",
@@ -1317,6 +1559,24 @@
         "copy": "Kopyala",
         "copied": "Kopyalandı",
         "password_instructions": "E-posta istemcinizde oturum açmak için yukarıdaki JMAP kullanıcı adı ile bir uygulama parolasını birlikte kullanın. Henüz oluşturmadıysanız yukarıdaki bölümden bir uygulama parolası oluşturun."
+      },
+      "link_device": {
+        "title": "Mobil uygulamayı bağla",
+        "description": "Hiçbir şey yazmadan Bulwark Mail mobil uygulamasında oturum açın. Burada bir QR kodu oluşturun ve uygulamanın giriş ekranından tarayın.",
+        "generate": "QR kodunu göster",
+        "regenerate": "Yeni kod göster",
+        "instructions": "Bulwark Mail uygulamasını açın, giriş ekranında \"QR kodu tara\" seçeneğine dokunun ve kameranızı buraya doğrultun.",
+        "expires_in": "Bu kodun süresi {seconds} saniye içinde dolacak. Yalnızca bir kez kullanılabilir.",
+        "expired": "Bu kodun süresi doldu.",
+        "generating": "Oluşturuluyor…",
+        "error": "Eşleştirme kodu oluşturulamadı. Lütfen tekrar deneyin."
+      },
+      "public_keys": {
+        "name_label": "Ortak anahtar adı",
+        "name_placeholder": "ör. Anahtarım",
+        "key_label": "Ortak anahtar (S/MIME veya PGP ASCII biçiminde)",
+        "key_placeholder": "Ortak anahtarınızı buraya yapıştırın",
+        "none": "Yapılandırılmış ortak anahtar yok"
       }
     },
     "identities": {
@@ -1364,7 +1624,10 @@
         "subject_placeholder": "Ofis Dışındayım",
         "body_label": "İleti Gövdesi",
         "body_description": "Düz metin ileti içeriği",
-        "body_placeholder": "E-postanız için teşekkür ederim. Şu anda ofis dışındayım ve döndüğümde yanıt vereceğim."
+        "body_placeholder": "E-postanız için teşekkür ederim. Şu anda ofis dışındayım ve döndüğümde yanıt vereceğim.",
+        "html_label": "Biçimlendirilmiş mesaj (HTML)",
+        "html_description": "Bağlantılar ve stil içeren biçimlendirilmiş bir sürüm ekleyin. E-posta istemcisi bunu görüntüleyemeyen alıcılar yukarıdaki düz metni görür.",
+        "html_placeholder": "Biçimlendirilmiş bir ofis dışı yanıtı yazın…"
       },
       "preview": {
         "title": "Önizleme",
@@ -1380,6 +1643,7 @@
       }
     },
     "folders": {
+      "role_memos": "Notlar",
       "title": "Klasörler",
       "description": "E-posta klasörlerinizi yönetin ve standart roller atayın",
       "folder_list": "Klasörleriniz",
@@ -1395,6 +1659,8 @@
       "role_none": "Yok",
       "create_folder": "Klasör Oluştur",
       "create_subfolder": "Alt Klasör Oluştur",
+      "reorder": "Yeniden sıralamak için sürükleyin",
+      "reorder_error": "Klasörler yeniden sıralanamadı",
       "subfolder_of": "{name} içinde",
       "subfolder_name": "Alt klasör adı",
       "new_folder_name": "Klasör adı",
@@ -1459,6 +1725,11 @@
         "label": "Klavye Kısayolları",
         "description": "Mevcut klavye kısayollarını görüntüleyin",
         "button": "Kısayolları Görüntüle"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "Ayarları Sıfırla",
@@ -1582,7 +1853,10 @@
       "actions": "İşlemler",
       "add_action": "İşlem Ekle",
       "stop_processing": "Sonraki kuralları işlemeyi durdur",
+      "attachment_type_placeholder": "örn. pdf, doc, jpg",
+      "value_placeholder_multi": "Değer (birden fazla virgülle ayrılır)",
       "condition_fields": {
+        "attachment": "Ek",
         "from": "Kimden",
         "to": "Kime",
         "cc": "Bilgi",
@@ -1592,6 +1866,8 @@
         "body": "Gövde"
       },
       "comparators": {
+        "has_any": "mevcut",
+        "has_type": "türünde",
         "contains": "içerir",
         "not_contains": "içermez",
         "is": "tam olarak",
@@ -1768,7 +2044,11 @@
     },
     "search_placeholder": "Ayarlarda ara",
     "search_clear": "Aramayı temizle",
-    "search_no_results": "Eşleşen ayar yok"
+    "search_no_results": "Eşleşen ayar yok",
+    "scoped": {
+      "back": "Hesabıma geri dön",
+      "managing": "Yönetiliyor: {name}"
+    }
   },
   "errors": {
     "page_error_title": "Bir şeyler ters gitti",
@@ -1795,15 +2075,20 @@
     "mark_unread": "Okunmadı Olarak İşaretle",
     "star": "Yıldız Ekle",
     "unstar": "Yıldızı Kaldır",
+    "pin": "Sabitle",
+    "unpin": "Sabitlemeyi kaldır",
     "move_to": "Şuraya taşı...",
     "archive": "Arşivle",
     "delete": "Sil",
     "mark_as_spam": "Spam bildir",
     "not_spam": "Spam değil",
-    "color_tag": "Etiket",
-    "remove_color": "Etiketi kaldır",
+    "tag": "Etiket",
     "items_selected": "{count} e-posta seçildi",
-    "edit_draft": "Taslağı Düzenle"
+    "edit_draft": "Taslağı Düzenle",
+    "cancel_scheduled_send": "Göndermeyi iptal et",
+    "reschedule_send": "Yeniden zamanla",
+    "cancel_and_edit": "İptal et ve düzenle",
+    "cancel_and_compose_again": "İptal et ve yeniden yaz"
   },
   "mailbox_context_menu": {
     "mark_folder_read": "Klasörü okundu olarak işaretle",
@@ -1881,6 +2166,8 @@
       "expand_collapse": "İleti dizisini genişlet/daralt"
     },
     "composer": {
+      "send": "E-posta gönder",
+      "schedule_send": "Göndermeyi planla",
       "template_picker": "Şablon seçiciyi aç"
     }
   },
@@ -1928,9 +2215,9 @@
       "email_invalid": "Lütfen geçerli bir e-posta adresi girin",
       "email_immutable": "E-posta adresi oluşturulduktan sonra değiştirilemez",
       "reply_to_label": "Yanıt Adresi (isteğe bağlı)",
-      "reply_to_placeholder": "baska@email.com",
+      "reply_to_placeholder": "baska@example.com",
       "bcc_label": "Otomatik GGK (isteğe bağlı)",
-      "bcc_placeholder": "arsiv@email.com",
+      "bcc_placeholder": "arsiv@example.com",
       "text_signature_label": "Metin İmzası",
       "html_signature_label": "HTML İmzası",
       "signature_byte_counter": "{bytes} / {max} bayt",
@@ -2023,6 +2310,9 @@
       "title": "Paylaşılan"
     },
     "address_books": {
+      "create": "Yeni adres defteri",
+      "created": "Adres defteri oluşturuldu",
+      "create_failed": "Adres defteri oluşturulamadı",
       "title": "Adres Defterlerim",
       "shared_prefix": "Paylaşılan: {name}",
       "moved": "Kişi {name} konumuna taşındı",
@@ -2126,6 +2416,9 @@
       "section_address_book": "Dizin",
       "select_address_book": "Bir dizin seçin...",
       "section_identity": "Ad ve Kimlik",
+      "contact_type": "Kişi türü",
+      "type_person": "Kişi",
+      "type_organization": "Kuruluş",
       "section_work": "İş ve Kuruluş",
       "prefix": "Ön Ek",
       "prefix_placeholder": "Dr., Bay, Bayan",
@@ -2210,7 +2503,7 @@
       "cancel": "İptal",
       "creating": "Oluşturuluyor...",
       "updating": "Güncelleniyor...",
-      "name_required": "En az bir ad veya soyadı gereklidir",
+      "name_required": "Bir ad, soyad veya kuruluş girin",
       "email_invalid": "Lütfen geçerli bir e-posta adresi girin",
       "email_error_inline": "Geçersiz e-posta biçimi",
       "save_failed": "Kişi kaydedilemedi",
@@ -2235,7 +2528,12 @@
       "members_label": "Üyeler",
       "search_members": "Eklemek için kişileri arayın...",
       "no_members": "Bu grupta üye yok",
-      "member_count": "{count, plural, =0 {Üye yok} one {1 üye} other {# üye}}"
+      "member_count": "{count, plural, =0 {Üye yok} one {1 üye} other {# üye}}",
+      "send_email": "Send email to group",
+      "send_email_to": "To",
+      "send_email_cc": "Cc",
+      "send_email_bcc": "Bcc",
+      "no_member_emails": "This group has no members with an email address."
     },
     "import": {
       "title": "Kişileri İçe Aktar",
@@ -2415,7 +2713,37 @@
       "every_n_weeks": "Her {count} haftada bir",
       "every_n_months": "Her {count} ayda bir",
       "until": "Şu tarihe kadar",
-      "occurrences": "{count} tekrar"
+      "occurrences": "{count} tekrar",
+      "custom": "Özel…",
+      "edit_custom": "Özel yinelemeyi düzenle",
+      "every_n_years": "Her {count} yılda bir",
+      "on_days": "{days} günleri",
+      "on_day_n": "ayın {day}. günü",
+      "on_the_nth": "{nth} {day} günü",
+      "in_month": "{month} ayında",
+      "nth_1": "ilk",
+      "nth_2": "ikinci",
+      "nth_3": "üçüncü",
+      "nth_4": "dördüncü",
+      "nth_last": "son",
+      "editor_freq_day": "Gün",
+      "editor_freq_week": "Hafta",
+      "editor_freq_month": "Ay",
+      "editor_freq_year": "Yıl",
+      "editor_repeats_on": "Yinelenme",
+      "editor_every": "Her",
+      "editor_unit_days": "günde bir",
+      "editor_unit_weeks": "haftada bir",
+      "editor_unit_months": "ayda bir",
+      "editor_unit_years": "yılda bir",
+      "editor_on_day": "ayın şu günü:",
+      "editor_on_the": "şu gün:",
+      "editor_in": "ay:",
+      "editor_ends": "Bitiş",
+      "editor_never": "Asla",
+      "editor_ends_on": "Tarihinde",
+      "editor_ends_after": "Sonra:",
+      "editor_occurrences": "tekrar"
     },
     "recurrence_scope": {
       "edit_title": "Yinelenen etkinliği düzenle",
@@ -2506,7 +2834,19 @@
       "sep": "Eyl",
       "oct": "Eki",
       "nov": "Kas",
-      "dec": "Ara"
+      "dec": "Ara",
+      "far": "Farvardin",
+      "ord": "Ordibehesht",
+      "kho": "Khordad",
+      "tir": "Tir",
+      "mor": "Mordad",
+      "sha": "Shahrivar",
+      "meh": "Mehr",
+      "aba": "Aban",
+      "aza": "Azar",
+      "dey": "Dey",
+      "bah": "Bahman",
+      "esf": "Esfand"
     },
     "notifications": {
       "event_created": "Etkinlik oluşturuldu",
@@ -2581,6 +2921,7 @@
       "name_placeholder": "Takvim adı",
       "color": "Renk",
       "change_color": "Rengi değiştir",
+      "random_color": "Yeni rastgele renk",
       "add_calendar": "Takvim ekle",
       "edit": "Düzenle",
       "delete": "Sil",
@@ -2590,6 +2931,9 @@
       "default": "Varsayılan",
       "confirm_delete": "\"{name}\" silinsin mi? Bu takvimdeki tüm etkinlikler kaldırılacak.",
       "confirm_clear": "\"{name}\" takvimdeki tüm etkinlikler temizlensin mi? Bu geri alınamaz.",
+      "set_default": "Varsayılan olarak ayarla",
+      "default_updated": "Varsayılan takvim güncellendi",
+      "error_default": "Varsayılan takvim ayarlanamadı",
       "clear_events": "Etkinlikleri temizle",
       "events_cleared": "{count} etkinlik temizlendi",
       "error_clear": "Takvim etkinlikleri temizlenemedi",
@@ -2761,6 +3105,7 @@
     "hint": "Başlamak için soldaki herhangi bir e-postaya tıklayın veya aşağıdaki turu yapın."
   },
   "files": {
+    "open_in_new_tab": "Yeni sekmede aç",
     "title": "Dosyalar",
     "search_placeholder": "Dosyalarda ara...",
     "empty_state_title": "Henüz dosya yok",
@@ -2823,6 +3168,10 @@
     "duplicate": "Çoğalt",
     "duplicate_success": "Başarıyla çoğaltıldı",
     "duplicate_error": "Çoğaltılamadı",
+    "share": "Share",
+    "shared": "Shared",
+    "shared_with_me": "Shared with me",
+    "shared_by": "Shared by {name}",
     "create_file_success": "Dosya oluşturuldu",
     "create_file_error": "Dosya oluşturulamadı",
     "favorites": "Favoriler",
@@ -2866,7 +3215,9 @@
     "stability_warning": "Büyük dosya yüklemeleri sunucu kararsızlığına neden olabilir. Silinen dosyalar depolamadan hemen temizlenmeyebilir. Dikkatli kullanın.",
     "no_accounts": "Bağlı hesap yok.",
     "open_folder_tree": "Klasör ağacını aç",
-    "other_accounts": "Diğer hesaplar"
+    "other_accounts": "Diğer hesaplar",
+    "migration_title": "Dosyalarınız güncelleniyor…",
+    "migration_description": "Klasörler ve dosyalar doğru yapıya göre düzenleniyor. Bu yalnızca bir kez gerçekleşir."
   },
   "smime": {
     "your_certificates": "Sertifikalarınız",
@@ -2999,5 +3350,33 @@
   },
   "unified_mailbox": {
     "search_unavailable": "Birleşik görünümde arama kullanılamaz"
+  },
+  "quote_header": {
+    "reply_line": "{date} tarihinde {from} şunu yazdı:",
+    "forwarded_separator": "---------- İletilen mesaj ----------",
+    "from_label": "Kimden",
+    "date_label": "Tarih",
+    "subject_label": "Konu"
+  },
+  "pwa_install": {
+    "title": "{appName} uygulamasını yükle",
+    "description": "Hızlı erişim ve çevrimdışı destek için uygulamamızı yükleyin.",
+    "not_now": "Şimdi değil",
+    "install": "Yükle",
+    "dont_remind": "Bir daha hatırlatma",
+    "dismiss_aria": "Yükleme istemini kapat"
+  },
+  "deep_link": {
+    "message_not_found": "Bu ileti artık kullanılamıyor.",
+    "thread_not_found": "Bu sohbet artık kullanılamıyor.",
+    "folder_not_found": "Bu klasör artık kullanılamıyor.",
+    "event_not_found": "Bu etkinlik artık kullanılamıyor.",
+    "file_not_found": "Bu dosya artık kullanılamıyor.",
+    "account_unavailable": "Bu bağlantıyı açmak için o hesapta oturum açın.",
+    "copy_message": "İleti bağlantısını kopyala",
+    "copy_conversation": "Sohbet bağlantısını kopyala",
+    "copy_event": "Etkinlik bağlantısını kopyala",
+    "copied": "Bağlantı kopyalandı",
+    "copy_failed": "Bağlantı kopyalanamadı"
   }
 }

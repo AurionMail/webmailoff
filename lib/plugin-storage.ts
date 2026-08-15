@@ -1,12 +1,13 @@
 // IndexedDB storage for plugin/theme binary blobs (JS bundles, CSS, previews)
 
 const DB_NAME = 'bulwark-plugins';
-// Bumped to 2 to add the theme-skin store; existing stores are preserved.
-const DB_VERSION = 2;
+// Bumped to 3 to add the file-plugin store; existing stores are preserved.
+const DB_VERSION = 3;
 const STORE_PLUGINS = 'plugin-code';
 const STORE_THEMES = 'theme-css';
 const STORE_THEME_SKINS = 'theme-skin';
 const STORE_PREVIEWS = 'previews';
+const STORE_FILE_ACCESS_PLUGIN = 'file-plugin'
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,9 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_PREVIEWS)) {
         db.createObjectStore(STORE_PREVIEWS);
       }
+      if (!db.objectStoreNames.contains(STORE_FILE_ACCESS_PLUGIN)) {
+        db.createObjectStore(STORE_FILE_ACCESS_PLUGIN);
+      }
     };
 
     request.onsuccess = () => resolve(request.result);
@@ -33,7 +37,7 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-async function putItem(storeName: string, key: string, value: string | Blob): Promise<void> {
+async function putItem(storeName: string, key: string, value: string | Blob | File): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readwrite');
@@ -111,3 +115,19 @@ export const pluginStorage = {
     await deleteItem(STORE_PREVIEWS, id);
   },
 };
+
+/**
+ * Used in host-api for plugins to access to raw data files
+ * to modify them before they are uploaded.
+ */
+export const fileStorage = {
+      async saveFile(fileId: string, file: File): Promise<void> {
+    await putItem(STORE_FILE_ACCESS_PLUGIN, fileId, file);
+  },
+  async getFile(fileId: string): Promise<File | null> {
+    return getItem<File>(STORE_FILE_ACCESS_PLUGIN, fileId);
+  },
+  async deleteFile(fileId: string): Promise<void> {
+    await deleteItem(STORE_FILE_ACCESS_PLUGIN, fileId);
+  },
+}

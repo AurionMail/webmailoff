@@ -4,7 +4,7 @@ import { Email, ThreadGroup } from "@/lib/jmap/types";
 import { ThreadListItem } from "./thread-list-item";
 import { EmailContextMenu } from "./email-context-menu";
 import { cn } from "@/lib/utils";
-import { Trash2, Mail, MailX, MailOpen, Loader2, SearchX, AlertTriangle } from "lucide-react";
+import { Trash2, Mail, MailX, MailOpen, Loader2, SearchX, AlertTriangle, CalendarClock, ShieldCheck } from "lucide-react";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -17,6 +17,7 @@ import { useContextMenu } from "@/hooks/use-context-menu";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useTranslations } from "next-intl";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { TagDisplayContext, useMeasuredTagDisplay } from "@/hooks/use-tag-display";
 import { SearchChips } from "@/components/search/search-chips";
 import { isFilterEmpty, DEFAULT_SEARCH_FILTERS } from "@/lib/jmap/search-utils";
 
@@ -27,19 +28,27 @@ interface EmailListProps {
   onEmailDoubleClick?: (email: Email) => void;
   className?: string;
   isLoading?: boolean;
+  hasMore?: boolean;
+  isLoadingMoreItems?: boolean;
   onOpenConversation?: (thread: ThreadGroup) => void;
   onReply?: (email: Email) => void;
   onReplyAll?: (email: Email) => void;
   onForward?: (email: Email) => void;
+  onForwardAsAttachment?: (email: Email) => void;
   onMarkAsRead?: (email: Email, read: boolean) => void;
   onToggleStar?: (email: Email) => void;
+  onTogglePinned?: (email: Email) => void;
   onDelete?: (email: Email) => void;
   onArchive?: (email: Email) => void;
-  onSetColorTag?: (emailId: string, color: string | null) => void;
+  onSetTag?: (emailId: string, tagId: string | null) => void;
   onMoveToMailbox?: (emailId: string, mailboxId: string) => void;
   onMarkAsSpam?: (email: Email) => void;
   onUndoSpam?: (email: Email) => void;
   onEditDraft?: (email: Email) => void;
+  isScheduledView?: boolean;
+  onLoadMoreScheduled?: () => void;
+  onCancelScheduledForEdit?: (email: Email) => void | Promise<void>;
+  onRescheduleScheduled?: (email: Email) => void | Promise<void>;
 }
 
 export function EmailList({
@@ -49,21 +58,31 @@ export function EmailList({
   onEmailDoubleClick,
   className,
   isLoading = false,
+  hasMore,
+  isLoadingMoreItems,
   onOpenConversation,
   onReply,
   onReplyAll,
   onForward,
+  onForwardAsAttachment,
   onMarkAsRead,
   onToggleStar,
+  onTogglePinned,
   onDelete,
   onArchive,
-  onSetColorTag,
+  onSetTag,
   onMarkAsSpam,
   onUndoSpam,
   onMoveToMailbox,
   onEditDraft,
+  isScheduledView = false,
+  onLoadMoreScheduled,
+  onCancelScheduledForEdit,
+  onRescheduleScheduled,
 }: EmailListProps) {
   const t = useTranslations('email_list');
+  const tContextMenu = useTranslations('context_menu');
+  const tSpam = useTranslations('email_viewer.spam');
   const { client } = useAuthStore();
   const {
     selectedEmailIds,
@@ -86,28 +105,53 @@ export function EmailList({
     isLoadingThread,
     toggleThreadExpansion,
     fetchThreadEmails,
+    markThreadAsRead,
+    collapseAllThreads,
+    threadEmailCounts,
     searchFilters,
     setSearchFilters,
     clearSearchFilters,
     advancedSearch,
     searchQuery,
+    isUnifiedView,
+    unifiedRole,
   } = useEmailStore();
+
+  // In aggregate role-views (e.g. "All Junk") the selected mailbox is virtual, so
+  // there is no concrete mailbox to read the role from. Fall back to the unified
+  // role so contextual actions (e.g. mark-as-spam ↔ not-spam) behave as if inside
+  // that role's folder.
+  const effectiveMailboxRole =
+    mailboxes.find(m => m.id === selectedMailbox)?.role
+    ?? (isUnifiedView ? (unifiedRole ?? undefined) : undefined);
 
   const disableThreading = useSettingsStore((state) => state.disableThreading);
 
   const threadGroups = useMemo(() => {
-    const groups = groupEmailsByThread(emails, disableThreading);
+    const groups = groupEmailsByThread(emails, disableThreading || isScheduledView, threadEmailCounts);
     return sortThreadGroups(groups);
-  }, [emails, disableThreading]);
+  }, [emails, disableThreading, isScheduledView, threadEmailCounts]);
 
   const { contextMenu, openContextMenu, closeContextMenu, menuRef } = useContextMenu<Email>();
+  /**
+   * The row the menu was opened on, as the list currently has it. The menu holds
+   * the message it was handed when it opened, but tags can be applied from
+   * inside it without dismissing it, so what it draws has to keep up.
+   */
+  const contextMenuEmail = contextMenu.data
+    ? emails.find((email) => email.id === contextMenu.data!.id) ?? contextMenu.data
+    : null;
   const { dialogProps: confirmDialogProps, confirm: confirmDialog } = useConfirmDialog();
 
   const [isProcessing, setIsProcessing] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
+  // One tag treatment for the whole list, measured from the scroll container.
+  const tagDisplay = useMeasuredTagDisplay(parentRef);
   const density = useSettingsStore((state) => state.density);
   const showPreview = useSettingsStore((state) => state.showPreview);
   const mailLayout = useSettingsStore((state) => state.mailLayout);
+  const footerHasMore = hasMore ?? hasMoreEmails;
+  const footerIsLoadingMore = isLoadingMoreItems ?? isLoadingMore;
   const isMobile = useUIStore((state) => state.isMobile);
   // Match the list items: focus layout collapses to multi-line on mobile, so virtualizer estimates must match.
   const isFocusedMailLayout = mailLayout === 'focus' && !isMobile;
@@ -155,6 +199,22 @@ export function EmailList({
     setIsProcessing(true);
     try {
       await batchMarkAsRead(client, read);
+    } finally {
+      setTimeout(() => setIsProcessing(false), 500);
+    }
+  };
+
+  const handleBatchUndoSpam = async () => {
+    if (!client || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const emailIds = Array.from(selectedEmailIds);
+      await batchUndoSpam(client, emailIds);
+      const { toast } = await import('sonner');
+      toast.success(tSpam('toast_not_spam_batch', { count: emailIds.length }));
+    } catch {
+      const { toast } = await import('sonner');
+      toast.error(tSpam('error_not_spam'));
     } finally {
       setTimeout(() => setIsProcessing(false), 500);
     }
@@ -219,10 +279,14 @@ export function EmailList({
   };
 
   const handleLoadMore = useCallback(() => {
+    if (isScheduledView) {
+      onLoadMoreScheduled?.();
+      return;
+    }
     if (client && hasMoreEmails && !isLoadingMore && !isLoading) {
       loadMoreEmails(client);
     }
-  }, [client, hasMoreEmails, isLoadingMore, isLoading, loadMoreEmails]);
+  }, [client, hasMoreEmails, isLoadingMore, isLoading, isScheduledView, loadMoreEmails, onLoadMoreScheduled]);
 
   const handleToggleThreadExpansion = useCallback(async (threadId: string) => {
     const isExpanded = expandedThreadIds.has(threadId);
@@ -230,10 +294,12 @@ export function EmailList({
     if (!isExpanded && client) {
       toggleThreadExpansion(threadId);
       await fetchThreadEmails(client, threadId);
+      // Mark all unread emails in this thread as read
+      void markThreadAsRead(client, threadId);
     } else {
       toggleThreadExpansion(threadId);
     }
-  }, [client, expandedThreadIds, toggleThreadExpansion, fetchThreadEmails]);
+  }, [client, expandedThreadIds, toggleThreadExpansion, fetchThreadEmails, markThreadAsRead]);
 
   // Range-based load more: trigger when last visible item is near the end.
   // Debounce to prevent rapid cascade when thread grouping reduces item
@@ -277,12 +343,13 @@ export function EmailList({
   }, [density, isFocusedMailLayout, showPreview]);
 
   return (
+    <TagDisplayContext.Provider value={tagDisplay}>
     <div className={cn("flex flex-col min-h-0", className)}>
       {/* Batch Actions Toolbar */}
       <div
         className={cn(
           "transition-all duration-300 ease-in-out overflow-hidden",
-          hasSelection ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+          hasSelection && !isScheduledView ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
         )}
       >
         <div className="px-4 py-2 border-b bg-accent/30 border-border flex items-center justify-between">
@@ -320,6 +387,22 @@ export function EmailList({
                 <Mail className="w-4 h-4" />
               )}
             </Button>
+            {effectiveMailboxRole === 'junk' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBatchUndoSpam}
+                title={tContextMenu('not_spam')}
+                disabled={isProcessing}
+                className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100/50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-50"
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -380,9 +463,9 @@ export function EmailList({
             className="text-destructive border-destructive/30 hover:bg-destructive/10 text-xs"
           >
             {isProcessing ? (
-              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+              <Loader2 className="w-3 h-3 animate-spin me-1" />
             ) : (
-              <Trash2 className="w-3 h-3 mr-1" />
+              <Trash2 className="w-3 h-3 me-1" />
             )}
             {t('empty_folder.button')}
           </Button>
@@ -406,17 +489,19 @@ export function EmailList({
         ) : emails.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center h-full py-12">
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted shadow-lg flex items-center justify-center">
-              {searchQuery || !isFilterEmpty(searchFilters) ? (
+              {isScheduledView ? (
+                <CalendarClock className="w-10 h-10 text-muted-foreground" />
+              ) : searchQuery || !isFilterEmpty(searchFilters) ? (
                 <SearchX className="w-10 h-10 text-muted-foreground" />
               ) : (
                 <MailX className="w-10 h-10 text-muted-foreground" />
               )}
             </div>
             <p className="text-base font-medium text-foreground">
-              {searchQuery || !isFilterEmpty(searchFilters) ? t('no_search_results') : t('no_emails')}
+              {isScheduledView ? t('no_scheduled_emails') : searchQuery || !isFilterEmpty(searchFilters) ? t('no_search_results') : t('no_emails')}
             </p>
             <p className="text-sm mt-1 text-muted-foreground">
-              {searchQuery || !isFilterEmpty(searchFilters) ? t('no_search_results_description') : t('no_emails_description')}
+              {isScheduledView ? t('no_scheduled_emails_description') : searchQuery || !isFilterEmpty(searchFilters) ? t('no_search_results_description') : t('no_emails_description')}
             </p>
           </div>
         ) : (
@@ -451,7 +536,18 @@ export function EmailList({
                       isLoading={isLoadingThread === thread.threadId}
                       expandedEmails={threadEmailsCache.get(thread.threadId)}
                       onToggleExpand={() => handleToggleThreadExpansion(thread.threadId)}
-                      onEmailSelect={(email) => onEmailSelect?.(email)}
+                      onCollapseAllThreads={collapseAllThreads}
+                      onEmailSelect={(email) => {
+                        // Collapse expanded threads when selecting an email outside the expanded thread
+                        const currentExpanded = useEmailStore.getState().expandedThreadIds;
+                        if (currentExpanded.size > 0) {
+                          // Check if the selected email belongs to any expanded thread via its threadId
+                          if (!email.threadId || !currentExpanded.has(email.threadId)) {
+                            collapseAllThreads();
+                          }
+                        }
+                        onEmailSelect?.(email);
+                      }}
                       onEmailDoubleClick={onEmailDoubleClick ? (email) => onEmailDoubleClick(email) : undefined}
                       onContextMenu={openContextMenu}
                       onOpenConversation={onOpenConversation}
@@ -459,8 +555,9 @@ export function EmailList({
                       onMarkAsRead={onMarkAsRead ? (email, read) => onMarkAsRead(email, read) : undefined}
                       onDelete={onDelete ? (email) => onDelete(email) : undefined}
                       onArchive={onArchive ? (email) => onArchive(email) : undefined}
-                      onSetColorTag={onSetColorTag}
+                      onSetTag={onSetTag}
                       onMarkAsSpam={onMarkAsSpam ? (email) => onMarkAsSpam(email) : undefined}
+                      onUndoSpam={onUndoSpam ? (email) => onUndoSpam(email) : undefined}
                     />
                   </div>
                 );
@@ -468,13 +565,13 @@ export function EmailList({
             </div>
 
             <div className="py-4 flex justify-center">
-              {isLoadingMore && hasMoreEmails && (
+              {footerIsLoadingMore && footerHasMore && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>{t('loading_more')}</span>
                 </div>
               )}
-              {!hasMoreEmails && emails.length > 0 && (
+              {!footerHasMore && emails.length > 0 && (
                 <div className="text-sm text-muted-foreground border-t border-border pt-6">
                   {t('no_more_emails')}
                 </div>
@@ -485,30 +582,34 @@ export function EmailList({
       </div>
 
       {/* Context Menu */}
-      {contextMenu.data && (
+      {contextMenuEmail && (
         <EmailContextMenu
-          email={contextMenu.data}
+          email={contextMenuEmail}
           position={contextMenu.position}
           isOpen={contextMenu.isOpen}
           onClose={closeContextMenu}
           menuRef={menuRef}
           mailboxes={mailboxes}
           selectedMailbox={selectedMailbox}
-          currentMailboxRole={mailboxes.find(m => m.id === selectedMailbox)?.role}
-          isMultiSelect={selectedEmailIds.has(contextMenu.data.id)}
+          currentMailboxRole={effectiveMailboxRole}
+          isMultiSelect={selectedEmailIds.has(contextMenuEmail.id)}
           selectedCount={selectedEmailIds.size}
-          onReply={() => onReply?.(contextMenu.data!)}
-          onReplyAll={() => onReplyAll?.(contextMenu.data!)}
-          onForward={() => onForward?.(contextMenu.data!)}
-          onMarkAsRead={(read) => onMarkAsRead?.(contextMenu.data!, read)}
-          onToggleStar={() => onToggleStar?.(contextMenu.data!)}
-          onDelete={() => onDelete?.(contextMenu.data!)}
-          onArchive={() => onArchive?.(contextMenu.data!)}
-          onSetColorTag={(color) => onSetColorTag?.(contextMenu.data!.id, color)}
-          onMoveToMailbox={(mailboxId) => onMoveToMailbox?.(contextMenu.data!.id, mailboxId)}
-          onMarkAsSpam={() => onMarkAsSpam?.(contextMenu.data!)}
-          onUndoSpam={() => onUndoSpam?.(contextMenu.data!)}
-          onEditDraft={() => onEditDraft?.(contextMenu.data!)}
+          onReply={() => onReply?.(contextMenuEmail!)}
+          onReplyAll={() => onReplyAll?.(contextMenuEmail!)}
+          onForward={() => onForward?.(contextMenuEmail!)}
+          onForwardAsAttachment={() => onForwardAsAttachment?.(contextMenuEmail!)}
+          onMarkAsRead={(read) => onMarkAsRead?.(contextMenuEmail!, read)}
+          onToggleStar={() => onToggleStar?.(contextMenuEmail!)}
+          onTogglePinned={onTogglePinned ? () => onTogglePinned(contextMenuEmail!) : undefined}
+          onDelete={() => onDelete?.(contextMenuEmail!)}
+          onArchive={() => onArchive?.(contextMenuEmail!)}
+          onSetTag={(color) => onSetTag?.(contextMenuEmail!.id, color)}
+          onMoveToMailbox={(mailboxId) => onMoveToMailbox?.(contextMenuEmail!.id, mailboxId)}
+          onMarkAsSpam={() => onMarkAsSpam?.(contextMenuEmail!)}
+          onUndoSpam={() => onUndoSpam?.(contextMenuEmail!)}
+          onEditDraft={() => onEditDraft?.(contextMenuEmail!)}
+          onCancelScheduledForEdit={onCancelScheduledForEdit ? () => onCancelScheduledForEdit(contextMenuEmail!) : undefined}
+          onRescheduleScheduled={onRescheduleScheduled ? () => onRescheduleScheduled(contextMenuEmail!) : undefined}
           onBatchMarkAsRead={(read) => client && batchMarkAsRead(client, read)}
           onBatchDelete={() => client && batchDelete(client)}
           onBatchArchive={async () => {
@@ -527,11 +628,11 @@ export function EmailList({
                 await batchMarkAsSpam(client, emailIds);
                 const { toast } = await import('sonner');
                 toast.success(
-                  t('../email_viewer.spam.toast_batch', { count: emailIds.length })
+                  tSpam('toast_batch', { count: emailIds.length })
                 );
               } catch {
                 const { toast } = await import('sonner');
-                toast.error(t('../email_viewer.spam.error'));
+                toast.error(tSpam('error'));
               }
             }
           }}
@@ -542,11 +643,11 @@ export function EmailList({
                 await batchUndoSpam(client, emailIds);
                 const { toast } = await import('sonner');
                 toast.success(
-                  t('../email_viewer.spam.toast_not_spam_batch', { count: emailIds.length })
+                  tSpam('toast_not_spam_batch', { count: emailIds.length })
                 );
               } catch {
                 const { toast } = await import('sonner');
-                toast.error(t('../email_viewer.spam.error_not_spam'));
+                toast.error(tSpam('error_not_spam'));
               }
             }
           }}
@@ -555,5 +656,6 @@ export function EmailList({
 
       <ConfirmDialog {...confirmDialogProps} />
     </div>
+    </TagDisplayContext.Provider>
   );
 }

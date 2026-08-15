@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronRight, Globe, ListTodo, Pencil, RefreshCw, Share2, Trash2, Cake, User, Users, Plus, Eraser, Palette } from "lucide-react";
+import { ChevronDown, ChevronRight, Globe, ListTodo, Pencil, RefreshCw, Share2, Star, Trash2, Cake, User, Users, Plus, Eraser, Palette, Shuffle } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { Calendar } from "@/lib/jmap/types";
 import { CalendarColorPicker } from "@/components/settings/calendar-management-settings";
@@ -11,6 +11,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useTaskStore } from "@/stores/task-store";
 import { useAccountStore } from "@/stores/account-store";
 import { BIRTHDAY_CALENDAR_ID } from "@/lib/birthday-calendar";
+import { sharedCalendarColorKey } from "@/lib/shared-calendar-colors";
 import { toast } from "@/stores/toast-store";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator, ContextMenuSubMenu } from "@/components/ui/context-menu";
 import { useContextMenu } from "@/hooks/use-context-menu";
@@ -50,6 +51,7 @@ interface CalendarSidebarPanelProps {
   selectedCalendarIds: string[];
   onToggleVisibility: (id: string) => void;
   onColorChange?: (calendarId: string, color: string) => void;
+  onResetColor?: (calendar: Calendar) => void;
   onShareCalendar?: (calendar: Calendar) => void;
   onCreateEvent?: (calendar: Calendar) => void;
   onClearCalendar?: (calendar: Calendar) => void;
@@ -71,6 +73,7 @@ export function CalendarSidebarPanel({
   selectedCalendarIds,
   onToggleVisibility,
   onColorChange,
+  onResetColor,
   onShareCalendar,
   onCreateEvent,
   onClearCalendar,
@@ -93,7 +96,9 @@ export function CalendarSidebarPanel({
   );
   const refreshICalSubscription = useCalendarStore((s) => s.refreshICalSubscription);
   const removeICalSubscription = useCalendarStore((s) => s.removeICalSubscription);
+  const setDefaultCalendar = useCalendarStore((s) => s.setDefaultCalendar);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
   const tasks = useTaskStore((s) => s.tasks);
   const setViewMode = useCalendarStore((s) => s.setViewMode);
@@ -215,6 +220,16 @@ export function CalendarSidebarPanel({
     }
   };
 
+  const handleSetDefault = async (calendarId: string) => {
+    if (!client) return;
+    try {
+      await setDefaultCalendar(client, calendarId);
+      toast.success(tMgmt('default_updated'));
+    } catch {
+      toast.error(tMgmt('error_default'));
+    }
+  };
+
   if (calendars.length === 0 && !onSubscribe) return null;
 
   const renderCalendarItem = (cal: Calendar) => {
@@ -227,6 +242,10 @@ export function CalendarSidebarPanel({
         <button
           onClick={() => onToggleVisibility(cal.id)}
           onContextMenu={hasMenu ? (e) => openContextMenu(e, cal) : undefined}
+          data-testid="calendar-item"
+          data-calendar-name={cal.name}
+          data-account={cal.accountName ?? ''}
+          data-visible={isVisible}
           className={cn(
             "flex items-center gap-2 w-full px-1.5 py-1 rounded-md text-sm transition-colors duration-150",
             "hover:bg-muted"
@@ -302,10 +321,13 @@ export function CalendarSidebarPanel({
     const isBirthday = cal.id === BIRTHDAY_CALENDAR_ID;
     const canCreate = onCreateEvent && !isBirthday && cal.myRights?.mayWriteOwn !== false;
     const canShare = onShareCalendar && cal.myRights?.mayShare && !cal.isShared;
+    const canSetDefault = !!client && !isBirthday && !cal.isShared && !cal.isDefault;
     const canChangeColor = !!onColorChange;
+    const hasColorOverride = !!cal.isShared && !!sharedCalendarColors[sharedCalendarColorKey(cal)];
+    const canResetColor = !!onResetColor && hasColorOverride;
     const canClear = onClearCalendar && !isBirthday && cal.myRights?.mayDelete !== false;
     const canDelete = onDeleteCalendar && !isBirthday && !cal.isDefault && !cal.isShared;
-    const showSeparator = (canCreate || canShare || canChangeColor) && (canClear || canDelete);
+    const showSeparator = (canCreate || canShare || canSetDefault || canChangeColor || canResetColor) && (canClear || canDelete);
     const color = cal.color || "#3b82f6";
 
     return (
@@ -324,6 +346,13 @@ export function CalendarSidebarPanel({
             onClick={() => { closeContextMenu(); onShareCalendar(cal); }}
           />
         )}
+        {canSetDefault && (
+          <ContextMenuItem
+            icon={Star}
+            label={tMgmt('set_default')}
+            onClick={() => { closeContextMenu(); handleSetDefault(cal.id); }}
+          />
+        )}
         {canChangeColor && (
           <ContextMenuSubMenu icon={Palette} label={tMgmt('change_color')}>
             <div className="px-2 py-1.5 w-[200px]">
@@ -334,6 +363,13 @@ export function CalendarSidebarPanel({
               />
             </div>
           </ContextMenuSubMenu>
+        )}
+        {canResetColor && (
+          <ContextMenuItem
+            icon={Shuffle}
+            label={tMgmt('random_color')}
+            onClick={() => { closeContextMenu(); onResetColor!(cal); }}
+          />
         )}
         {showSeparator && <ContextMenuSeparator />}
         {canClear && (
@@ -365,7 +401,7 @@ export function CalendarSidebarPanel({
           <ListTodo className="w-4 h-4 text-muted-foreground" />
           <span>{t('tasks.label')}</span>
           {pendingTaskCount > 0 && (
-            <span className="ml-auto text-xs text-muted-foreground">{pendingTaskCount}</span>
+            <span className="ms-auto text-xs text-muted-foreground">{pendingTaskCount}</span>
           )}
           {overdueTaskCount > 0 && (
             <span className="text-xs text-destructive font-medium">{overdueTaskCount} {t('tasks.filter_overdue').toLowerCase()}</span>
@@ -405,7 +441,7 @@ export function CalendarSidebarPanel({
                           onCreateCalendar();
                         }
                       }}
-                      className="ml-auto p-0.5 rounded text-muted-foreground/70 opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      className="ms-auto p-0.5 rounded text-muted-foreground/70 opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                       title={tMgmt('add_calendar')}
                     >
                       <Plus className="w-3 h-3" />
@@ -413,7 +449,7 @@ export function CalendarSidebarPanel({
                   )}
                 </button>
                 {expanded && (
-                  <div className="mt-1 pl-3">
+                  <div className="mt-1 ps-3">
                     {owned.length > 0 && (
                       <div>
                         <div className="px-1 mb-1 text-[10px] font-medium text-muted-foreground/80 uppercase tracking-wider">

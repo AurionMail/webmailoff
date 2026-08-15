@@ -1,5 +1,427 @@
 # Changelog
 
+## 1.8.1 (2026-08-07)
+
+A GitHub Actions incident left the 1.8.0 release build queued indefinitely, so no Docker image was ever published for that tag. 1.8.1 re-runs the release with the same code, plus one plugin slot that merged in the meantime.
+
+Thank you for your donations:
+
+- _You? [Become a sponsor!](https://github.com/sponsors/bulwarkmail)_
+
+**One-time**
+
+- [@getpankajyadav](https://github.com/getpankajyadav)
+- [@Beckid](https://github.com/Beckid)
+- [@schnz](https://github.com/schnz)
+- [@BryanBerger98](https://github.com/BryanBerger98)
+
+**Monthly**
+
+- [@zeddD1abl0](https://github.com/zeddD1abl0)
+- [@fpauser](https://github.com/fpauser)
+- [@proxforge](https://github.com/proxforge)
+- [@spss20](https://github.com/spss20)
+- [@elgringoYan](https://github.com/elgringoYan)
+- [@pauladams8](https://github.com/pauladams8)
+- [@djpriest](https://github.com/djpriest)
+- [@umakers](https://github.com/umakers)
+- [@zplizzi](https://github.com/zplizzi)
+- [@jeremiah](https://github.com/jeremiah)
+- [@Theoretisch1337](https://github.com/Theoretisch1337)
+- [@svandive](https://github.com/svandive)
+
+### Features
+
+- **Mail**: Nest tags in a tree by picking a parent when you create one
+- **Mail**: Per-tag visibility — always, only when unread, or always hidden
+- **Mail**: Assign and clear several tags at once, with a reworked tag display
+- **Mail**: Recover tags from the server by scanning mail for JMAP keywords no local tag explains (#658)
+- **Mail**: "Forward as attachment" in the viewer and the message-list context menu
+- **Mail**: Refresh button in the mail-list toolbar
+- **Composer**: Confirm sending without a subject instead of blocking the send, with "Don't ask again" (#684)
+- **Contacts**: Contact cards for organizations (#701)
+- **Security**: Manage S/MIME and PGP public keys and configure Stalwart encryption at rest from account security settings
+- **Notifications**: Background notification onboarding, sequenced after the PWA install prompt
+- **Navigation**: Deep links for mail, calendar, contacts, files, and settings, with screen-reader improvements
+- **Settings**: Always show the Unified Mailbox switch in Layout settings
+- **i18n**: Catalan translation
+- **i18n**: Localized editor toolbar across every locale
+- **Plugins**: Contact API — `contact.get`, `contact.create`, `contact.update`, `contact.search`
+- **Plugins**: `contact-cryptokeys` UI slot, behind the `ui:contact-cryptokeys` permission, so a plugin can render a contact's crypto keys in place of the built-in list
+- **Plugins**: `user.getAccounts` and `user.getIdentities`
+- **Plugins**: `user.logout` method and logout hook
+- **Plugins**: Crypto API — public-key management and encryption-at-rest control on the privileged tier
+- **Plugins**: `onBeforeBlobUpload` can offload an attachment to external storage
+- **Plugins**: Binary `Blob`/`File` bodies for `api.http.post`
+- **Plugins**: `upfiles.get` moved behind `email:blob-read`, off the privileged tier
+- **Dev**: Mock JMAP defaults now include nested tags
+
+### Changes
+
+- **Mail**: The "Reset to defaults" button is gone from tag settings — one stray click wiped a carefully built tag list, with no confirmation and no undo
+
+### Fixes
+
+- **Send**: Send through the identity's own account client so DKIM matches the From domain (#461)
+- **Send**: Split `Name <addr>` recipients into the JMAP `name` and `email` fields (#672)
+- **Send**: Time out stalled JMAP requests so a send can't hang forever (#702)
+- **Mail**: Keep inline images when replying to `application/octet-stream` cid parts (#543)
+- **Mail**: Reply on your own thread message no longer re-addresses the original recipients (#703)
+- **Mail**: Empty folder no longer stops after 500 emails (#711)
+- **Mail**: Move messages across accounts from the "Move to" context menu, preserving read state and deferring source removal to Stalwart
+- **Mail**: Stop resurrecting deleted rows in the mailbox refresh merge
+- **Mail**: Keep the `message/rfc822` attachment visible after inline unwrapping
+- **Mail**: Strip sender and recipient names from forward-as-attachment filenames
+- **Mail**: Open `mailto:` links in the built-in composer
+- **Mail**: Spell out the full tag path in drag-and-drop toasts, so `Personal/Receipts` and `Work/Receipts` no longer read as the same tag
+- **Mail**: Act on current email state in the context menu's mark-as-read instead of a stale copy
+- **Mail**: Match the selected-row tint between dark and light mode
+- **Mail**: Restore lost animations after the Tailwind config move
+- **Drafts**: Restore the sender identity when reopening a draft
+- **Calendar**: Stop re-adding the organizer to the attendee list on every save (#731)
+- **Calendar**: Stop re-probing shared accounts that have no calendar access
+- **Calendar**: Route the parse dump through the debug logger
+- **Contacts**: Stop minting duplicate "Trusted Senders" address books (#730)
+- **Contacts**: Hide Contacts and Calendars when the account lacks the JMAP capability
+- **Contacts**: Require an explicit shared-account fallback for contacts and calendars
+- **Files**: Show the modification date instead of the creation date (#700)
+- **PWA**: Honor the configured theme color in the desktop title bar and keep it in step with the active theme (#671)
+- **Accounts**: Reconcile the stale persisted account chip after an impersonation handoff
+- **Auth**: Only request a credential cookie when the server has a `SESSION_SECRET`
+- **JMAP**: Split requests to stay inside the server's advertised limits — `maxCallsInRequest`, `maxObjectsInGet`/`InSet`, `maxSizeRequest`, and concurrency
+- **JMAP**: Treat an aborted SSE connect as a close, not a failure
+- **JMAP**: Surface the underlying network error cause in passthrough failures
+- **Settings**: Avoid leaving `TZ="undefined"` when restoring an unset timezone
+- **Plugins**: Stop a privileged plugin from reading another privileged plugin's PRF secret
+- **Plugins**: Correct the method names for message errors and `crypto.getPublicKeys`
+- **i18n**: Restore key parity across locales and the English `send_timeout` string
+- **Docs**: Document the remaining env vars in the env templates, and correct the facts and headings in README and FEATURES
+
+## 1.8.0 (2026-08-06)
+
+Superseded by 1.8.1. The release build never produced a Docker image — use 1.8.1 instead. The full notes live under 1.8.1 above.
+
+## 1.7.8 (2026-07-22)
+
+### Features
+
+- **Unified Mailbox**: Account-bounded Unified Mailbox with opt-in cross-account aggregation (#509)
+- **Unified Mailbox**: Search in the unified views
+- **Unified Mailbox**: Live unified/All-Mail counters for shared and group accounts
+- **Mail**: Message-list category tabs
+- **Mail**: Drag-and-drop reorder for all folders
+- **Mail**: Collapse quoted reply text behind a "..." toggle (#480)
+- **Mail**: Bulk Not-Spam action in the junk selection toolbar
+- **Mail**: Unread count badge on the favicon
+- **Mail**: Message spacing setting (auto/always/edge-to-edge)
+- **Mail**: Open external links in a new tab (safely)
+- **Mail**: Strip external `url()`/`@import` from `<style>` blocks in the sanitizer (#457)
+- **Composer**: Text color picker in the composer toolbar
+- **Composer**: Contact groups as single expandable recipient chips
+- **Composer**: Drag-to-reorder To/Cc/Bcc recipient chips (#593)
+- **Composer**: Auto-detect paragraph text direction by default
+- **Templates**: HTML template support
+- **Vacation**: HTML body support in the vacation responder
+- **Send**: 'Send now' action on the send-delay toast
+- **Accounts**: Remove a specific account from the switcher
+- **Settings**: "Refresh cached data" recovery action
+- **i18n**: Full Arabic (ar) translation with RTL support
+- **Login**: `LOGIN_SHOW_TOTP` and `LOGIN_SHOW_VERSION` config flags (#520)
+- **Docker**: `NEXT_PUBLIC_LOCALE_PREFIX` build argument
+- **Plugins**: `ui.rerenderFetchedEmails` method (#668)
+- **Plugins**: `onEmailsFetched` and `onSearchResults` hooks and `getSomeEmails` JMAP method
+- **Plugins**: `onRecipientChipsChange` hook
+- **Plugins**: `webauthn.getOrCreate` API method
+- **Plugins**: Download files generated by a plugin (with `ui:download-file` consent permission)
+- **Plugins**: Submit mail without moving to a mailbox and import-to-mailbox APIs
+
+### Fixes
+
+- **Mail**: Render the email body on DOM parse instead of iframe load (#635)
+- **Mail**: Keep sidebar tag counts in step with read/unread changes
+- **Mail**: Enable thread expansion in the focused list
+- **Mail**: Show the quote bar in email replies
+- **Mail**: Honor part-type fallback when quoting replies (#649)
+- **Mail**: Detect typing inside the quoted-HTML shadow island (#654)
+- **Mail**: Keep `target`/`rel` on links in plain-text message bodies and open signature links in a new tab
+- **Accounts**: Eliminate the full-screen flash when switching accounts (including cached accounts)
+- **Accounts**: Recognize canonicalized login usernames in the account-switch guard
+- **Auth**: Guard account switch against slot→token desync and basic-auth identity mismatches
+- **Auth**: End refresh loops on sign-out and back off failed retries
+- **OAuth**: Harden OIDC discovery (timeout, retry, serve-stale)
+- **JMAP**: Preserve POST across redirects in the Stalwart JMAP passthrough (#627)
+- **JMAP**: File the post-send message with a full `mailboxIds` replacement
+- **JMAP**: Generate the Message-ID client-side using the sender's domain
+- **Identity**: Sync the default sender identity per account (#507)
+- **Attachments**: Download/view attachments on cross-account All-Mail messages
+- **Shared folders**: Route batch actions to the owner account
+- **Templates**: Insert a mail template at the caret in replies instead of prepending (#539)
+- **Templates**: Keep the signature when inserting a template (#621)
+- **Templates**: Hide template buttons when templates are disabled
+- **Calendar**: Honor "Show time in month view" on mobile instead of forcing dots (#666)
+- **Calendar**: Classify self-organized imported events as editable
+- **Contacts**: Assign a UID to contact cards on creation (#644)
+- **Spam**: Stop HELO `spf=none` from downgrading a MAIL FROM `spf=pass` (#650)
+- **Drafts**: Label the close-dialog draft button with the generic Save
+- **RTL**: Flip JS-positioned popovers and anchor floating menus with logical start/end
+- **RTL**: Isolate Latin address text from RTL bidi reordering and force LTR identity options
+- **i18n**: Register Arabic messages in the client IntlProvider
+- **i18n**: Fix the Hebrew Drafts folder label
+- **i18n**: Add missing translation keys across 22 locales
+- **Deps**: Bump `dompurify` to 3.4.12 and `next-intl` to 4.13.3
+
+## 1.7.7 (2026-07-09)
+
+### Features
+
+- **Plugins**: `ui.rerenderEmail` API and restyled read-receipt banner
+- **Plugins**: New hooks — `onBeforeBlobUpload`, `onBeforeDraftAutoSave`, `onBeforeEditDraft` (#586)
+- **Plugins**: `ui.prompt` dialog and first-class settings-section tabs
+- **Calendar**: Jalali (Persian/Shamsi) calendar support with Saturday as week start (#490)
+- **i18n**: Hebrew locale with full RTL support
+- **i18n**: Slovak translation
+- **i18n**: User-selectable regional date format
+- **Contacts**: Enable trusted-senders address book sync by default when contacts are available
+- **Mail**: Pin emails to the top of the folder list
+- **Mail**: Setting to disable the tag-color row tint in the message list
+- **Mail**: Click the sender avatar to select a message/thread (Thunderbird-style)
+- **Accounts**: Pin the default account on top and drag-to-reorder the account switcher
+- **Composer**: Recipient autocomplete from Sent, with on-demand server search
+- **Composer**: Preselect the identity of the active mailbox for new messages
+- **Email**: Send a quick reply with Ctrl/Cmd+Enter
+- **Headers**: Parse Stalwart spam headers
+- **Login**: Configurable logo size and hideable heading/subtitle
+- **PWA**: Apple Touch icons for the iOS home screen
+
+### Fixes
+
+- **Mail**: Hide Files when the account lacks the filenode capability (#563)
+- **Mail**: Keep advanced search filters applied when switching folders (#553)
+- **Mail**: Keep the email list scrollable when the bottom reading pane is enabled with no conversation selected
+- **Mail**: Route keyword writes to the email's own account in unified view
+- **Mail**: Render emails that set `height:100%` on a wrapper element
+- **Mail**: Hide images that fail to load
+- **Mail**: Storage quota not shown with Stalwart (#577)
+- **Spam**: Hide the spam action in Sent, Drafts and Scheduled
+- **Spam**: Fix stale folder counters and open message after spam actions
+- **Composer**: Wait for in-flight attachment uploads before sending
+- **Composer**: Only commit a recipient on Space when the input is a valid email (#571)
+- **Composer**: Attachment reminder now ignores quoted text on reply/forward (#570)
+- **Calendar**: Store the event organizer as owner-only to prevent duplicate ORGANIZER/ATTENDEE
+- **Calendar**: Strike through cancelled events and mute their reminders (#572)
+- **Calendar**: Use `calendarAddress`/`organizerCalendarAddress` for scheduling, drop retired `sendTo`/`replyTo` (#500)
+- **Auth**: Keep the session when the auth server is briefly unreachable
+- **Shortcuts**: Make keyboard shortcuts layout-agnostic and map by physical position
+- **Shortcuts**: Don't toggle mailbox subfolders on Arrow keys while typing
+- **Contacts**: Clear the photo on the server by sending `media: null` when removed
+- **Plugins**: Preserve the settings slot and privileged tier
+- **Pro**: Prompt to save or discard a draft when closing a compose tab via the tab-bar X
+- **Pro**: Show the Edit button on draft emails opened in a new tab
+- **List**: Shift-click on the checkbox extends the selection (range)
+- **CSP**: Allow external/data fonts so email webfonts render
+- **Notifications**: Brand push notifications with the configured PWA icon
+- **Notifications**: Notification sound preview — base-path prefix and longer default beep
+- **Unsubscribe**: Send `mailto:` unsubscribe ourselves instead of via the OS handler
+- **Branding**: Apply per-domain favicon override in root metadata (#585)
+- **Settings**: Load the trusted-senders address book on the settings page so the count isn't 0
+- **Setup**: Clone source when `setup.sh` runs detached from a checkout (#518)
+- **Server**: Use a callable `.get` to detect `Headers` in `pickRequestHost`
+
+## 1.7.6 (2026-06-28)
+
+### Breaking Changes
+
+- **S/MIME**: The built-in S/MIME implementation has been removed from core and re-delivered through the new generic crypto plugin hooks (privileged same-origin plugin tier). S/MIME signing, encryption, decryption, certificate management, and the related settings UI now live in a plugin rather than the main app. Deployments that relied on built-in S/MIME must install the S/MIME crypto plugin to retain those features.
+
+### Features
+
+- **Plugins**: Privileged same-origin plugin tier with a crypto API surface
+- **Plugins**: Plugin hooks for email details, headers, and source
+- **Mail**: Option to hide the total message count on folders (#498)
+
+### Fixes
+
+- **Mail**: Hide the server scheduled folder when the virtual one is shown (#495)
+- **Mail**: Stop the unified mailbox from mutating client-returned email objects
+- **Composer**: HTML-escape sender and subject in the reply/forward quote header (#482)
+- **Calendar**: Send calendar invites by setting `organizerCalendarAddress`
+- **Identity**: Sync the default identity (`preferredPrimaryId`) to server settings (#507)
+- **Auth**: Support MFA login via the structured auth endpoint
+- **Admin**: Show all built-in themes in the admin theme controls (#496)
+- **i18n**: Add missing translation keys across 19 locales
+
+## 1.7.5 (2026-06-24)
+
+### Features
+
+- **Mail**: Cross-account "All accounts" views with full group/shared-account support
+- **Mail**: Per-account "All Mail" folder selection
+- **Mail**: "Download all" button to bundle attachments into a zip (#466)
+- **Mail**: Return to the list after deleting or marking the open message unread — configurable (default on)
+- **Mail**: Collapse-all-threads action in thread-list selection
+- **Calendar**: Option to disable the calendar
+- **Composer**: Send-now button on scheduled/delayed messages
+- **Composer**: Email a contact or group via the in-app composer
+- **Composer**: Split a pasted address list into recipient chips
+- **Contacts**: "New address book" creation UI (#415)
+- **OAuth**: `OAUTH_AUTHORIZE_URL` to override the authorize endpoint
+- **i18n**: Farsi (fa) locale — complete (2654 strings)
+- **i18n**: Romanian (ro) locale
+
+### Fixes
+
+- **Composer**: Keep HTML signature styling in the editor and on send
+- **Composer**: Guard Send against double-submit
+- **Composer**: Strip display names from the `EmailSubmission` envelope addresses
+- **Calendar**: Disable iMIP scheduling on calendar import (#411)
+- **Mail**: Localize special-folder names by JMAP role (#404)
+- **Mail**: Block remaining email tracking vectors (#457)
+- **Mail**: Route counter and unread updates to the email's own account in aggregate views
+- **Mail**: Fix blank space in plain-text emails
+- **Mail**: Fix toolbar re-render when opening emails
+- **Mail**: Truncate long subjects so they don't overlap the timestamp
+- **Mail**: Strip reply/forward prefixes followed by a full-width colon
+- **Mail**: Add breathing room between the unread dot and the avatar
+- **Mail**: Isolate per-account state snapshots from leakage and mutation
+- **Mail**: Cap filename tokens at the full 200-char limit
+- **Spam**: Fetch mailboxes with `accountId` in `markAsSpam`
+- **Filters**: Load mailboxes when opened directly (#485)
+- **Settings**: Surface server errors on password change and TOTP toggle
+- **Send now**: Gate the toolbar label and translate `send_now` across locales
+- **Directory**: Fix fetching display names
+- **Push**: Reap only relay-confirmed-dead leftover subscriptions
+- **i18n**: Add the missing fa locale to the client `IntlProvider` messages map
+- **i18n**: Add missing translation keys across 19 locales
+
+## 1.7.4 (2026-06-15)
+
+### Features
+
+- **Mail**: New "All Mail" view across folders and accounts
+- **Mail**: Edit contact directly from the email viewer contact sidebar
+- **Calendar**: Recurrence editor, set-default calendar, and timezone-aware calendar queries
+- **Calendar**: Agenda plugin sidecar
+- **Composer**: Email display name support
+- **Composer**: Drag-and-drop recipient chips between To/CC/BCC fields, with the address shown in the drag preview
+- **Composer**: Avatars in recipient autocomplete suggestions, including directory users
+- **Files**: JMAP file/folder sharing in the Files app (#408)
+- **Auth**: QR-code SSO login and device pairing between webmail and the mobile app
+- **Auth**: Require re-authentication for device pairing and SSO
+- **Accounts**: Manage shared/group account settings from the Accounts page
+- **Setup**: Opt-in telemetry in the web setup wizard
+- **Mail**: Persist the email detail sidebar state
+
+### Fixes
+
+- **Mail**: Preserve line breaks in the generated `text/plain` alternative (#421)
+- **Mail**: Fix inconsistent threading of email messages in the inbox and folders
+- **Mail**: Stop draft emails from being marked as unread
+- **Mail**: Prevent wide email tables from rendering with rotated headers (#409)
+- **Mail**: Preserve the folder list when a mailbox refetch hits the concurrent-request limit
+- **Mail**: Correct dark-mode background-image inversion and height clipping in the email viewer
+- **Calendar**: Dedupe scheduling emails and use Stalwart-compatible calendar filters
+- **Calendar**: Redesign the custom recurrence editor to match the modal UI
+- **Files**: Don't send the connected-account key as the JMAP `accountId` when sharing files (#408)
+- **Routing**: Strip the build-time `basePath` from `router.push` redirects after login (#390)
+- **Nav**: Open recent contact emails at `/` instead of 404ing on `/mail`
+- **Nav**: Hide the Add App button when `sidebarAppsEnabled` is false
+- **Settings**: Move the "Plain Text Only" setting from Reading to Composing (#422)
+- **Privacy**: Make telemetry opt-in
+- **UI**: Fix the context menu being invisible on first right-click after page load
+- **Admin**: Remove the JMAP status from the admin dashboard
+- **i18n**: Add missing translation keys across 17 locales
+
+## 1.7.3 (2026-06-04)
+
+### Features
+
+- **Mail**: Inline attachment preview — reliable MIME detection with inline PDF on desktop and mobile
+- **Mail**: Preview composer attachments inline (click to open)
+- **Mail**: Preview `.eml` (`message/rfc822`) attachments like an email
+- **Mail**: Read receipts (MDN, RFC 8098)
+- **Mail**: Editable, layout-preserving quote island when replying
+- **Mail**: Surface the most severe SPF result and hide the "via" badge on spoofed mail
+- **Calendar**: Per-viewer colors for shared calendars (#345)
+- **Filters**: Extended filter rules — attachment field and multi-value conditions
+- **Settings**: New built-in themes — Aurora Glass and Elastic
+- **Settings**: Theme cards render as a mini mailbox mockup from theme colors, with light/dark variant chips
+- **Plugins**: Localizable sandboxed plugins (manifest locales + `api.i18n.t`)
+- **Plugins**: `/api/translate` proxy and email body exposed to plugins
+- **Admin**: Toggle for search-engine indexing (robots)
+- **Admin**: `passwordHashFile` in `admin.json`
+- **Admin**: `sessionSecretFile` and `oauthClientSecretFile` for file-based secrets in JSON config
+- **PWA**: Configurable install screenshots (per-domain)
+- **i18n**: Hungarian locale support
+
+### Fixes
+
+- **Files**: Store Files as real `FileNode` hierarchy, migrate legacy flat-named files on load, and list folders via `FileNode/get` so they are visible (#379)
+- **Files**: Treat a blob-less `FileNode` as the only folder signal and migrate legacy dir-markers
+- **Mail**: Empty Trash for shared and group folders (#387)
+- **Mail**: Move mail from a shared group inbox to a personal inbox (#375)
+- **Mail**: Preserve the HTML signature when sending a quick reply
+- **Mail**: Stop body clipping under the fold when the email sets `html`/`body` `height: 100%`
+- **Mail**: Drop single-letter `R:`/`I:` subject prefix tokens and deduplicate localized reply/forward prefixes
+- **Mail**: No more 404 console spam for missing sender favicons
+- **Auth**: Discover OIDC metadata server-side to avoid CORS failures (#382)
+- **Send**: Route the Sent copy to the shared-mailbox account on per-identity send
+- **Routing**: Honour `basePath` in the plugin sandbox, `http.post` proxy, and branding
+- **i18n**: Localize the PWA install prompt, reply/forward quote header (incl. sender address), `<html lang>`, and per-locale `<head>` description; add missing `settings.folders.role_memos` key
+- **Themes**: Plugin slot iframes inherit host font and color tokens
+- **Theme**: Gate preview "open in new tab" on inline-safe MIME types
+- **Appearance**: Move Themes settings into the Appearance category with a distinct tab icon; clicking the active theme is a no-op
+- **UI**: Fix invisible dark-mode borders (border token collided with secondary)
+- **UI**: Remove the 16px empty strip beside the collapsed sidebar
+- **UI**: Align top bars to a uniform `h-14` height and the account selector header to the search/reply toolbars
+- **UI**: Close pane gaps by centering the resize handle on the seam
+- **Settings**: Fix section gears permanently hijacking the active tab
+
+## 1.7.2 (2026-05-28)
+
+### Features
+
+- **Mail**: Scheduled send and send delay (#322)
+- **Mail**: Drag emails out to the file explorer as `.eml`
+- **Mail**: Import emails from `.zip` archives
+- **Mail**: "Move to Trash and mark as read" delete action (#323)
+- **Mail**: Include group inboxes in the unified mailbox view (#328)
+- **Mail**: Locale-aware date format in the email list with a preset picker (#331)
+- **Mail**: Allow drag-and-drop into shared mailboxes
+- **Composer**: Ctrl/Cmd+Enter sends the open draft
+- **Settings**: New Downloads tab with template editor for `.eml` and attachment filenames
+- **Settings**: Filename transform settings and an ASCII-only "date (from-to) subject" template
+- **Settings**: Post-export action (keep / archive / trash)
+- **Settings**: Template for multi-email `.zip` filenames
+- **Admin**: Per-domain branding editor with overrides on `/api/config`, manifest, and PWA icon (#332)
+- **Admin**: Policy-controlled push relay URL with optional user lock
+- **i18n**: `NEXT_PUBLIC_DEFAULT_LOCALE` for fallback UI locale (#243)
+
+### Fixes
+
+- **Mail**: Editable HTML signature in new mail; clean state on every compose entry (#329)
+- **Mail**: Report real upload progress with XHR progress events (#333)
+- **Mail**: Restore `blob:` in `object-src` and `frame-src` CSP for PDF/HTML previews
+- **Mail**: Match user-avatar treatment on quick reply
+- **Email viewer**: Stop shattering table cells with `word-break: break-word`
+- **Composer**: Scope Ctrl/Cmd+Enter send to the focused composer
+- **Composer**: Stop closing the form when editing any field
+- **Pro**: Keep the empty viewer pane visible in the split layout
+- **Pro**: Prevent an empty main pane when reordering tabs across panes
+- **Mobile**: Collapse focus mail layout to multi-line
+- **Mobile**: Keep a gutter on bare-HTML and plain-text emails
+- **Calendar**: Align continued multi-week events with the week's left edge
+- **Calendar**: Show the end date in the event popover for multi-day events (#318)
+- **Calendar**: Convert `recurrenceRules` to singular in batch create
+- **Calendar**: Handle malformed event dates (#316)
+- **Files**: Stop URL-encoding drag-out filenames and preserve Unicode letters
+- **Routing**: Prefix remaining `<img>`, favicon, and WebDAV URLs with `basePath` (#319)
+- **Routing**: Prefix hand-written URLs with `basePath` for subpath deployments
+- **Auth**: `OAUTH_ALLOW_PRIVATE_ENDPOINTS` for split-DNS setups
+
+### i18n
+
+- Add missing translation keys across 16 locales
+
 ## 1.7.1 (2026-05-22)
 
 ### Features

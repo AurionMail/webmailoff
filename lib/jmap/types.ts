@@ -3,6 +3,25 @@ export interface EmailHeader {
   value: string;
 }
 
+/**
+ * A session-visible account (the user's own primary account plus any
+ * shared/group accounts delegated to them), tagged with the capabilities it
+ * advertises. Produced by client.getSharedAccounts(); drives the settings
+ * "Shared with me" list and the scoped-settings tab gating.
+ */
+export interface SharedAccount {
+  id: string;
+  name: string;
+  isPrimary: boolean;
+  capabilities: {
+    mail: boolean;
+    sieve: boolean;
+    calendars: boolean;
+    contacts: boolean;
+    filenode: boolean;
+  };
+}
+
 export interface Email {
   id: string;
   threadId: string;
@@ -39,9 +58,59 @@ export interface Email {
   // S/MIME support
   blobId?: string;
   bodyStructure?: EmailBodyPart;
-  // Unified mailbox support - set when displaying emails from multiple accounts
+  // Unified mailbox support - set when displaying emails from multiple accounts.
+  // `accountId` is a DISPLAY-only reference (avatar color / label / badge) and may
+  // hold either an AccountEntry.id (personal) or the JMAP owner id (shared). For
+  // resolving the client + JMAP routing use the two dedicated fields below, which
+  // are always set on aggregated emails and unambiguous.
   accountId?: string;
   accountLabel?: string;
+  // AccountEntry.id of the logged-in client through which this email is reachable.
+  // Always a real login key → `useAuthStore.getClientForAccount(...)` resolves it.
+  // For personal sources this equals the account itself; for shared/group sources
+  // it is the delegating login (the shared account has no own login).
+  sourceClientAccountId?: string;
+  // JMAP account id of the email's owning account (personal: the client's primary;
+  // shared/group: the owner account). Always safe to pass as the JMAP `accountId`
+  // argument — equal to the client's primary for personal sources, so it is a no-op
+  // there, and triggers owner-scoped routing + mailbox-id namespacing for shared.
+  sourceAccountId?: string;
+  // Name of the email's originating folder, stamped for the aggregate "All …"
+  // views (All Mail, unified, cross-account) so the list can show where each
+  // message lives. Transient/client-only, not part of the JMAP object.
+  sourceFolder?: string;
+  // Client-only scheduled-send metadata, populated from EmailSubmission/query.
+  scheduledSendAt?: string;
+  emailSubmissionId?: string;
+  scheduledIdentityId?: string;
+  scheduledUndoStatus?: 'pending' | 'final' | 'canceled';
+  scheduledDeliveryStatus?: Record<string, DeliveryStatus>;
+  isScheduled?: boolean;
+  isSmimeScheduled?: boolean;
+}
+
+export interface SendEmailResult {
+  scheduled: boolean;
+  emailId?: string;
+  emailSubmissionId?: string;
+  sendAt?: string;
+  isSmime?: boolean;
+  /**
+   * Set when the submission succeeded but a post-send step was rejected
+   * (the implicit onSuccessUpdateEmail filing patch, or destroying the
+   * old draft). The mail left the server - callers should warn, not fail.
+   */
+  filingError?: string;
+}
+
+export interface ScheduledEmail extends Email {
+  scheduledSendAt: string;
+  emailSubmissionId: string;
+  scheduledIdentityId: string;
+  scheduledUndoStatus: 'pending' | 'final' | 'canceled';
+  scheduledDeliveryStatus?: Record<string, DeliveryStatus>;
+  isScheduled: true;
+  isSmimeScheduled: boolean;
 }
 
 export interface AuthenticationResults {
@@ -49,6 +118,16 @@ export interface AuthenticationResults {
     result: 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
     domain?: string;
     ip?: string;
+    /**
+     * All SPF results when the server evaluated multiple identities (HELO and
+     * MAIL FROM). Present only when more than one result was found; `result`
+     * above is the most severe of these.
+     */
+    all?: Array<{
+      result: 'pass' | 'fail' | 'softfail' | 'neutral' | 'none' | 'temperror' | 'permerror';
+      domain?: string;
+      identity?: 'helo' | 'mailfrom';
+    }>;
   };
   dkim?: {
     result: 'pass' | 'fail' | 'policy' | 'neutral' | 'temperror' | 'permerror';
@@ -144,6 +223,7 @@ export interface ThreadGroup {
   participantNames: string[];// Unique participant names
   hasUnread: boolean;        // Any unread emails in thread
   hasStarred: boolean;       // Any starred emails in thread
+  hasPinned: boolean;        // Any pinned emails in thread ($pinned keyword)
   hasAttachment: boolean;    // Any email has attachment
   hasAnswered: boolean;      // Any email has been replied to
   hasForwarded: boolean;     // Any email has been forwarded
@@ -462,6 +542,10 @@ export interface Calendar {
   // can route mutations to the right client. Distinct from `accountId`
   // which is the JMAP server's own account UUID.
   localAccountId?: string;
+  // Set when `color` has been replaced by the viewer's local override for a
+  // shared calendar (see lib/shared-calendar-colors). When true, the override
+  // wins over per-event colors so the whole shared calendar paints uniformly.
+  colorIsLocalOverride?: boolean;
 }
 
 export interface CalendarRights {
@@ -751,7 +835,37 @@ export interface FileNode {
   blobId: string | null;
   size: number;
   created: string;
-  updated: string;
+  // Last content/metadata change, server-maintained. The property is named
+  // `modified` in draft-ietf-jmap-filenode and in Stalwart - there is no
+  // `updated` on a FileNode. Asking for the wrong name silently yields
+  // undefined, which made the UI show the creation date forever (#700).
+  modified: string;
+  // JMAP Sharing (RFC 9670). Populated only when the server advertises the
+  // filenode capability and the properties are explicitly requested. A node is
+  // shared-out when `shareWith` has entries; `myRights` describes what the
+  // viewer may do (always full rights on owned nodes).
+  myRights?: FileNodeRights;
+  shareWith?: Record<string, FileNodeRights> | null;
+  // True when this node was fetched from another principal's account that was
+  // shared with the logged-in user (mirrors Calendar.isShared / AddressBook.isShared).
+  isShared?: boolean;
+  // Owning account's JMAP id and display name, set when aggregating nodes
+  // across connected/shared accounts so mutations route to the right account.
+  accountId?: string;
+  accountName?: string;
+  // Local account-store id (per JMAP connection) in multi-account contexts.
+  // See Calendar.localAccountId.
+  localAccountId?: string;
+}
+
+// FileNode rights as defined by Stalwart's JmapSharedObject implementation.
+export interface FileNodeRights {
+  mayRead: boolean;
+  mayAddChildren: boolean;
+  mayRename: boolean;
+  mayDelete: boolean;
+  mayModifyContent: boolean;
+  mayShare: boolean;
 }
 
 export interface FileNodeFilter {
@@ -786,3 +900,39 @@ export const UNIFIED_ROLE_BY_ID: Record<string, UnifiedMailboxRole> = Object.fro
 export function isUnifiedMailboxId(id: string): boolean {
   return id in UNIFIED_ROLE_BY_ID;
 }
+
+/**
+ * Cross views shown in the unified ("Unified Mailbox") section: All mail /
+ * Unread / Starred. Each merges messages across the account boundary (the active
+ * account + its shared folders by default, or every logged-in account when the
+ * cross-account sub-option is on), narrowed by the user's folder selection (see
+ * `allMailFolderIds`). Distinct from the per-role unified ids (one role across
+ * accounts).
+ */
+export const CROSS_UNREAD = '__cross_unread__';
+export const CROSS_STARRED = '__cross_starred__';
+export const CROSS_ALL = '__cross_all__';
+
+export type CrossView = 'unread' | 'starred' | 'all';
+
+export const CROSS_VIEW_IDS: Record<CrossView, string> = {
+  unread: CROSS_UNREAD,
+  starred: CROSS_STARRED,
+  all: CROSS_ALL,
+};
+
+export const CROSS_VIEW_BY_ID: Record<string, CrossView> = Object.fromEntries(
+  Object.entries(CROSS_VIEW_IDS).map(([view, id]) => [id, view as CrossView])
+) as Record<string, CrossView>;
+
+export function isCrossViewId(id: string): boolean {
+  return id in CROSS_VIEW_BY_ID;
+}
+
+/**
+ * Mailbox roles excluded from the cross-account views. Everything else (inbox
+ * and custom/no-role folders) is included.
+ */
+export const CROSS_EXCLUDED_ROLES: ReadonlySet<string> = new Set([
+  'junk', 'sent', 'archive', 'trash', 'drafts',
+]);

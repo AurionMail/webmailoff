@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { X, Loader2, UserPlus, Trash2, Users, ChevronDown } from "lucide-react";
 import type { IJMAPClient } from "@/lib/jmap/client-interface";
-import type { Principal, CalendarRights, AddressBookRights } from "@/lib/jmap/types";
+import type { Principal, CalendarRights, AddressBookRights, FileNodeRights } from "@/lib/jmap/types";
 import { toast } from "@/stores/toast-store";
 
-type ShareKind = "calendar" | "addressBook";
-type AnyRights = CalendarRights | AddressBookRights;
+type ShareKind = "calendar" | "addressBook" | "file";
+type AnyRights = CalendarRights | AddressBookRights | FileNodeRights;
 
 type RolePreset = "freeBusy" | "read" | "readWrite" | "manager" | "custom";
 
@@ -39,6 +39,21 @@ const ADDRESS_BOOK_PRESETS: Record<Exclude<RolePreset, "custom" | "freeBusy">, A
   manager: { mayRead: true, mayWrite: true, mayShare: true, mayDelete: true },
 };
 
+const FILE_PRESETS: Record<Exclude<RolePreset, "custom" | "freeBusy">, FileNodeRights> = {
+  read: {
+    mayRead: true, mayAddChildren: false, mayRename: false,
+    mayDelete: false, mayModifyContent: false, mayShare: false,
+  },
+  readWrite: {
+    mayRead: true, mayAddChildren: true, mayRename: true,
+    mayDelete: true, mayModifyContent: true, mayShare: false,
+  },
+  manager: {
+    mayRead: true, mayAddChildren: true, mayRename: true,
+    mayDelete: true, mayModifyContent: true, mayShare: true,
+  },
+};
+
 function detectCalendarPreset(r: CalendarRights): RolePreset {
   for (const [name, preset] of Object.entries(CALENDAR_PRESETS) as [Exclude<RolePreset, "custom">, CalendarRights][]) {
     if ((Object.keys(preset) as (keyof CalendarRights)[]).every((k) => preset[k] === r[k])) {
@@ -56,6 +71,29 @@ function detectAddressBookPreset(r: AddressBookRights): RolePreset {
     }
   }
   return "custom";
+}
+
+function detectFilePreset(r: FileNodeRights): RolePreset {
+  for (const [name, preset] of Object.entries(FILE_PRESETS) as [Exclude<RolePreset, "custom" | "freeBusy">, FileNodeRights][]) {
+    const keys = Object.keys(preset) as (keyof FileNodeRights)[];
+    if (keys.every((k) => preset[k] === (r[k] ?? false))) {
+      return name;
+    }
+  }
+  return "custom";
+}
+
+function presetRights(kind: ShareKind, preset: RolePreset): AnyRights | undefined {
+  if (preset === "custom") return undefined;
+  if (kind === "calendar") return CALENDAR_PRESETS[preset as keyof typeof CALENDAR_PRESETS];
+  if (kind === "file") return FILE_PRESETS[preset as keyof typeof FILE_PRESETS];
+  return ADDRESS_BOOK_PRESETS[preset as keyof typeof ADDRESS_BOOK_PRESETS];
+}
+
+function detectPreset(kind: ShareKind, rights: AnyRights): RolePreset {
+  if (kind === "calendar") return detectCalendarPreset(rights as CalendarRights);
+  if (kind === "file") return detectFilePreset(rights as FileNodeRights);
+  return detectAddressBookPreset(rights as AddressBookRights);
 }
 
 interface ShareCollectionDialogProps {
@@ -126,9 +164,7 @@ export function ShareCollectionDialog({
 
   const handleSetRights = async (principalId: string, preset: RolePreset) => {
     if (preset === "custom") return; // custom is read-only here
-    const rights = kind === "calendar"
-      ? CALENDAR_PRESETS[preset as keyof typeof CALENDAR_PRESETS]
-      : ADDRESS_BOOK_PRESETS[preset as keyof typeof ADDRESS_BOOK_PRESETS];
+    const rights = presetRights(kind, preset);
     if (!rights) return;
     setSavingId(principalId);
     try {
@@ -154,10 +190,8 @@ export function ShareCollectionDialog({
   };
 
   const handleAdd = async (principal: Principal) => {
-    const defaultPreset: RolePreset = "read";
-    const rights = kind === "calendar"
-      ? CALENDAR_PRESETS[defaultPreset]
-      : ADDRESS_BOOK_PRESETS[defaultPreset];
+    const rights = presetRights(kind, "read");
+    if (!rights) return;
     setSavingId(principal.id);
     try {
       await onShare(principal.id, rights);
@@ -226,9 +260,7 @@ export function ShareCollectionDialog({
             <ul className="divide-y divide-border rounded-md border border-border overflow-hidden">
               {sharedEntries.map(([principalId, rights]) => {
                 const principal = allPrincipalsById.get(principalId);
-                const preset = kind === "calendar"
-                  ? detectCalendarPreset(rights as CalendarRights)
-                  : detectAddressBookPreset(rights as AddressBookRights);
+                const preset = detectPreset(kind, rights);
                 return (
                   <li key={principalId} className="flex items-center gap-3 px-3 py-2.5">
                     <Avatar
@@ -252,7 +284,7 @@ export function ShareCollectionDialog({
                         value={preset}
                         onChange={(e) => handleSetRights(principalId, e.target.value as RolePreset)}
                         disabled={savingId === principalId}
-                        className="appearance-none rounded-md border border-input bg-background pl-3 pr-8 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                        className="appearance-none rounded-md border border-input bg-background ps-3 pe-8 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                       >
                         {presetOptions.map((p) => (
                           <option key={p} value={p}>{t(`preset.${p}`)}</option>
@@ -286,7 +318,7 @@ export function ShareCollectionDialog({
               onClick={() => setShowAdd(true)}
               className="w-full"
             >
-              <UserPlus className="w-4 h-4 mr-2" />
+              <UserPlus className="w-4 h-4 me-2" />
               {t("add_person")}
             </Button>
           )}
@@ -304,7 +336,7 @@ export function ShareCollectionDialog({
               <div className="max-h-48 overflow-y-auto -mx-1">
                 {loadingPrincipals && (
                   <div className="flex items-center justify-center py-4 text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <Loader2 className="w-4 h-4 animate-spin me-2" />
                     {t("loading_principals")}
                   </div>
                 )}
@@ -318,7 +350,7 @@ export function ShareCollectionDialog({
                     key={p.id}
                     onClick={() => handleAdd(p)}
                     disabled={savingId === p.id}
-                    className="w-full text-left px-3 py-2 rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
+                    className="w-full text-start px-3 py-2 rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <Avatar

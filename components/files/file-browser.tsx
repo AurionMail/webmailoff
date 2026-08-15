@@ -11,7 +11,7 @@ import {
   AlertCircle, Star, Clock, FolderUp,
   FileArchive, FileSpreadsheet, Presentation, FileCode,
   Box, PenTool, Terminal as TerminalIcon, Database, Type as TypeIcon,
-  Menu,
+  Menu, Users, Share2,
 } from "lucide-react";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,9 @@ import { ResizeHandle } from "@/components/layout/resize-handle";
 import { Avatar } from "@/components/ui/avatar";
 import { getDroppedFilesAndFolders } from "@/lib/webdav/drop-utils";
 import type { FileResource } from "@/stores/file-store";
+import { ShareCollectionDialog } from "@/components/settings/share-collection-dialog";
+import type { IJMAPClient } from "@/lib/jmap/client-interface";
+import type { FileNodeRights } from "@/lib/jmap/types";
 
 type SortKey = "name" | "size" | "modified";
 type SortDir = "asc" | "desc";
@@ -95,6 +98,14 @@ interface FileBrowserProps {
   accountPickerMode?: boolean;
   /** Pro shell only: label of the currently-attached account, shown as a breadcrumb segment after Home. */
   accountLabel?: string | null;
+  /** JMAP client for the browsing account, used by the share dialog to list principals. */
+  client?: IJMAPClient | null;
+  /** Files account id of the browsing account; used to exclude self from the share picker. */
+  ownAccountId?: string | null;
+  /** True when the server supports JMAP Sharing (principals); gates the Share action. */
+  sharingEnabled?: boolean;
+  /** Add/update/remove a principal's share on a node. Set null rights to revoke. */
+  onShare?: (id: string, principalId: string, rights: FileNodeRights | null) => Promise<void>;
 }
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp", "ico", "avif"]);
@@ -230,6 +241,33 @@ function getGridIcon(resource: FileResource) {
   return getFileIconByName(resource.name, "lg");
 }
 
+// Small inline indicator: a node shared out by the user (shareWith has entries)
+// or a node shared *with* the user by another principal (isShared).
+function ShareBadge({ resource, t }: { resource: FileResource; t: (key: string) => string }) {
+  const sharedOut = !!resource.shareWith && Object.keys(resource.shareWith).length > 0;
+  if (resource.isShared) {
+    return (
+      <Share2
+        className="w-3.5 h-3.5 text-primary shrink-0"
+        aria-label={t("shared_with_me")}
+      >
+        <title>{t("shared_with_me")}</title>
+      </Share2>
+    );
+  }
+  if (sharedOut) {
+    return (
+      <Users
+        className="w-3.5 h-3.5 text-primary shrink-0"
+        aria-label={t("shared")}
+      >
+        <title>{t("shared")}</title>
+      </Users>
+    );
+  }
+  return null;
+}
+
 function Thumbnail({ name, getImageUrl: fetchUrl, size = "sm" }: {
   name: string;
   getImageUrl: (n: string) => Promise<string>;
@@ -342,11 +380,25 @@ export function FileBrowser({
   onSelectAccount,
   accountPickerMode,
   accountLabel,
+  client,
+  ownAccountId,
+  sharingEnabled,
+  onShare,
 }: FileBrowserProps) {
   const t = useTranslations("files");
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [shareTargetId, setShareTargetId] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // The share dialog is bound to a node id (not name) so its shareWith stays
+  // live after a share refresh re-derives the resource list.
+  const shareTarget = shareTargetId ? resources.find(r => r.id === shareTargetId) ?? null : null;
+  // A node is shareable when the server supports JMAP Sharing, the viewer owns
+  // it (not a shared-with-me node), and holds the mayShare right (owned nodes
+  // report full rights; treat missing myRights as allowed).
+  const canShare = useCallback((r: FileResource | null | undefined): boolean =>
+    !!(sharingEnabled && onShare && client && r && !r.isShared && (r.myRights?.mayShare ?? true)),
+    [sharingEnabled, onShare, client]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; name: string } | null>(null);
   const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showNewTextFile, setShowNewTextFile] = useState(false);
@@ -769,8 +821,8 @@ export function FileBrowser({
   const SortIndicator = ({ column }: { column: SortKey }) => {
     if (sortKey !== column) return null;
     return sortDir === "asc"
-      ? <ArrowUp className="w-3 h-3 inline ml-1" />
-      : <ArrowDown className="w-3 h-3 inline ml-1" />;
+      ? <ArrowUp className="w-3 h-3 inline ms-1" />
+      : <ArrowDown className="w-3 h-3 inline ms-1" />;
   };
 
   // Keyboard shortcuts
@@ -890,7 +942,7 @@ export function FileBrowser({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 -ml-2"
+            className="h-8 w-8 -ms-2"
             onClick={() => setNarrowSidebarOpen((v) => !v)}
             aria-label={t("open_folder_tree")}
           >
@@ -930,7 +982,7 @@ export function FileBrowser({
                 className="h-8"
                 onClick={() => onBatchDownload([...selectedResources].filter(n => !resources.find(r => r.name === n)?.isDirectory))}
               >
-                <Download className="w-4 h-4 mr-1" />
+                <Download className="w-4 h-4 me-1" />
                 {t("download")} ({[...selectedResources].filter(n => !resources.find(r => r.name === n)?.isDirectory).length})
               </Button>
               <Button
@@ -939,7 +991,7 @@ export function FileBrowser({
                 className="h-8 text-destructive hover:text-destructive"
                 onClick={() => onBatchDelete([...selectedResources])}
               >
-                <Trash2 className="w-4 h-4 mr-1" />
+                <Trash2 className="w-4 h-4 me-1" />
                 {t("delete")} ({selectedResources.size})
               </Button>
             </>
@@ -951,7 +1003,7 @@ export function FileBrowser({
               className="h-8"
               onClick={onPaste}
             >
-              <Clipboard className="w-4 h-4 mr-1" />
+              <Clipboard className="w-4 h-4 me-1" />
               {t("paste")} ({clipboard.names.length})
             </Button>
           )}
@@ -1105,7 +1157,7 @@ export function FileBrowser({
             className="h-7 text-destructive hover:text-destructive shrink-0"
             onClick={onRefresh}
           >
-            <RefreshCw className="w-3.5 h-3.5 mr-1" />
+            <RefreshCw className="w-3.5 h-3.5 me-1" />
             {t("retry")}
           </Button>
         </div>
@@ -1129,12 +1181,12 @@ export function FileBrowser({
             <span className="truncate">
               {t("uploading")} {uploadProgress.name}
               {uploadProgress.totalFiles > 1 && (
-                <span className="text-muted-foreground ml-1">
+                <span className="text-muted-foreground ms-1">
                   ({uploadProgress.current}/{uploadProgress.totalFiles})
                 </span>
               )}
             </span>
-            <span className="ml-auto tabular-nums shrink-0 flex items-center gap-2">
+            <span className="ms-auto tabular-nums shrink-0 flex items-center gap-2">
               {uploadProgress.total > 0
                 ? `${Math.round((uploadProgress.loaded / uploadProgress.total) * 100)}%`
                 : "…"}
@@ -1215,7 +1267,7 @@ export function FileBrowser({
         )}
         {/* Favorites & Recent sidebar (when layout is inline) */}
         {folderLayout === "inline" && (favorites.length > 0 || recentFiles.length > 0) && (
-          <div className="w-48 border-r border-border bg-background overflow-y-auto shrink-0 hidden lg:block">
+          <div className="w-48 border-e border-border bg-background overflow-y-auto shrink-0 hidden lg:block">
             {favorites.length > 0 && (
               <div className="p-3">
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -1228,7 +1280,7 @@ export function FileBrowser({
                       key={fav}
                       onClick={() => onNavigate(fav)}
                       className={cn(
-                        "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted transition-colors text-left",
+                        "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted transition-colors text-start",
                         currentPath === fav && "bg-muted font-medium"
                       )}
                     >
@@ -1249,7 +1301,7 @@ export function FileBrowser({
                   {recentFiles.slice(0, 10).map((recent) => (
                     <button
                       key={recent.id}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted transition-colors text-start"
                       title={recent.name}
                     >
                       <File className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -1270,14 +1322,14 @@ export function FileBrowser({
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground">
+                <th className="text-start px-4 py-2 font-medium text-muted-foreground">
                   <div className="flex items-center gap-3">
                     <div className="w-4 h-4" />
                     {t("name")}
                   </div>
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground hidden md:table-cell w-24">{t("size")}</th>
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground hidden lg:table-cell w-44">{t("modified")}</th>
+                <th className="text-start px-4 py-2 font-medium text-muted-foreground hidden md:table-cell w-24">{t("size")}</th>
+                <th className="text-start px-4 py-2 font-medium text-muted-foreground hidden lg:table-cell w-44">{t("modified")}</th>
                 <th className="w-10 px-2 py-2" />
               </tr>
             </thead>
@@ -1302,7 +1354,7 @@ export function FileBrowser({
                   key={`__account__:${acc.accountId}`}
                   onClick={() => onSelectAccount(acc.accountId)}
                   title={acc.email}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left min-w-0"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors text-start min-w-0"
                 >
                   <Avatar
                     name={acc.label}
@@ -1440,8 +1492,9 @@ export function FileBrowser({
                     {showThumbnails && isImageFile(resource.name)
                       ? <Thumbnail name={resource.name} getImageUrl={getImageUrl} size="lg" />
                       : getGridIcon(resource)}
-                    <span className="text-xs truncate w-full text-center" title={resource.name}>
-                      {resource.name}
+                    <span className="text-xs truncate w-full text-center flex items-center justify-center gap-1" title={resource.name}>
+                      <span className="truncate">{resource.name}</span>
+                      <ShareBadge resource={resource} t={t} />
                     </span>
                   </div>
                 ))}
@@ -1461,7 +1514,7 @@ export function FileBrowser({
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground">
+                <th className="text-start px-4 py-2 font-medium text-muted-foreground">
                   <div className="flex items-center gap-3">
                     <input
                       type="checkbox"
@@ -1477,13 +1530,13 @@ export function FileBrowser({
                     </button>
                   </div>
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground hidden md:table-cell w-24">
+                <th className="text-start px-4 py-2 font-medium text-muted-foreground hidden md:table-cell w-24">
                   <button onClick={() => handleSortClick("size")} className="hover:text-foreground transition-colors">
                     {t("size")}
                     <SortIndicator column="size" />
                   </button>
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground hidden lg:table-cell w-44">
+                <th className="text-start px-4 py-2 font-medium text-muted-foreground hidden lg:table-cell w-44">
                   <button onClick={() => handleSortClick("modified")} className="hover:text-foreground transition-colors">
                     {t("modified")}
                     <SortIndicator column="modified" />
@@ -1590,6 +1643,7 @@ export function FileBrowser({
                         ? <Thumbnail name={resource.name} getImageUrl={getImageUrl} size="sm" />
                         : getFileIcon(resource)}
                       <span className="truncate">{resource.name}</span>
+                      <ShareBadge resource={resource} t={t} />
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell tabular-nums">
@@ -1627,7 +1681,7 @@ export function FileBrowser({
           >
             {!resources.find(r => r.name === contextMenu.name)?.isDirectory && isPreviewable(contextMenu.name) && (
               <button
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
                 onClick={() => {
                   if (isImageFile(contextMenu.name)) {
                     onPreviewImage(contextMenu.name);
@@ -1643,7 +1697,7 @@ export function FileBrowser({
             )}
             {!resources.find(r => r.name === contextMenu.name)?.isDirectory && (
               <button
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
                 onClick={() => {
                   onDownload(contextMenu.name);
                   setContextMenu(null);
@@ -1654,7 +1708,7 @@ export function FileBrowser({
               </button>
             )}
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 onCut([contextMenu.name]);
                 setContextMenu(null);
@@ -1664,7 +1718,7 @@ export function FileBrowser({
               {t("cut")}
             </button>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 onCopy([contextMenu.name]);
                 setContextMenu(null);
@@ -1675,7 +1729,7 @@ export function FileBrowser({
             </button>
             {clipboard && (
               <button
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
                 onClick={() => {
                   onPaste();
                   setContextMenu(null);
@@ -1687,7 +1741,7 @@ export function FileBrowser({
             )}
             {!resources.find(r => r.name === contextMenu.name)?.isDirectory && (
               <button
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
                 onClick={() => {
                   onDuplicate(contextMenu.name);
                   setContextMenu(null);
@@ -1697,9 +1751,22 @@ export function FileBrowser({
                 {t("duplicate")}
               </button>
             )}
+            {canShare(resources.find(r => r.name === contextMenu.name)) && (
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
+                onClick={() => {
+                  const r = resources.find(res => res.name === contextMenu.name);
+                  if (r) setShareTargetId(r.id);
+                  setContextMenu(null);
+                }}
+              >
+                <Share2 className="w-4 h-4" />
+                {t("share")}
+              </button>
+            )}
             <div className="h-px bg-border my-1" />
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 onShowDetails(contextMenu.name);
                 setContextMenu(null);
@@ -1709,7 +1776,7 @@ export function FileBrowser({
               {t("details")}
             </button>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 setRenameTarget(contextMenu.name);
                 setContextMenu(null);
@@ -1719,7 +1786,7 @@ export function FileBrowser({
               {t("rename")}
             </button>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-destructive transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-destructive transition-colors text-start"
               onClick={() => {
                 onDelete(contextMenu.name);
                 setContextMenu(null);
@@ -1741,7 +1808,7 @@ export function FileBrowser({
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 setShowNewFolder(true);
                 setEmptyContextMenu(null);
@@ -1751,7 +1818,7 @@ export function FileBrowser({
               {t("new_folder")}
             </button>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 setShowNewTextFile(true);
                 setEmptyContextMenu(null);
@@ -1761,7 +1828,7 @@ export function FileBrowser({
               {t("new_text_file")}
             </button>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 fileInputRef.current?.click();
                 setEmptyContextMenu(null);
@@ -1771,7 +1838,7 @@ export function FileBrowser({
               {t("upload")}
             </button>
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 folderInputRef.current?.click();
                 setEmptyContextMenu(null);
@@ -1784,7 +1851,7 @@ export function FileBrowser({
               <>
                 <div className="h-px bg-border my-1" />
                 <button
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
                   onClick={() => {
                     onPaste();
                     setEmptyContextMenu(null);
@@ -1797,7 +1864,7 @@ export function FileBrowser({
             )}
             <div className="h-px bg-border my-1" />
             <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
               onClick={() => {
                 onRefresh();
                 setEmptyContextMenu(null);
@@ -1828,7 +1895,7 @@ export function FileBrowser({
                 return (
                   <button
                     key={folder.id}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-start"
                     onClick={() => {
                       onNavigate(folderPath, folder.id);
                       setBreadcrumbDropdown(null);
@@ -1859,7 +1926,7 @@ export function FileBrowser({
 
         {/* Details sidebar */}
         {showDetails && detailResource && (
-          <div role="complementary" aria-label={t("details")} className="w-64 border-l border-border bg-background p-4 overflow-y-auto shrink-0 hidden md:block">
+          <div role="complementary" aria-label={t("details")} className="w-64 border-s border-border bg-background p-4 overflow-y-auto shrink-0 hidden md:block">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium">{t("details")}</h3>
               <button onClick={onToggleDetails} className="text-muted-foreground hover:text-foreground">
@@ -1934,6 +2001,20 @@ export function FileBrowser({
             setRenameTarget(null);
           }}
           onCancel={() => setRenameTarget(null)}
+        />
+      )}
+
+      {/* Share dialog */}
+      {shareTarget && client && onShare && (
+        <ShareCollectionDialog
+          client={client}
+          kind="file"
+          collectionName={shareTarget.name}
+          shareWith={shareTarget.shareWith}
+          ownAccountId={ownAccountId || ""}
+          onShare={(principalId, rights) =>
+            onShare(shareTarget.id, principalId, rights as FileNodeRights | null)}
+          onClose={() => setShareTargetId(null)}
         />
       )}
     </div>

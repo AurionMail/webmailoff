@@ -33,12 +33,12 @@ class ConfigManager {
     this.adminConfig = await this.readJsonFile('config.json') || {};
     const policy = await this.readJsonFile('policy.json');
     if (policy) {
-      this.policyCache = {
+      this.policyCache = ConfigManager.normalizePolicy({
         ...DEFAULT_POLICY,
         ...policy,
         features: { ...DEFAULT_FEATURE_GATES, ...(policy.features || {}) },
         themePolicy: { ...DEFAULT_THEME_POLICY, ...(policy.themePolicy || {}) },
-      };
+      });
     } else {
       this.policyCache = { ...DEFAULT_POLICY };
     }
@@ -166,13 +166,26 @@ class ConfigManager {
    */
   async setPolicy(policy: SettingsPolicy): Promise<void> {
     assertWritable('update settings policy');
-    this.policyCache = {
+    this.policyCache = ConfigManager.normalizePolicy({
       ...DEFAULT_POLICY,
       ...policy,
       features: { ...DEFAULT_FEATURE_GATES, ...(policy.features || {}) },
       themePolicy: { ...DEFAULT_THEME_POLICY, ...(policy.themePolicy || {}) },
-    };
+    });
     await this.writeJsonFile('policy.json', this.policyCache as unknown as Record<string, unknown>);
+  }
+
+  /**
+   * Migrates deprecated feature gates forward. The standalone "All Mail" view
+   * (`allMailViewEnabled`) was folded into the unified "All mail" entry, so an
+   * admin who enabled it keeps that entry available via `crossAllViewEnabled`.
+   * Idempotent - safe to run on every load.
+   */
+  private static normalizePolicy(policy: SettingsPolicy): SettingsPolicy {
+    if (policy.features.allMailViewEnabled) {
+      policy.features.crossAllViewEnabled = true;
+    }
+    return policy;
   }
 
   /**

@@ -203,6 +203,33 @@ async function registerWithRelay(params: {
   }
 }
 
+/**
+ * Ask the relay whether a leftover subscription is dead. Returns true ONLY when
+ * the relay positively reports it inactive - a record it knows about that has
+ * never forwarded a push and isn't freshly registered. Every other outcome (the
+ * relay doesn't recognise the id, an older relay without this endpoint, a
+ * network blip, or a live subscription) returns false, so we never reap
+ * anything we can't confirm is dead. This lets enableWebPush clear its own
+ * abandoned attempts - and dead siblings left by cleared site data that
+ * regenerated the deviceClientId - without disturbing another live device or
+ * the mobile app that shares the account.
+ */
+async function relayReportsDead(
+  relayBaseUrl: string,
+  subscriptionId: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      buildRelayUrl(relayBaseUrl, `/api/push/active/${encodeURIComponent(subscriptionId)}`),
+    );
+    if (!res.ok) return false;
+    const body = (await res.json()) as { active?: unknown };
+    return body.active === false;
+  } catch {
+    return false;
+  }
+}
+
 async function pollVerificationCode(
   relayBaseUrl: string,
   subscriptionId: string,
@@ -314,15 +341,29 @@ export async function enableWebPush(
     localStorage.removeItem(subIdKey);
   }
 
-  // Reap any leftover subscriptions still bound to this device. These pile
-  // up when a previous enable attempt failed mid-flow (verification timed
-  // out, browser tab closed, etc). Stalwart per-account rate-limits
-  // verification posts, so leaving stragglers around blocks the new one.
-  const stragglers = existingSubs.filter(
-    (s) => s.deviceClientId === deviceClientId && s.id !== storedServerId,
-  );
-  for (const s of stragglers) {
-    await params.client.destroyPushSubscription(s.id).catch(() => undefined);
+  // Reap leftover subscriptions that would otherwise starve the new one's
+  // verification. Stalwart emits only one PushVerification per account per ~60s
+  // and picks the oldest unverified subscription, so a single stale straggler
+  // blocks every fresh attempt - the symptom is the confusing "Timed out
+  // waiting for PushVerification" error. We can't read a subscription's
+  // verified state or URL over JMAP (Stalwart hides both), only its
+  // deviceClientId, so we decide what's safe to remove like this:
+  //   - same deviceClientId as ours: a previous attempt from THIS browser,
+  //     always safe to reap.
+  //   - a different deviceClientId: could be another live device or the mobile
+  //     app on this account. Ask the relay whether it's still alive and only
+  //     reap the ones it confirms are dead. Anything live - or anything the
+  //     relay can't vouch for (a different relay, a non-Bulwark client, a
+  //     network blip) - is left untouched.
+  for (const s of existingSubs) {
+    if (s.id === storedServerId) continue;
+    if (s.deviceClientId === deviceClientId) {
+      await params.client.destroyPushSubscription(s.id).catch(() => undefined);
+      continue;
+    }
+    if (await relayReportsDead(relayBaseUrl, s.deviceClientId)) {
+      await params.client.destroyPushSubscription(s.id).catch(() => undefined);
+    }
   }
 
   const serverAssignedId = await params.client.createPushSubscription({

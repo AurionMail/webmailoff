@@ -14,6 +14,7 @@ import { BUILTIN_THEMES } from '@/lib/builtin-themes';
 import { usePolicyStore } from '@/stores/policy-store';
 import { apiFetch } from '@/lib/browser-navigation';
 import { themeHooks } from '@/lib/plugin-hooks';
+import { syncThemeColorMeta } from '@/lib/theme-color-meta';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -68,6 +69,9 @@ const applyTheme = (theme: 'light' | 'dark') => {
 
   // Also update color-scheme for native elements (scrollbars, form controls)
   root.style.colorScheme = theme;
+
+  // Keep the PWA title bar in step with the mode switch (#671).
+  syncThemeColorMeta();
 
   localStorage.setItem('theme-applied', theme);
 };
@@ -451,10 +455,24 @@ export const useThemeStore = create<ThemeState>()(
       onRehydrateStorage: () => {
         return (state) => {
           if (state) {
-            // Ensure built-in themes are always present after rehydration
+            // Ensure built-in themes are always present after rehydration.
+            // Drop persisted themes that were flagged builtIn but no longer
+            // exist in BUILTIN_THEMES (e.g. a built-in removed from source) so
+            // stale built-ins don't survive as phantom "user" themes.
             const builtInIds = new Set(BUILTIN_THEMES.map(t => t.id));
-            const userThemes = state.installedThemes.filter(t => !builtInIds.has(t.id));
+            const userThemes = state.installedThemes.filter(
+              t => !builtInIds.has(t.id) && !t.builtIn
+            );
             state.installedThemes = [...BUILTIN_THEMES, ...userThemes];
+
+            // If the active theme pointed at a now-removed built-in, fall back
+            // to the default so the UI doesn't reference a missing theme.
+            if (
+              state.activeThemeId &&
+              !state.installedThemes.some(t => t.id === state.activeThemeId)
+            ) {
+              state.activeThemeId = null;
+            }
 
             // Re-apply theme immediately after rehydration
             const resolvedTheme = state.theme === 'system' ? getSystemTheme() : state.theme;

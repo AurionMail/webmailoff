@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, ReactNode } from "react";
+import { useState, useEffect, useMemo, Fragment, ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { PluginSlot } from "@/components/plugins/plugin-slot";
@@ -33,13 +33,27 @@ import {
   NotebookPen,
   CalendarClock,
   BellOff,
+  Mails,
+  MailOpen,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn, buildMailboxTree, MailboxNode } from "@/lib/utils";
+import { localizeMailboxName } from "@/lib/mailbox-label";
+import {
+  buildKeywordTree,
+  countKeywordNodes,
+  filterKeywordTree,
+  hasChildKeywords,
+  type KeywordNode,
+} from "@/lib/keyword-nesting";
+import { useShortenedText } from "@/hooks/use-shortened-text";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
+import { isEditableEventTarget } from "@/lib/keyboard";
 import { Mailbox } from "@/lib/jmap/types";
 import { useContextMenu } from "@/hooks/use-context-menu";
 import { MailboxContextMenu, type MailboxContextTarget } from "./mailbox-context-menu";
 import { useAccountStore } from '@/stores/account-store';
-import { UNIFIED_MAILBOX_IDS } from '@/lib/jmap/types';
+import { UNIFIED_MAILBOX_IDS, CROSS_VIEW_IDS } from '@/lib/jmap/types';
 import type { UnifiedMailboxRole } from '@/lib/jmap/types';
 import { useDragDropContext } from "@/contexts/drag-drop-context";
 import { useMailboxDrop } from "@/hooks/use-mailbox-drop";
@@ -47,12 +61,13 @@ import { useTagDrop } from "@/hooks/use-tag-drop";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useVacationStore } from "@/stores/vacation-store";
-import { useSettingsStore, KEYWORD_PALETTE, KeywordDefinition } from "@/stores/settings-store";
+import { useSettingsStore, getKeywordVisibility } from "@/stores/settings-store";
 import { useEmailStore } from "@/stores/email-store";
 import { toast } from "@/stores/toast-store";
 import { debug } from "@/lib/debug";
 import { AccountSwitcher } from "./account-switcher";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
+import { buildSettingsPath } from "@/lib/deep-links";
 import { useTour } from "@/components/tour/tour-provider";
 
 interface SidebarProps {
@@ -74,6 +89,17 @@ interface SidebarProps {
   onDeleteFolder?: (mailboxId: string) => void;
   onImportEmail?: (mailboxId: string) => void;
   onRefreshMailboxes?: () => void;
+  scheduledTotal?: number;
+  showScheduledMailbox?: boolean;
+  /** True when the unified view spans multiple login accounts (cross-account).
+   *  Drives the section header: "All accounts" when true, else "Unified Mailbox". */
+  crossAccountActive?: boolean;
+  /** Gated All mail / Unread / Starred entries in the "Unified Mailbox" section. */
+  showCrossUnread?: boolean;
+  showCrossStarred?: boolean;
+  showCrossAll?: boolean;
+  /** Unread total across all cross-view folders (badge for unread/all). */
+  crossUnreadCount?: number;
   className?: string;
   /**
    * Multi-account (Pro) mode props. When `multiAccountMode` is true, the
@@ -164,7 +190,6 @@ function getIconClass(isSelected: boolean, isVirtual: boolean, colorful: boolean
 function SidebarRowCounts({
   unread,
   total,
-  isSelected,
   onUnreadClick,
 }: {
   unread?: number;
@@ -172,8 +197,9 @@ function SidebarRowCounts({
   isSelected: boolean;
   onUnreadClick?: () => void;
 }) {
+  const showFolderTotalCount = useSettingsStore(s => s.showFolderTotalCount);
   const unreadCount = unread ?? 0;
-  const totalCount = total ?? 0;
+  const totalCount = showFolderTotalCount ? (total ?? 0) : 0;
 
   if (unreadCount === 0 && totalCount === 0) return null;
 
@@ -207,7 +233,13 @@ function SidebarRowCounts({
   ) : null;
 
   return (
-    <span className="ml-2 flex-shrink-0 flex items-baseline gap-1" title={`${unreadCount} unread / ${totalCount} total`}>
+    <span
+      className="ms-2 flex-shrink-0 flex items-baseline gap-1"
+      title={totalCount > 0 ? `${unreadCount} unread / ${totalCount} total` : `${unreadCount} unread`}
+      data-testid="folder-counts"
+      data-unread={unreadCount}
+      data-total={totalCount}
+    >
       {unreadNode}
       {unreadCount > 0 && totalCount > 0 && (
         <span className="text-xs text-muted-foreground/60">/</span>
@@ -220,6 +252,9 @@ function SidebarRowCounts({
 interface SidebarRowProps {
   icon: ReactNode;
   label: string;
+  /** Progressively shorter renderings of `label`, longest first. The widest one
+   *  that fits the row is shown; without this the full label is used. */
+  labelCandidates?: string[];
   depth?: number;
   isSelected?: boolean;
   isVirtual?: boolean;
@@ -235,11 +270,17 @@ interface SidebarRowProps {
   isValidDropTarget?: boolean;
   isInvalidDropTarget?: boolean;
   onContextMenu?: (e: React.MouseEvent) => void;
+  /** Stable identifiers for integration tests (not user-visible). */
+  testRole?: string | null;
+  testName?: string;
+  testMailboxId?: string;
+  testShared?: boolean;
 }
 
 function SidebarRow({
   icon,
   label,
+  labelCandidates,
   depth = 0,
   isSelected = false,
   isVirtual = false,
@@ -255,23 +296,33 @@ function SidebarRow({
   isValidDropTarget,
   isInvalidDropTarget,
   onContextMenu,
+  testRole,
+  testName,
+  testMailboxId,
+  testShared,
 }: SidebarRowProps) {
   const t = useTranslations('sidebar');
   const leftPad = isCollapsed ? 0 : ROW_PX_BASE + depth * INDENT_STEP;
+  const [labelRef, shortenedLabel] = useShortenedText(labelCandidates ?? [label]);
 
   return (
     <div
       {...(dropHandlers || {})}
       onContextMenu={onContextMenu}
+      data-testid="folder-row"
+      data-folder-role={testRole ?? undefined}
+      data-folder-name={testName ?? undefined}
+      data-mailbox-id={testMailboxId ?? undefined}
+      data-shared={testShared ? 'true' : undefined}
       style={{ paddingBlock: 'var(--density-sidebar-py)' }}
       className={cn(
         "group w-full flex items-center max-lg:min-h-[44px] text-sm transition-colors duration-150",
-        isCollapsed ? "justify-center px-1" : "pr-2",
+        isCollapsed ? "justify-center px-1" : "pe-2",
         isVirtual
           ? "text-muted-foreground"
           : isSelected
-            ? "bg-accent text-accent-foreground font-semibold border-l-2 border-primary"
-            : "hover:bg-muted/50 text-foreground border-l-2 border-transparent",
+            ? "bg-accent text-accent-foreground font-semibold border-s-2 border-primary"
+            : "hover:bg-muted/50 text-foreground border-s-2 border-transparent",
         isValidDropTarget && "bg-primary/20 ring-2 ring-primary ring-inset",
         isInvalidDropTarget && "bg-destructive/10 ring-2 ring-destructive/30 ring-inset opacity-50"
       )}
@@ -308,7 +359,7 @@ function SidebarRow({
         disabled={isVirtual}
         className={cn(
           "flex items-center gap-2 min-w-0 transition-colors",
-          isCollapsed ? "justify-center" : "flex-1 text-left",
+          isCollapsed ? "justify-center" : "flex-1 text-start",
           isVirtual && "cursor-default select-none"
         )}
         title={isCollapsed ? label : undefined}
@@ -318,7 +369,7 @@ function SidebarRow({
         </span>
         {!isCollapsed && (
           <>
-            <span className="flex-1 truncate">{label}</span>
+            <span ref={labelRef} className="flex-1 truncate">{shortenedLabel}</span>
             <SidebarRowCounts
               unread={unread}
               total={total}
@@ -342,6 +393,7 @@ function SidebarSectionHeader({
   first,
   icon,
   sub,
+  testId,
 }: {
   label: string;
   expanded: boolean;
@@ -352,6 +404,7 @@ function SidebarSectionHeader({
   first?: boolean;
   icon?: ReactNode;
   sub?: boolean;
+  testId?: string;
 }) {
   if (isCollapsed) {
     return first ? null : <div className="h-px bg-border/50 mx-2 my-2" aria-hidden />;
@@ -366,6 +419,9 @@ function SidebarSectionHeader({
   return (
     <button
       onClick={onToggle}
+      data-testid={testId}
+      data-section-name={label}
+      data-expanded={expanded ? 'true' : 'false'}
       className={cn(
         "group w-full flex items-center pb-1 select-none rounded-sm hover:bg-muted/40 transition-colors",
         paddingX,
@@ -377,8 +433,8 @@ function SidebarSectionHeader({
       ) : (
         <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
       )}
-      {icon && <span className="ml-1.5 flex-shrink-0">{icon}</span>}
-      <span className={cn(textClass, icon ? "ml-1.5" : "ml-1.5")}>
+      {icon && <span className="ms-1.5 flex-shrink-0">{icon}</span>}
+      <span className={cn(textClass, icon ? "ms-1.5" : "ms-1.5")}>
         {label}
       </span>
       {onSettings && (
@@ -396,7 +452,7 @@ function SidebarSectionHeader({
               onSettings();
             }
           }}
-          className="ml-auto p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+          className="ms-auto p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
           title={settingsTitle}
         >
           <Settings className="w-3.5 h-3.5" />
@@ -428,12 +484,14 @@ function MailboxTreeItem({
   onContextMenu?: (e: React.MouseEvent, node: MailboxNode) => void;
 }) {
   const tNotifications = useTranslations('notifications');
+  const tSidebar = useTranslations('sidebar');
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedFolders.has(node.id);
   const Icon = getIconForMailbox(node.role, node.name, hasChildren, isExpanded, node.isShared, node.id);
   const isVirtualNode = node.id.startsWith('shared-');
   const isSelected = selectedMailbox === node.id;
   const roleKey = resolveRoleKey(node.role, node.name);
+  const label = localizeMailboxName(node.role, node.name, (k) => tSidebar(`mailboxes.${k}`));
 
   const { isDragging: globalDragging } = useDragDropContext();
   const { dropHandlers, isValidDropTarget, isInvalidDropTarget } = useMailboxDrop({
@@ -460,7 +518,11 @@ function MailboxTreeItem({
     <>
       <SidebarRow
         icon={<Icon className={getIconClass(isSelected, isVirtualNode, colorful, roleKey)} />}
-        label={node.name}
+        label={label}
+        testRole={node.role}
+        testName={node.name}
+        testMailboxId={node.id}
+        testShared={node.isShared}
         depth={node.depth}
         isSelected={isSelected}
         isVirtual={isVirtualNode}
@@ -496,78 +558,120 @@ function MailboxTreeItem({
   );
 }
 
-const TAG_ICON_COLOR: Record<string, string> = {
-  red: "text-red-600/75 dark:text-red-400/75",
-  orange: "text-orange-600/75 dark:text-orange-400/75",
-  yellow: "text-yellow-600/75 dark:text-yellow-400/75",
-  green: "text-green-600/75 dark:text-green-400/75",
-  blue: "text-blue-600/75 dark:text-blue-400/75",
-  purple: "text-purple-600/75 dark:text-purple-400/75",
-  pink: "text-pink-600/75 dark:text-pink-400/75",
-  teal: "text-teal-600/75 dark:text-teal-400/75",
-  cyan: "text-cyan-600/75 dark:text-cyan-400/75",
-  indigo: "text-indigo-600/75 dark:text-indigo-400/75",
-  amber: "text-amber-600/75 dark:text-amber-400/75",
-  lime: "text-lime-600/75 dark:text-lime-400/75",
-  gray: "text-gray-500",
-};
+function ShowAllTagsRow({
+  hiddenCount,
+  showAll,
+  onToggle,
+  isCollapsed,
+}: {
+  hiddenCount: number;
+  showAll: boolean;
+  onToggle: () => void;
+  isCollapsed: boolean;
+}) {
+  const t = useTranslations('sidebar');
+
+  return (
+    <SidebarRow
+      icon={<MoreHorizontal className="w-4 h-4 text-muted-foreground" />}
+      label={showAll ? t('show_fewer_tags') : t('show_all_tags', { count: hiddenCount })}
+      depth={0}
+      onClick={onToggle}
+      isCollapsed={isCollapsed}
+    />
+  );
+}
 
 function TagItem({
-  kw,
-  isSelected,
+  node,
+  selectedKeyword,
+  expandedTags,
   isCollapsed,
   onTagSelect,
-  totalCount,
-  unreadCount,
+  onToggleExpand,
+  tagCounts,
   colorful,
 }: {
-  kw: KeywordDefinition;
-  isSelected: boolean;
+  node: KeywordNode;
+  selectedKeyword: string | null;
+  expandedTags: Set<string>;
   isCollapsed: boolean;
   onTagSelect?: (keywordId: string | null) => void;
-  totalCount: number;
-  unreadCount: number;
+  onToggleExpand: (keywordId: string) => void;
+  tagCounts: Record<string, { total: number; unread: number }>;
   colorful: boolean;
 }) {
   const t = useTranslations('notifications');
-  const palette = KEYWORD_PALETTE[kw.color];
+  const { tagNameCandidates, tagColor } = useKeywordFormat();
+  const palette = tagColor(node.id);
+  const hasChildren = node.children.length > 0;
+  const isExpanded = expandedTags.has(node.id);
+  const isSelected = selectedKeyword === node.id;
+  // Nested rows are placed by their indentation, so they show their own name.
+  // A root spells out its path, which matters when an intermediate tag is
+  // missing from this client's settings and the row would otherwise read as a
+  // bare leaf name.
+  const labelCandidates = node.depth === 0 ? tagNameCandidates(node.id) : [node.label];
+  const label = labelCandidates[0];
+  // Toasts have the room for the whole thing, and no indentation to lean on,
+  // so they always spell out the full path - otherwise two leaves with the
+  // same name in different branches (e.g. "Personal/Receipts" and
+  // "Work/Receipts") would read as the same tag.
+  const fullLabel = tagNameCandidates(node.id)[0];
   const { isDragging: globalDragging } = useDragDropContext();
   const { dropHandlers, isValidDropTarget } = useTagDrop({
-    tagId: kw.id,
-    onSuccess: (count, _tagLabel) => {
+    tagId: node.id,
+    onSuccess: (count) => {
       if (count === 1) {
-        toast.success(t('email_tagged'), kw.label);
+        toast.success(t('email_tagged'), fullLabel);
       } else {
-        toast.success(t('emails_tagged', { count }), kw.label);
+        toast.success(t('emails_tagged', { count }), fullLabel);
       }
     },
     onError: () => {
-      toast.error(t('tag_failed'), kw.label);
+      toast.error(t('tag_failed'), fullLabel);
     },
   });
 
   const tagIcon = colorful ? (
-    <Tag
-      className={cn("w-4 h-4 flex-shrink-0", TAG_ICON_COLOR[kw.color] || "text-muted-foreground")}
-      fill="currentColor"
-    />
+    <Tag className={cn("w-4 h-4 flex-shrink-0", palette.icon)} fill="currentColor" />
   ) : (
-    <span className={cn("w-3 h-3 rounded-full", palette?.dot || "bg-gray-400")} />
+    <span className={cn("w-3 h-3 rounded-full", palette.dot)} />
   );
 
   return (
-    <SidebarRow
-      icon={tagIcon}
-      label={kw.label}
-      depth={0}
-      isSelected={isSelected}
-      unread={unreadCount}
-      total={totalCount}
-      onClick={() => onTagSelect?.(isSelected ? null : kw.id)}
-      isCollapsed={isCollapsed}
-      dropHandlers={globalDragging ? (dropHandlers as Record<string, unknown>) : undefined}
-      isValidDropTarget={isValidDropTarget}
-    />
+    <>
+      <SidebarRow
+        icon={tagIcon}
+        label={label}
+        labelCandidates={labelCandidates}
+        depth={node.depth}
+        isSelected={isSelected}
+        unread={tagCounts[node.id]?.unread ?? 0}
+        total={tagCounts[node.id]?.total ?? 0}
+        onClick={() => onTagSelect?.(isSelected ? null : node.id)}
+        hasChildren={hasChildren}
+        isExpanded={isExpanded}
+        onExpandToggle={() => onToggleExpand(node.id)}
+        isCollapsed={isCollapsed}
+        dropHandlers={globalDragging ? (dropHandlers as Record<string, unknown>) : undefined}
+        isValidDropTarget={isValidDropTarget}
+      />
+
+      {hasChildren && isExpanded && !isCollapsed && node.children.map((child) => (
+        <TagItem
+          key={child.id}
+          node={child}
+          selectedKeyword={selectedKeyword}
+          expandedTags={expandedTags}
+          isCollapsed={isCollapsed}
+          onTagSelect={onTagSelect}
+          onToggleExpand={onToggleExpand}
+          tagCounts={tagCounts}
+          colorful={colorful}
+        />
+      ))}
+    </>
   );
 }
 
@@ -650,7 +754,7 @@ function VacationBanner() {
     >
       <Palmtree className="w-3.5 h-3.5 flex-shrink-0" />
       <span className="truncate font-medium">{t("vacation_active")}</span>
-      <Settings className="w-3 h-3 ml-auto flex-shrink-0 opacity-60" />
+      <Settings className="w-3 h-3 ms-auto flex-shrink-0 opacity-60" />
     </button>
   );
 }
@@ -674,6 +778,13 @@ export function Sidebar({
   onDeleteFolder,
   onImportEmail,
   onRefreshMailboxes,
+  scheduledTotal = 0,
+  showScheduledMailbox = false,
+  crossAccountActive = false,
+  showCrossUnread = false,
+  showCrossStarred = false,
+  showCrossAll = false,
+  crossUnreadCount = 0,
   className,
   multiAccountMode = false,
   accountMailboxes,
@@ -684,6 +795,8 @@ export function Sidebar({
   const { sidebarCollapsed: isCollapsed, toggleSidebarCollapsed } = useUIStore();
   const { primaryIdentity: _primaryIdentity, activeAccountId } = useAuthStore();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
+  const [showAllTags, setShowAllTags] = useState(false);
   const [foldersExpanded, setFoldersExpanded] = useState(() => {
     try {
       const stored = localStorage.getItem('sidebarFoldersExpanded');
@@ -726,6 +839,7 @@ export function Sidebar({
     return new Set();
   });
   const emailKeywords = useSettingsStore(s => s.emailKeywords);
+  const nestedTags = useSettingsStore(s => s.nestedTags);
   const isEmbedded = useIsEmbedded();
   // The Pro shell owns the global chrome (rail + tab bar), so the sidebar's
   // own AccountSwitcher would be a redundant second account UI in the same
@@ -789,9 +903,69 @@ export function Sidebar({
     });
   };
 
+  useEffect(() => {
+    const stored = localStorage.getItem('expandedTags');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setExpandedTags(new Set(parsed));
+      } catch (e) {
+        debug.error('Failed to parse expanded tags:', e);
+      }
+    } else {
+      setExpandedTags(
+        new Set(emailKeywords.filter((kw) => hasChildKeywords(kw.id, emailKeywords)).map((kw) => kw.id))
+      );
+    }
+  }, [emailKeywords]);
+
+  const handleToggleTagExpand = (keywordId: string) => {
+    setExpandedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(keywordId)) {
+        next.delete(keywordId);
+      } else {
+        next.add(keywordId);
+      }
+      try {
+        localStorage.setItem('expandedTags', JSON.stringify(Array.from(next)));
+      } catch { /* storage full or unavailable */ }
+      return next;
+    });
+  };
+
+  // When the app renders its own virtual "Scheduled" folder (for delayed
+  // sends, driven by EmailSubmission), hide the server-provided scheduled
+  // mailbox (e.g. Stalwart's auto-created Scheduled folder, role === 'scheduled')
+  // so it does not appear twice. (#495)
+  const isServerScheduledNode = (n: MailboxNode) => showScheduledMailbox && n.role === 'scheduled';
+
   const mailboxTree = buildMailboxTree(mailboxes);
-  const ownTree = mailboxTree.filter(n => !n.id.startsWith('shared-account-'));
+  const ownTree = mailboxTree.filter(n => !n.id.startsWith('shared-account-') && !isServerScheduledNode(n));
   const sharedAccounts = mailboxTree.filter(n => n.id.startsWith('shared-account-'));
+
+  // With nesting off every tag is its own root, so the same rows render through
+  // one path whether or not the ids describe a hierarchy.
+  const tagTree: KeywordNode[] = nestedTags
+    ? buildKeywordTree(emailKeywords)
+    : emailKeywords.map((kw) => ({ ...kw, children: [], depth: 0 }));
+
+  // Counts arrive from a separate JMAP round trip, one batch per group of tags;
+  // a tag with no count yet is treated as visible rather than blanking it and
+  // filling it back in. A tag the server answered for with zero unread hides,
+  // which is the point of the setting.
+  const isTagVisible = (node: KeywordNode) => {
+    if (showAllTags || node.id === selectedKeyword) return true;
+    const visibility = getKeywordVisibility(node);
+    if (visibility === 'hide') return false;
+    if (visibility === 'unread') {
+      const count = tagCounts[node.id];
+      return !count || count.unread > 0;
+    }
+    return true;
+  };
+  const visibleTagTree = filterKeywordTree(tagTree, isTagVisible);
+  const hiddenTagCount = emailKeywords.length - countKeywordNodes(visibleTagTree);
 
   // Multi-account mode (Pro shell): render every connected account as its
   // own collapsible group. The active account's tree comes from the
@@ -805,11 +979,27 @@ export function Sidebar({
           ? mailboxes
           : (accountMailboxes?.[account.id] ?? []);
         const tree = buildMailboxTree(accountMailboxList).filter(
-          (n) => !n.id.startsWith('shared-account-')
+          (n) => !n.id.startsWith('shared-account-') && !(isActive && isServerScheduledNode(n))
         );
         return { account, isActive, tree };
       })
     : [];
+
+  const renderScheduledRow = (key: string) => showScheduledMailbox ? (
+    <SidebarRow
+      key={key}
+      icon={<CalendarClock className="w-4 h-4 flex-shrink-0 text-sky-600 dark:text-sky-400" />}
+      label={t('scheduled')}
+      depth={0}
+      isSelected={!selectedKeyword && selectedMailbox === '__scheduled__'}
+      total={scheduledTotal}
+      onClick={() => onMailboxSelect?.('__scheduled__')}
+      isCollapsed={isCollapsed}
+      testRole="scheduled"
+      testName="scheduled"
+      testMailboxId="__scheduled__"
+    />
+  ) : null;
 
   const getUnifiedIcon = (role: UnifiedMailboxRole) => {
     switch (role) {
@@ -825,6 +1015,12 @@ export function Sidebar({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack Arrow keys while the user is typing. This is a global
+      // window listener, so without this guard typing in a new email (the
+      // contentEditable composer, the subject field, search, etc.) toggled the
+      // selected mailbox's subfolders open/closed on ArrowLeft/ArrowRight.
+      // composedPath-based so it also sees the QuotedHtml shadow island (#654).
+      if (isEditableEventTarget(e)) return;
       if (!selectedMailbox || isCollapsed) return;
 
       const findNode = (nodes: MailboxNode[]): MailboxNode | null => {
@@ -899,14 +1095,11 @@ export function Sidebar({
     });
   };
 
-  const openFolderSettings = () => {
-    try { localStorage.setItem('settings-active-tab', 'folders'); } catch { /* */ }
-    router.push('/settings');
-  };
-  const openKeywordSettings = () => {
-    try { localStorage.setItem('settings-active-tab', 'keywords'); } catch { /* */ }
-    router.push('/settings');
-  };
+  // The tab now travels in the URL (#733) rather than through sessionStorage,
+  // so a gear click is a link the user can also bookmark or share. It still
+  // steers only this one open - the persisted default is written on tab click.
+  const openFolderSettings = () => { router.push(buildSettingsPath('folders')); };
+  const openKeywordSettings = () => { router.push(buildSettingsPath('keywords')); };
 
   const {
     contextMenu: mailboxContextMenu,
@@ -928,7 +1121,7 @@ export function Sidebar({
   return (
     <div
       className={cn(
-        "relative flex flex-col h-full border-r transition-all duration-300 overflow-hidden",
+        "relative flex flex-col h-full border-e transition-all duration-300 overflow-hidden",
         "bg-secondary border-border",
         "max-lg:w-full",
         isCollapsed ? "lg:w-12" : "lg:w-full",
@@ -938,30 +1131,34 @@ export function Sidebar({
       {/* Header - hidden in the Pro shell, which owns its own chrome and
           would otherwise render an empty strip (no collapse, no switcher). */}
       {!isEmbedded && (
-        <div className={cn("flex items-center border-b border-border", isCollapsed ? "justify-center px-2 py-2" : "gap-1 px-2 py-2")}>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onSidebarClose}
-            className="lg:hidden h-9 w-9 flex-shrink-0"
-            aria-label={t("close")}
-          >
-            <X className="w-5 h-5" />
-          </Button>
+        // Border lives on the wrapper (outside the h-14 box) so the bar's total
+        // height matches the search/reply toolbars, which border-b their wrapper too.
+        <div className="border-b border-border">
+          <div className={cn("flex items-center h-14", isCollapsed ? "justify-center px-2" : "gap-1 px-2")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onSidebarClose}
+              className="lg:hidden h-9 w-9 flex-shrink-0"
+              aria-label={t("close")}
+            >
+              <X className="w-5 h-5" />
+            </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebarCollapsed}
-            className="hidden lg:flex h-8 w-8 flex-shrink-0"
-            title={isCollapsed ? t("expand_tooltip") : t("collapse_tooltip")}
-          >
-            {isCollapsed ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebarCollapsed}
+              className="hidden lg:flex h-8 w-8 flex-shrink-0"
+              title={isCollapsed ? t("expand_tooltip") : t("collapse_tooltip")}
+            >
+              {isCollapsed ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+            </Button>
 
-          {!isCollapsed && !hideAccountSwitcher && (
-            <AccountSwitcher variant="expanded" className="flex-1" />
-          )}
+            {!isCollapsed && !hideAccountSwitcher && (
+              <AccountSwitcher variant="expanded" className="flex-1" />
+            )}
+          </div>
         </div>
       )}
 
@@ -970,10 +1167,10 @@ export function Sidebar({
 
       {/* Mailbox List */}
       <div className="flex-1 overflow-y-auto" data-tour="sidebar">
-        {showUnified && (
+        {(showUnified || showCrossUnread || showCrossStarred || showCrossAll) && (
           <div>
             <SidebarSectionHeader
-              label={t("all_accounts")}
+              label={t(crossAccountActive ? "all_accounts" : "unified_mailbox")}
               expanded={unifiedExpanded}
               onToggle={toggleUnified}
               isCollapsed={isCollapsed}
@@ -981,7 +1178,7 @@ export function Sidebar({
             />
             {((unifiedExpanded && !isCollapsed) || isCollapsed) && (
               <>
-                {unifiedCounts.map((count) => {
+                {showUnified && unifiedCounts.map((count) => {
                   const unifiedId = UNIFIED_MAILBOX_IDS[count.role];
                   const Icon = getUnifiedIcon(count.role);
                   const isSelected = !selectedKeyword && selectedMailbox === unifiedId;
@@ -990,11 +1187,36 @@ export function Sidebar({
                       key={unifiedId}
                       icon={<Icon className={getIconClass(isSelected, false, colorfulSidebarIcons, count.role)} />}
                       label={t(`unified_${count.role}`)}
+                      testRole={count.role}
+                      testName={`unified-${count.role}`}
+                      testMailboxId={unifiedId}
                       depth={0}
                       isSelected={isSelected}
                       unread={count.unreadEmails}
                       total={count.totalEmails}
                       onClick={() => onMailboxSelect?.(unifiedId)}
+                      isCollapsed={isCollapsed}
+                    />
+                  );
+                })}
+                {[
+                  { show: showCrossUnread, id: CROSS_VIEW_IDS.unread, Icon: MailOpen, label: t('unified_all_unread'), unread: crossUnreadCount },
+                  { show: showCrossStarred, id: CROSS_VIEW_IDS.starred, Icon: Star, label: t('unified_all_starred'), unread: undefined as number | undefined },
+                  { show: showCrossAll, id: CROSS_VIEW_IDS.all, Icon: Mails, label: t('unified_all_mail'), unread: crossUnreadCount },
+                ].map(({ show, id, Icon, label, unread }) => {
+                  if (!show) return null;
+                  const isSelected = !selectedKeyword && selectedMailbox === id;
+                  return (
+                    <SidebarRow
+                      key={id}
+                      icon={<Icon className={getIconClass(isSelected, false, colorfulSidebarIcons)} />}
+                      label={label}
+                      testName={id}
+                      testMailboxId={id}
+                      depth={0}
+                      isSelected={isSelected}
+                      unread={unread}
+                      onClick={() => onMailboxSelect?.(id)}
                       isCollapsed={isCollapsed}
                     />
                   );
@@ -1027,22 +1249,27 @@ export function Sidebar({
                         {!isCollapsed && t("loading_mailboxes")}
                       </div>
                     ) : (
-                      tree.map((node) => (
-                        <MailboxTreeItem
-                          key={node.id}
-                          node={node}
-                          selectedMailbox={selectedKeyword || !isViewing ? "" : selectedMailbox}
-                          expandedFolders={expandedFolders}
-                          onMailboxSelect={(mailboxId) =>
-                            onAccountMailboxSelect?.(isActive ? null : account.id, mailboxId)
-                          }
-                          onToggleExpand={handleToggleExpand}
-                          isCollapsed={isCollapsed}
-                          onUnreadFilterClick={isActive ? onUnreadFilterClick : undefined}
-                          colorful={colorfulSidebarIcons}
-                          onContextMenu={isActive ? handleMailboxContextMenu : undefined}
-                        />
-                      ))
+                      <>
+                        {tree.map((node) => (
+                          <Fragment key={node.id}>
+                            <MailboxTreeItem
+                              node={node}
+                              selectedMailbox={selectedKeyword || !isViewing ? "" : selectedMailbox}
+                              expandedFolders={expandedFolders}
+                              onMailboxSelect={(mailboxId) =>
+                                onAccountMailboxSelect?.(isActive ? null : account.id, mailboxId)
+                              }
+                              onToggleExpand={handleToggleExpand}
+                              isCollapsed={isCollapsed}
+                              onUnreadFilterClick={isActive ? onUnreadFilterClick : undefined}
+                              colorful={colorfulSidebarIcons}
+                              onContextMenu={isActive ? handleMailboxContextMenu : undefined}
+                            />
+                            {isActive && node.role === 'drafts' && renderScheduledRow(`scheduled-${account.id}`)}
+                          </Fragment>
+                        ))}
+                        {isActive && !tree.some((node) => node.role === 'drafts') && renderScheduledRow(`scheduled-${account.id}`)}
+                      </>
                     )}
                   </>
                 )}
@@ -1067,20 +1294,25 @@ export function Sidebar({
                     {!isCollapsed && t("loading_mailboxes")}
                   </div>
                 ) : (
-                  ownTree.map((node) => (
-                    <MailboxTreeItem
-                      key={node.id}
-                      node={node}
-                      selectedMailbox={selectedKeyword ? "" : selectedMailbox}
-                      expandedFolders={expandedFolders}
-                      onMailboxSelect={onMailboxSelect}
-                      onToggleExpand={handleToggleExpand}
-                      isCollapsed={isCollapsed}
-                      onUnreadFilterClick={onUnreadFilterClick}
-                      colorful={colorfulSidebarIcons}
-                      onContextMenu={handleMailboxContextMenu}
-                    />
-                  ))
+                  <>
+                    {ownTree.map((node) => (
+                      <Fragment key={node.id}>
+                        <MailboxTreeItem
+                          node={node}
+                          selectedMailbox={selectedKeyword ? "" : selectedMailbox}
+                          expandedFolders={expandedFolders}
+                          onMailboxSelect={onMailboxSelect}
+                          onToggleExpand={handleToggleExpand}
+                          isCollapsed={isCollapsed}
+                          onUnreadFilterClick={onUnreadFilterClick}
+                          colorful={colorfulSidebarIcons}
+                          onContextMenu={handleMailboxContextMenu}
+                        />
+                        {node.role === 'drafts' && renderScheduledRow('scheduled')}
+                      </Fragment>
+                    ))}
+                    {!ownTree.some((node) => node.role === 'drafts') && renderScheduledRow('scheduled')}
+                  </>
                 )}
               </>
             )}
@@ -1094,6 +1326,7 @@ export function Sidebar({
               expanded={sharedExpanded}
               onToggle={toggleShared}
               isCollapsed={isCollapsed}
+              testId="section-shared"
             />
             {((sharedExpanded && !isCollapsed) || isCollapsed) && (
               <>
@@ -1108,6 +1341,7 @@ export function Sidebar({
                         isCollapsed={isCollapsed}
                         sub
                         icon={<User className="w-3.5 h-3.5 text-muted-foreground" />}
+                        testId="section-shared-account"
                       />
                       {accountExpanded && !isCollapsed && account.children.map((child) => (
                         <MailboxTreeItem
@@ -1143,18 +1377,27 @@ export function Sidebar({
             />
             {((tagsExpanded && !isCollapsed) || isCollapsed) && (
               <>
-                {emailKeywords.map((kw) => (
+                {visibleTagTree.map((node) => (
                   <TagItem
-                    key={kw.id}
-                    kw={kw}
-                    isSelected={selectedKeyword === kw.id}
+                    key={node.id}
+                    node={node}
+                    selectedKeyword={selectedKeyword}
+                    expandedTags={expandedTags}
                     isCollapsed={isCollapsed}
                     onTagSelect={onTagSelect}
-                    totalCount={tagCounts[kw.id]?.total ?? 0}
-                    unreadCount={tagCounts[kw.id]?.unread ?? 0}
+                    onToggleExpand={handleToggleTagExpand}
+                    tagCounts={tagCounts}
                     colorful={colorfulSidebarIcons}
                   />
                 ))}
+                {(hiddenTagCount > 0 || showAllTags) && (
+                  <ShowAllTagsRow
+                    hiddenCount={hiddenTagCount}
+                    showAll={showAllTags}
+                    onToggle={() => setShowAllTags((prev) => !prev)}
+                    isCollapsed={isCollapsed}
+                  />
+                )}
               </>
             )}
           </div>

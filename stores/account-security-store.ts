@@ -1,9 +1,16 @@
 import { create } from 'zustand';
 import { debug } from '@/lib/debug';
 import { useAuthStore } from '@/stores/auth-store';
-import { stalwartJmap, requireResult } from '@/lib/stalwart/jmap-passthrough';
+import { stalwartJmap, requireResult, type JmapMethodResponse } from '@/lib/stalwart/jmap-passthrough';
 
 export type EncryptionType = 'Disabled' | 'Aes128' | 'Aes256';
+
+export interface EncryptionAtRestConfig {
+  type: EncryptionType;
+  publicKeyId: string | null;
+  encryptOnAppend?: boolean;
+  allowSpamTraining?: boolean;
+}
 
 export interface AppPasswordInfo {
   id: string;
@@ -27,6 +34,23 @@ export interface AppCredentialInput {
   allowedIps?: string[];
 }
 
+export interface PublicKeyInfo {
+  id: string;
+  accountId: string;
+  description: string;
+  key: string;
+  createdAt?: string | null;
+  expiresAt?: string | null;
+  emailAddresses: string[];
+}
+
+export interface PublicKeyInput {
+  description: string;
+  key: string;
+  emailAddresses?: string[];
+  expiresAt?: string | null;
+}
+
 interface AccountSecurityState {
   isStalwart: boolean | null;
   isProbing: boolean;
@@ -38,8 +62,10 @@ interface AccountSecurityState {
   isLoadingAuth: boolean;
 
   // Encryption-at-rest
-  encryptionType: EncryptionType;
+  encryptionConfig: EncryptionAtRestConfig;
+  publicKeys: PublicKeyInfo[];
   isLoadingCrypto: boolean;
+  isLoadingPublicKeys: boolean;
 
   // Profile
   displayName: string;
@@ -55,6 +81,7 @@ interface AccountSecurityState {
   fetchAuthInfo: () => Promise<void>;
   fetchCryptoInfo: () => Promise<void>;
   fetchPrincipal: () => Promise<void>;
+  fetchPublicKeys: () => Promise<void>;
   fetchAll: () => Promise<void>;
 
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -68,6 +95,15 @@ interface AccountSecurityState {
 
   createApiKey: (input: AppCredentialInput) => Promise<{ id: string; secret: string }>;
   removeApiKey: (id: string) => Promise<void>;
+
+  createPublicKey: (input: PublicKeyInput) => Promise<string>;
+  removePublicKey: (id: string) => Promise<void>;
+  updateEncryptionAtRest: (config: {
+    type: EncryptionType;
+    publicKeyId?: string | null;
+    encryptOnAppend?: boolean;
+    allowSpamTraining?: boolean;
+  }) => Promise<void>;
 
   clearState: () => void;
 }
@@ -91,9 +127,32 @@ function credentialFromResult(raw: Record<string, unknown>): AppPasswordInfo {
   };
 }
 
+function publicKeyFromResult(raw: Record<string, unknown>): PublicKeyInfo {
+  const emailAddresses = raw.emailAddresses && typeof raw.emailAddresses === 'object'
+    ? Object.keys(raw.emailAddresses as Record<string, unknown>)
+    : Array.isArray(raw.emailAddresses)
+      ? raw.emailAddresses.map(String)
+      : [];
+
+  return {
+    id: String(raw.id ?? ''),
+    accountId: raw.accountId ? String(raw.accountId) : getPrimaryAccountId(),
+    description: typeof raw.description === 'string' ? raw.description : '',
+    key: typeof raw.key === 'string' ? raw.key : '',
+    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : null,
+    expiresAt: typeof raw.expiresAt === 'string' ? raw.expiresAt : null,
+    emailAddresses,
+  };
+}
+
 function ipsToMap(ips?: string[]): Record<string, true> | undefined {
   if (!ips || ips.length === 0) return undefined;
   return Object.fromEntries(ips.map((ip) => [ip, true]));
+}
+
+function emailsToMap(emails?: string[]): Record<string, true> | undefined {
+  if (!emails || emails.length === 0) return undefined;
+  return Object.fromEntries(emails.map((email) => [email, true]));
 }
 
 function buildCreateBody(input: AppCredentialInput): Record<string, unknown> {
@@ -173,11 +232,21 @@ async function removeCredential(
   }
 }
 
-function extractEncryptionType(raw: unknown): EncryptionType {
-  if (!raw || typeof raw !== 'object') return 'Disabled';
-  const type = (raw as { ['@type']?: string })['@type'];
-  if (type === 'Aes128' || type === 'Aes256') return type;
-  return 'Disabled';
+/**
+ * A JMAP `/set` reports per-object failures (wrong current password, weak
+ * password, …) inside `notUpdated` with an HTTP 200 — `stalwartJmap` does not
+ * throw for these. Inspect the response and surface the server's message so the
+ * UI doesn't report a failed change as successful.
+ */
+function requireAccountPasswordUpdate(responses: JmapMethodResponse[], fallbackError: string): void {
+  const result = requireResult<{
+    updated?: Record<string, unknown>;
+    notUpdated?: Record<string, { type?: string; description?: string }>;
+  }>(responses, 'x:AccountPassword/set');
+  const failed = result.notUpdated?.singleton;
+  if (failed) {
+    throw new Error(failed.description || failed.type || fallbackError);
+  }
 }
 
 export const useAccountSecurityStore = create<AccountSecurityState>()((set, get) => ({
@@ -186,9 +255,16 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   otpEnabled: false,
   appPasswords: [],
   apiKeys: [],
+  publicKeys: [],
   isLoadingAuth: false,
-  encryptionType: 'Disabled',
+  encryptionConfig: {
+    type: 'Disabled',
+    publicKeyId: null,
+    encryptOnAppend: false,
+    allowSpamTraining: false,
+  },
   isLoadingCrypto: false,
+  isLoadingPublicKeys: false,
   displayName: '',
   emails: [],
   quota: 0,
@@ -201,7 +277,15 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
     set({ isProbing: true });
     try {
       const client = useAuthStore.getState().client;
-      const isStalwart = !!client?.hasAccountCapability?.('urn:stalwart:jmap');
+      // No live client yet (e.g. the OAuth session is still reconnecting after
+      // a reload). Don't record a verdict — leave isStalwart null so the caller
+      // re-probes once the client is ready, instead of caching a false "not a
+      // Stalwart server" from a session that hasn't loaded its capabilities.
+      if (!client) {
+        set({ isProbing: false });
+        return false;
+      }
+      const isStalwart = !!client.hasAccountCapability?.('urn:stalwart:jmap');
       set({ isStalwart, isProbing: false });
       return isStalwart;
     } catch (error) {
@@ -268,20 +352,104 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
     try {
       const accountId = getPrimaryAccountId();
       const responses = await stalwartJmap([
-        ['x:AccountSettings/get', { accountId, ids: ['singleton'] }, '0'],
+        [
+          'x:AccountSettings/get',
+          {
+            accountId,
+            ids: ['singleton'],
+          },
+          '0',
+        ],
       ]);
-      const result = requireResult<{ list: Array<{ encryptionAtRest?: unknown }> }>(
+
+      const result = requireResult<{ list: Array<{ encryptionAtRest?: Record<string, unknown> }> }>(
         responses,
-        'x:AccountSettings/get',
+        'x:AccountSettings/get'
       );
-      const encryptionType = extractEncryptionType(result.list?.[0]?.encryptionAtRest);
-      set({ encryptionType, isLoadingCrypto: false });
+
+      const settings = result.list?.[0];
+      const enc = settings?.encryptionAtRest ?? {};
+
+      // The backend returns type via "@type" (e.g. "Disabled", "Aes128", "Aes256")
+      const rawType = String(enc['@type'] ?? 'Disabled') as EncryptionType;
+      const publicKeyId = typeof enc.publicKey === 'string' ? enc.publicKey : null;
+      const encryptOnAppend = Boolean(enc.encryptOnAppend);
+      const allowSpamTraining = Boolean(enc.allowSpamTraining);
+
+      set({
+        encryptionConfig: {
+          type: rawType,
+          publicKeyId,
+          encryptOnAppend,
+          allowSpamTraining,
+        },
+        isLoadingCrypto: false,
+      });
     } catch (error) {
-      debug.error('Failed to fetch crypto info:', error);
+      debug.error('Failed to fetch encryption settings:', error);
       set({
         isLoadingCrypto: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch crypto info',
+        error: error instanceof Error ? error.message : 'Failed to fetch encryption settings',
       });
+    }
+  },
+
+  updateEncryptionAtRest: async ({ type, publicKeyId, encryptOnAppend = false, allowSpamTraining = false }) => {
+    set({ isSaving: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      let encryptionAtRestPayload: Record<string, unknown>;
+
+      if (type === 'Disabled') {
+        encryptionAtRestPayload = {
+          '@type': 'Disabled',
+        };
+      } else {
+        if (!publicKeyId) {
+          throw new Error('A Public Key ID is required to enable encryption.');
+        }
+        encryptionAtRestPayload = {
+          '@type': type,
+          publicKey: publicKeyId,
+          encryptOnAppend,
+          allowSpamTraining,
+        };
+      }
+
+      const responses = await stalwartJmap([
+        [
+          'x:AccountSettings/set',
+          {
+            accountId,
+            update: {
+              singleton: {
+                encryptionAtRest: encryptionAtRestPayload,
+              },
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const result = requireResult<{
+        updated?: Record<string, unknown>;
+        notUpdated?: Record<string, { type: string; description?: string }>;
+      }>(responses, 'x:AccountSettings/set');
+
+      const notUpdated = result.notUpdated?.singleton;
+      if (notUpdated) {
+        throw new Error(notUpdated.description || notUpdated.type || 'Failed to update encryption settings');
+      }
+
+      // Refresh settings after success
+      await get().fetchCryptoInfo();
+      set({ isSaving: false });
+    } catch (error) {
+      set({
+        isSaving: false,
+        error: error instanceof Error ? error.message : 'Failed to update encryption settings',
+      });
+      throw error;
     }
   },
 
@@ -328,15 +496,15 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
   },
 
   fetchAll: async () => {
-    const { fetchAuthInfo, fetchCryptoInfo, fetchPrincipal } = get();
-    await Promise.allSettled([fetchAuthInfo(), fetchCryptoInfo(), fetchPrincipal()]);
+    const { fetchAuthInfo, fetchCryptoInfo, fetchPrincipal, fetchPublicKeys } = get();
+    await Promise.allSettled([fetchAuthInfo(), fetchCryptoInfo(), fetchPrincipal(), fetchPublicKeys()]);
   },
 
   changePassword: async (currentPassword, newPassword) => {
     set({ isSaving: true, error: null });
     try {
       const accountId = getPrimaryAccountId();
-      await stalwartJmap([
+      const responses = await stalwartJmap([
         [
           'x:AccountPassword/set',
           {
@@ -346,6 +514,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
           '0',
         ],
       ]);
+      requireAccountPasswordUpdate(responses, 'Failed to change password');
       set({ isSaving: false });
     } catch (error) {
       set({
@@ -381,7 +550,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
     set({ isSaving: true, error: null });
     try {
       const accountId = getPrimaryAccountId();
-      await stalwartJmap([
+      const responses = await stalwartJmap([
         [
           'x:AccountPassword/set',
           {
@@ -396,6 +565,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
           '0',
         ],
       ]);
+      requireAccountPasswordUpdate(responses, 'Failed to enable TOTP');
       set({ otpEnabled: true, isSaving: false });
     } catch (error) {
       set({
@@ -410,7 +580,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
     set({ isSaving: true, error: null });
     try {
       const accountId = getPrimaryAccountId();
-      await stalwartJmap([
+      const responses = await stalwartJmap([
         [
           'x:AccountPassword/set',
           {
@@ -425,6 +595,7 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
           '0',
         ],
       ]);
+      requireAccountPasswordUpdate(responses, 'Failed to disable TOTP');
       set({ otpEnabled: false, isSaving: false });
     } catch (error) {
       set({
@@ -451,14 +622,133 @@ export const useAccountSecurityStore = create<AccountSecurityState>()((set, get)
     return removeCredential(get, set, 'x:ApiKey/set', id, 'Failed to remove API key');
   },
 
+  fetchPublicKeys: async () => {
+    set({ isLoadingPublicKeys: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      const queryResponses = await stalwartJmap([
+        ['x:PublicKey/query', { accountId }, '0'],
+      ]);
+
+      const queryResult = requireResult<{ ids: string[] }>(queryResponses, 'x:PublicKey/query');
+
+      if (!queryResult.ids || queryResult.ids.length === 0) {
+        set({ publicKeys: [], isLoadingPublicKeys: false });
+        return;
+      }
+
+      const getResponses = await stalwartJmap([
+        ['x:PublicKey/get', {accountId, ids: queryResult.ids }, '0'],
+      ]);
+      const getResult = requireResult<{ list: Array<Record<string, unknown>> }>(getResponses, 'x:PublicKey/get');
+
+      const publicKeys = (getResult.list ?? []).map(publicKeyFromResult);
+      set({ publicKeys, isLoadingPublicKeys: false });
+    } catch (error) {
+      debug.error('Failed to fetch public keys:', error);
+      set({
+        isLoadingPublicKeys: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch public keys',
+      });
+    }
+  },
+
+  createPublicKey: async (input) => {
+    set({ isSaving: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      const tmpId = 'new1';
+
+      const createPayload: Record<string, unknown> = {
+        description: input.description,
+        key: input.key,
+        emailAddresses: emailsToMap(input.emailAddresses) ?? {},
+      };
+
+      if (input.expiresAt) {
+        createPayload.expiresAt = input.expiresAt;
+      }
+
+      const responses = await stalwartJmap([
+        [
+          'x:PublicKey/set',
+          {
+            accountId,
+            create: {
+              [tmpId]: createPayload,
+            },
+          },
+          '0',
+        ],
+      ]);
+
+      const result = requireResult<{
+        created?: Record<string, { id: string }>;
+        notCreated?: Record<string, { type: string; description?: string }>;
+      }>(responses, 'x:PublicKey/set');
+
+      const notCreated = result.notCreated?.[tmpId];
+      if (notCreated) {
+        throw new Error(notCreated.description || notCreated.type || 'Failed to create public key');
+      }
+
+      const created = result.created?.[tmpId];
+      if (!created?.id) {
+        throw new Error('Server did not return created public key');
+      }
+
+      await get().fetchPublicKeys();
+      set({ isSaving: false });
+      return created.id;
+    } catch (error) {
+      set({
+        isSaving: false,
+        error: error instanceof Error ? error.message : 'Failed to create public key',
+      });
+      throw error;
+    }
+  },
+
+  removePublicKey: async (id) => {
+    set({ isSaving: true, error: null });
+    try {
+      const accountId = getPrimaryAccountId();
+      await stalwartJmap([
+        [
+          'x:PublicKey/set',
+          {
+            accountId,
+            destroy: [id],
+          },
+          '0',
+        ],
+      ]);
+      await get().fetchPublicKeys();
+      set({ isSaving: false });
+    } catch (error) {
+      set({
+        isSaving: false,
+        error: error instanceof Error ? error.message : 'Failed to remove public key',
+      });
+      throw error;
+    }
+  },
+
   clearState: () => set({
     isStalwart: null,
     isProbing: false,
     otpEnabled: false,
     appPasswords: [],
     apiKeys: [],
+    publicKeys: [],
+    isLoadingPublicKeys: false,
     isLoadingAuth: false,
-    encryptionType: 'Disabled',
+    encryptionConfig: {
+      type: 'Disabled',
+      publicKeyId: null,
+      encryptOnAppend: false,
+      allowSpamTraining: false,
+    },
     isLoadingCrypto: false,
     displayName: '',
     emails: [],

@@ -11,10 +11,11 @@ import { useAccountStore } from "@/stores/account-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useShallow } from "zustand/react/shallow";
 import { useConfig } from "@/hooks/use-config";
-import { apiFetch, getPathPrefix, withBasePath } from "@/lib/browser-navigation";
+import { useMenuNavigation } from "@/hooks/use-menu-navigation";
+import { apiFetch, getPathPrefix, toRouterPath, withBasePath } from "@/lib/browser-navigation";
 import { cn } from "@/lib/utils";
 import { AlertCircle, Loader2, X, Info, Eye, EyeOff, LogIn, Sun, Moon, Monitor, Check, Shield, Play, Copy } from "lucide-react";
-import { discoverOAuth, type OAuthMetadata } from "@/lib/oauth/discovery";
+import { type OAuthMetadata } from "@/lib/oauth/discovery";
 import { generateCodeVerifier, generateCodeChallenge, generateState } from "@/lib/oauth/pkce";
 import { useUpdateStore, selectBanner } from "@/stores/update-store";
 import type { PublicJmapServerEntry } from "@/lib/admin/jmap-servers";
@@ -133,8 +134,15 @@ export default function LoginPage() {
   const isMobileHandoff = Boolean(mobileRedirectUri);
   const { login, loginDemo, isLoading, error, clearError, isAuthenticated } = useAuthStore();
   const { theme, setTheme, initializeTheme } = useThemeStore(useShallow((s) => ({ theme: s.theme, setTheme: s.setTheme, initializeTheme: s.initializeTheme })));
-  const { appName, jmapServerUrl: configuredServerUrl, oauthEnabled, oauthOnly, oauthClientId: globalOauthClientId, oauthIssuerUrl: globalOauthIssuerUrl, oauthScopes, rememberMeEnabled, devMode, demoMode, loginLogoLightUrl, loginLogoDarkUrl, loginCompanyName, loginImprintUrl, loginPrivacyPolicyUrl, loginWebsiteUrl, isLoading: configLoading, error: configError, autoSsoEnabled, embeddedMode: _embeddedMode, allowCustomJmapEndpoint, jmapServers, jmapServerAutoPickByDomain } = useConfig();
+  const { appName, jmapServerUrl: configuredServerUrl, oauthEnabled, oauthOnly, oauthClientId: globalOauthClientId, oauthIssuerUrl: globalOauthIssuerUrl, oauthScopes, rememberMeEnabled, devMode, demoMode, loginLogoLightUrl, loginLogoDarkUrl, loginCompanyName, loginImprintUrl, loginPrivacyPolicyUrl, loginWebsiteUrl, loginLogoMaxHeight, loginLogoMaxWidth, loginShowHeading, loginShowSubtitle, loginShowTotp, loginShowVersion, isLoading: configLoading, error: configError, autoSsoEnabled, embeddedMode: _embeddedMode, allowCustomJmapEndpoint, jmapServers, jmapServerAutoPickByDomain } = useConfig();
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+
+  // Login logo sizing: when a max height/width is configured, drop the fixed
+  // 64×64 box so the logo (e.g. a wide wordmark) can render at its true size.
+  const hasLogoSize = Boolean(loginLogoMaxHeight || loginLogoMaxWidth);
+  const loginLogoStyle = hasLogoSize
+    ? { maxHeight: loginLogoMaxHeight || undefined, maxWidth: loginLogoMaxWidth || undefined }
+    : undefined;
 
   const [formData, setFormData] = useState({
     username: "",
@@ -176,6 +184,13 @@ export default function LoginPage() {
   const totpInputRef = useRef<HTMLInputElement>(null);
   const prevError = useRef<string | null>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const themeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeThemeMenu = useCallback(() => setShowThemeMenu(false), []);
+  const { menuRef: themeListRef, onKeyDown: onThemeMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: showThemeMenu,
+    onClose: closeThemeMenu,
+    triggerRef: themeButtonRef,
+  });
   // Captured by handleSubmit when in mobile handoff mode; consumed by the
   // isAuthenticated effect to build the deep-link fragment.
   const mobileHandoffPayloadRef = useRef<{ server_url: string; username: string; password: string } | null>(null);
@@ -279,7 +294,7 @@ export default function LoginPage() {
           redirectTo = saved;
         }
       } catch { /* ignore */ }
-      router.push(redirectTo);
+      router.push(toRouterPath(redirectTo));
     }
   }, [isAuthenticated, router, isAddAccountMode, isMobileHandoff, mobileRedirectUri, mobileState]);
 
@@ -329,16 +344,27 @@ export default function LoginPage() {
     if (!oauthEnabled || !serverUrl) return;
     setOauthDiscoveryDone(false);
     setOauthMetadata(null);
-    discoverOAuth(effectiveOauthIssuerUrl || serverUrl)
+    const controller = new AbortController();
+    // Discover via our own origin rather than fetching the IdP's /.well-known/*
+    // documents directly from the browser. A direct cross-origin discovery
+    // fetch is subject to CORS, and providers like Authentik serve those
+    // documents without Access-Control-Allow-Origin, so the browser blocks the
+    // response and login breaks (issue #382). The proxy runs discovery server
+    // side where CORS does not apply.
+    const query = selectedServer?.id ? `?server_id=${encodeURIComponent(selectedServer.id)}` : "";
+    apiFetch(`/api/auth/oauth/metadata${query}`, { signal: controller.signal })
+      .then(async (res) => (res.ok ? ((await res.json()) as OAuthMetadata) : null))
       .then((metadata) => {
         setOauthMetadata(metadata);
         setOauthDiscoveryDone(true);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
         setOauthMetadata(null);
         setOauthDiscoveryDone(true);
       });
-  }, [oauthEnabled, serverUrl, effectiveOauthIssuerUrl]);
+    return () => controller.abort();
+  }, [oauthEnabled, serverUrl, effectiveOauthIssuerUrl, selectedServer?.id]);
 
   // Auto-SSO: when enabled with OAUTH_ONLY, skip the login page entirely
   const ssoError = searchParams.get("sso_error");
@@ -616,7 +642,10 @@ export default function LoginPage() {
       formData.username,
       formData.password,
       totpCode || undefined,
-      rememberMe
+      // Only persist credentials when the server actually supports it
+      // (a SESSION_SECRET is configured). Prevents a broken cookie write
+      // when the remember-me feature is disabled server-side.
+      rememberMeEnabled && rememberMe
     );
 
     if (success) {
@@ -644,7 +673,7 @@ export default function LoginPage() {
           redirectTo = saved;
         }
       } catch { /* ignore */ }
-      router.push(redirectTo);
+      router.push(toRouterPath(redirectTo));
     }
   };
 
@@ -668,6 +697,7 @@ export default function LoginPage() {
         <div className="absolute top-5 right-5" ref={themeMenuRef} suppressHydrationWarning>
           <button
             type="button"
+            ref={themeButtonRef}
             onClick={() => setShowThemeMenu(!showThemeMenu)}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-200",
@@ -677,7 +707,7 @@ export default function LoginPage() {
             )}
             aria-label={`Theme: ${currentThemeOption.label}`}
             aria-expanded={showThemeMenu}
-            aria-haspopup="listbox"
+            aria-haspopup="menu"
           >
             <CurrentThemeIcon className="w-4 h-4" />
             <span className="hidden sm:inline" suppressHydrationWarning>{currentThemeOption.label}</span>
@@ -685,8 +715,10 @@ export default function LoginPage() {
 
           {showThemeMenu && (
             <div
+              ref={themeListRef}
+              onKeyDown={onThemeMenuKeyDown}
               className="absolute right-0 top-full mt-2 w-40 rounded-xl border border-border bg-background shadow-lg overflow-hidden animate-fade-in z-50"
-              role="listbox"
+              role="menu"
               aria-label="Theme selection"
             >
               {THEME_OPTIONS.map((option) => {
@@ -696,8 +728,8 @@ export default function LoginPage() {
                   <button
                     key={option.value}
                     type="button"
-                    role="option"
-                    aria-selected={isActive}
+                    role="menuitemradio"
+                    aria-checked={isActive}
                     onClick={() => handleThemeSelect(option.value)}
                     className={cn(
                       "w-full flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors",
@@ -707,7 +739,7 @@ export default function LoginPage() {
                     )}
                   >
                     <Icon className="w-4 h-4" />
-                    <span className="flex-1 text-left">{option.label}</span>
+                    <span className="flex-1 text-start">{option.label}</span>
                     {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
                   </button>
                 );
@@ -804,7 +836,7 @@ export default function LoginPage() {
                 )}
               </div>
             )}
-            <VersionBadge />
+            {loginShowVersion && <VersionBadge />}
           </div>
         </div>
       </div>
@@ -817,6 +849,7 @@ export default function LoginPage() {
       <div className="absolute top-5 right-5" ref={themeMenuRef} suppressHydrationWarning>
         <button
           type="button"
+          ref={themeButtonRef}
           onClick={() => setShowThemeMenu(!showThemeMenu)}
           className={cn(
             "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-200",
@@ -826,7 +859,7 @@ export default function LoginPage() {
           )}
           aria-label={`Theme: ${currentThemeOption.label}`}
           aria-expanded={showThemeMenu}
-          aria-haspopup="listbox"
+          aria-haspopup="menu"
         >
           <CurrentThemeIcon className="w-4 h-4" />
           <span className="hidden sm:inline" suppressHydrationWarning>{currentThemeOption.label}</span>
@@ -834,8 +867,10 @@ export default function LoginPage() {
 
         {showThemeMenu && (
           <div
+            ref={themeListRef}
+            onKeyDown={onThemeMenuKeyDown}
             className="absolute right-0 top-full mt-2 w-40 rounded-xl border border-border bg-background shadow-lg overflow-hidden animate-fade-in z-50"
-            role="listbox"
+            role="menu"
             aria-label="Theme selection"
           >
             {THEME_OPTIONS.map((option) => {
@@ -845,8 +880,8 @@ export default function LoginPage() {
                 <button
                   key={option.value}
                   type="button"
-                  role="option"
-                  aria-selected={isActive}
+                  role="menuitemradio"
+                  aria-checked={isActive}
                   onClick={() => handleThemeSelect(option.value)}
                   className={cn(
                     "w-full flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors",
@@ -856,7 +891,7 @@ export default function LoginPage() {
                   )}
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="flex-1 text-left">{option.label}</span>
+                  <span className="flex-1 text-start">{option.label}</span>
                   {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
                 </button>
               );
@@ -870,19 +905,24 @@ export default function LoginPage() {
         <div className="rounded-2xl border border-border/60 bg-background/80 backdrop-blur-sm shadow-xl shadow-black/5 dark:shadow-black/20 overflow-hidden">
           {/* Header section with logo */}
           <div className="px-8 pt-10 pb-6 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 mb-5">
+            <div className={cn("inline-flex items-center justify-center mb-5", !hasLogoSize && "w-16 h-16")}>
               <img
                 src={withBasePath(resolvedTheme === 'dark' ? loginLogoDarkUrl : loginLogoLightUrl)}
                 alt={appName}
-                className="max-w-16 max-h-16 object-contain"
+                className={cn("object-contain", !hasLogoSize && "max-w-16 max-h-16")}
+                style={loginLogoStyle}
               />
             </div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-              {isAddAccountMode ? t("add_account_title") : appName}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1.5">
-              {isAddAccountMode ? t("add_account_subtitle") : (t("title") !== appName ? t("title") : "Sign in to your account")}
-            </p>
+            {loginShowHeading && (
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+                {isAddAccountMode ? t("add_account_title") : appName}
+              </h1>
+            )}
+            {loginShowSubtitle && (
+              <p className="text-sm text-muted-foreground mt-1.5">
+                {isAddAccountMode ? t("add_account_subtitle") : (t("title") !== appName ? t("title") : "Sign in to your account")}
+              </p>
+            )}
           </div>
 
           {/* Form section */}
@@ -1110,7 +1150,7 @@ export default function LoginPage() {
                         type={showPassword ? "text" : "password"}
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="h-11 px-3.5 pr-11 bg-muted/40 border-border/60 rounded-xl focus:bg-background focus:border-primary/50 transition-all duration-200"
+                        className="h-11 px-3.5 pe-11 bg-muted/40 border-border/60 rounded-xl focus:bg-background focus:border-primary/50 transition-all duration-200"
                         placeholder={t("password_placeholder")}
                         required
                         autoComplete="current-password"
@@ -1131,8 +1171,12 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  {/* 2FA toggle / field */}
+                  {/* 2FA toggle / field. The manual toggle can be hidden via
+                      LOGIN_SHOW_TOTP (loginShowTotp) for deployments whose mail
+                      server has no per-account TOTP (auth delegated to an
+                      external directory); server-required TOTP still shows. */}
                   {!showTotpField ? (
+                    loginShowTotp ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -1144,6 +1188,7 @@ export default function LoginPage() {
                       <Shield className="w-3.5 h-3.5" />
                       {t("totp_toggle")}
                     </button>
+                    ) : null
                   ) : (
                     <div className="space-y-1.5">
                       <label htmlFor="totp" className="block text-sm font-medium text-foreground">
@@ -1230,9 +1275,9 @@ export default function LoginPage() {
                       disabled={oauthLoading || isLoading}
                     >
                       {oauthLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        <Loader2 className="w-4 h-4 animate-spin me-2" />
                       ) : (
-                        <LogIn className="w-4 h-4 mr-2" />
+                        <LogIn className="w-4 h-4 me-2" />
                       )}
                       {t("sign_in_sso")}
                     </Button>
@@ -1338,7 +1383,7 @@ export default function LoginPage() {
               )}
             </div>
           )}
-          <VersionBadge />
+          {loginShowVersion && <VersionBadge />}
         </div>
       </div>
     </div>

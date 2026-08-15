@@ -22,10 +22,10 @@ export function ReadingSettings() {
     markAsReadDelay,
     deleteAction,
     permanentlyDeleteJunk,
+    returnToListAfterAction,
     showPreview,
     mailLayout,
     disableThreading,
-    plainTextMode,
     emailsPerPage,
     mailAttachmentAction,
     attachmentPosition,
@@ -35,6 +35,7 @@ export function ReadingSettings() {
     hoverActionsCorner,
     hideInlineImageAttachments,
     attachmentImagePreviewsEnabled,
+    messageSpacing,
     updateSetting,
   } = useSettingsStore();
 
@@ -115,6 +116,20 @@ export function ReadingSettings() {
       </SettingItem>
       )}
 
+      {!isSettingHidden('messageSpacing') && (
+      <SettingItem label={t('message_spacing.label')} description={t('message_spacing.description')} locked={isSettingLocked('messageSpacing')}>
+        <Select
+          value={messageSpacing}
+          onChange={(value) => updateSetting('messageSpacing', value as typeof messageSpacing)}
+          options={[
+            { value: 'auto', label: t('message_spacing.auto') },
+            { value: 'always', label: t('message_spacing.always') },
+            { value: 'edge', label: t('message_spacing.edge') },
+          ]}
+        />
+      </SettingItem>
+      )}
+
       {!isSettingHidden('deleteAction') && (
       <SettingItem label={t('delete_action.label')} description={t('delete_action.description')} locked={isSettingLocked('deleteAction')}>
         <div className="flex flex-col gap-2">
@@ -177,6 +192,13 @@ export function ReadingSettings() {
         />
       </SettingItem>
 
+      <SettingItem label={t('return_to_list_after_action.label')} description={t('return_to_list_after_action.description')}>
+        <ToggleSwitch
+          checked={returnToListAfterAction}
+          onChange={(checked) => updateSetting('returnToListAfterAction', checked)}
+        />
+      </SettingItem>
+
       {!isSettingHidden('showPreview') && (
       <SettingItem
         label={t('show_preview.label')}
@@ -191,13 +213,6 @@ export function ReadingSettings() {
         <ToggleSwitch
           checked={disableThreading}
           onChange={(checked) => updateSetting('disableThreading', checked)}
-        />
-      </SettingItem>
-
-      <SettingItem label={t('plain_text_mode.label')} description={t('plain_text_mode.description')}>
-        <ToggleSwitch
-          checked={plainTextMode}
-          onChange={(checked) => updateSetting('plainTextMode', checked)}
         />
       </SettingItem>
 

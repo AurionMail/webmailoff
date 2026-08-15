@@ -1,5 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { JMAPClient } from '../jmap/client';
+import { JMAPClient, RequestTimeoutError } from '../jmap/client';
+
+/**
+ * A connection that accepts the request and then goes silent: the promise never
+ * settles on its own, exactly like `fetch` over a socket the network has torn
+ * down underneath it. Only an abort ends it - which is what the deadline does.
+ */
+function stalledFetch() {
+  return (_url: string, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(new DOMException('The operation was aborted.', 'AbortError'));
+      });
+    });
+}
 
 // Minimal valid JMAP session response
 function makeSession(overrides?: Record<string, unknown>) {
@@ -92,6 +106,77 @@ describe('JMAPClient resilience', () => {
 
       await expect(client.ping()).rejects.toThrow('Failed to fetch');
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('authenticatedFetch - stalled request deadline', () => {
+    const downloadCalls = () =>
+      fetchSpy.mock.calls.filter(([url]: unknown[]) => String(url).includes('/jmap/download/'));
+
+    it('rejects a request that never produces response headers', async () => {
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(stalledFetch());
+
+      const pending = client.ping();
+      const assertion = expect(pending).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await assertion;
+    });
+
+    it('does not replay a timed-out request', async () => {
+      // The network-error path retries once, but a timeout may mean the server
+      // received and acted on the request - replaying an EmailSubmission/set
+      // there would send the message twice. Counted on the download URL so the
+      // keep-alive ping, which fires against the API URL while the clock runs,
+      // stays out of the tally.
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(stalledFetch());
+
+      const pending = client.fetchBlob('blob-1', 'big.zip', 'application/zip');
+      const assertion = expect(pending).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.advanceTimersByTimeAsync(300_000);
+      await assertion;
+      // Well past the 1s the retry path would have waited.
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(downloadCalls()).toHaveLength(1);
+    });
+
+    it('clears the deadline once the response arrives, leaving the body alone', async () => {
+      const client = await createConnectedClient();
+      const echoResponse = { methodResponses: [['Core/echo', { ping: 'pong' }, '0']] };
+      let capturedSignal: AbortSignal | undefined;
+
+      fetchSpy.mockImplementation((_url: string, init?: RequestInit) => {
+        capturedSignal = init?.signal ?? undefined;
+        return Promise.resolve(mockFetchResponse(200, echoResponse));
+      });
+
+      await expect(client.ping()).resolves.toBeUndefined();
+
+      // Long after the deadline would have fired, a streaming body handed back
+      // to the caller (SSE) must still be readable.
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(capturedSignal?.aborted).toBe(false);
+    });
+
+    it('gives blob transfers a longer budget than ordinary requests', async () => {
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(stalledFetch());
+
+      let outcome: unknown;
+      const pending = client
+        .fetchBlob('blob-1', 'big.zip', 'application/zip')
+        .catch((error) => { outcome = error; });
+
+      // A large attachment on a slow uplink is legitimately still moving well
+      // past the deadline that applies to an ordinary API call.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(outcome).toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(300_000);
+      await pending;
+      expect(outcome).toBeInstanceOf(RequestTimeoutError);
     });
   });
 
@@ -202,6 +287,56 @@ describe('JMAPClient resilience', () => {
     });
   });
 
+  describe('session URL rewriting', () => {
+    async function connectWith(session: Record<string, unknown>, serverUrl = 'https://mail.example.com') {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(200, makeSession(session)));
+      const client = new JMAPClient(serverUrl, 'user@test.com', 'pass123');
+      await client.connect();
+      fetchSpy.mockReset();
+      return client;
+    }
+
+    async function pingUrl(client: JMAPClient): Promise<string> {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(200, { methodResponses: [['Core/echo', { ping: 'pong' }, '0']] }),
+      );
+      await client.ping();
+      return String(fetchSpy.mock.calls[0][0]);
+    }
+
+    it.each([
+      ['absolute-path relative', '/jmap/api'],
+      ['bare relative', 'jmap/api'],
+      ['cross-origin absolute', 'https://other.example.com/jmap/api'],
+      ['network-path reference', '//other.example.com/jmap/api'],
+    ])('anchors a %s apiUrl at the server origin', async (_form, apiUrl) => {
+      const client = await connectWith({ apiUrl });
+      expect(await pingUrl(client)).toBe('https://mail.example.com/jmap/api');
+    });
+
+    it('anchors a relative apiUrl at the origin even when serverUrl has a path', async () => {
+      const client = await connectWith({ apiUrl: 'jmap/api' }, 'https://mail.example.com/proxy');
+      expect(await pingUrl(client)).toBe('https://mail.example.com/jmap/api');
+    });
+
+    it.each([
+      ['same-origin', 'https://mail.example.com'],
+      ['cross-origin', 'https://other.example.com'],
+    ])('keeps URI Template placeholders literal in a %s downloadUrl', async (_o, host) => {
+      const client = await connectWith({
+        downloadUrl: `${host}/download/{accountId}/{blobId}/{name}?accept={type}`,
+      });
+      expect(client.getBlobDownloadUrl('blob1', 'file.txt', 'text/plain', 'acct-1')).toBe(
+        'https://mail.example.com/download/acct-1/blob1/file.txt?accept=text%2Fplain',
+      );
+    });
+
+    it('leaves an empty downloadUrl falsy so the unavailable guard still fires', async () => {
+      const client = await connectWith({ downloadUrl: '' });
+      expect(() => client.getBlobDownloadUrl('blob1')).toThrow('Download URL not available');
+    });
+  });
+
   describe('refreshSession', () => {
     it('updates session fields from server response', async () => {
       const client = await createConnectedClient();
@@ -302,6 +437,11 @@ describe('JMAPClient resilience', () => {
     });
 
     it('does not mark the connection lost or reconnect repeatedly while rate limited', async () => {
+      // The file-level shouldAdvanceTime lets fake time creep forward with
+      // the wall clock, which can fire the 30s keep-alive an extra time on a
+      // slow or loaded machine. This test counts pings, so pin the clock and
+      // advance it explicitly.
+      vi.useFakeTimers({ shouldAdvanceTime: false });
       const client = await createConnectedClient();
       const callback = vi.fn();
       client.onConnectionChange(callback);
@@ -341,6 +481,68 @@ describe('JMAPClient resilience', () => {
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  // Every account switch tears down and re-creates push for all connected
+  // clients. Aborting an SSE connect that is still in flight must read as an
+  // intentional close: treated as a network failure it spawns an unsupervised
+  // 3s polling interval per client, and its late rejection nulls the abort
+  // controller of the connection set up right after - which then can never be
+  // closed and reconnects itself in parallel. Rapid switching multiplies both
+  // until the server's concurrency limit stalls the app.
+  describe('SSE connect aborted mid-flight (account-switch churn)', () => {
+    function inFlightFetch(signals: AbortSignal[]) {
+      return (_url: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.signal) signals.push(init.signal);
+        return new Promise<Response>((_resolve, reject) => {
+          const abort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+          if (init?.signal?.aborted) return abort();
+          init?.signal?.addEventListener('abort', abort);
+        });
+      };
+    }
+
+    it('does not fall back to polling when the in-flight connect was aborted', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: false });
+      const client = await createConnectedClient();
+      fetchSpy.mockImplementation(inFlightFetch([]));
+
+      client.setupPushNotifications();
+      client.closePushNotifications();
+
+      // Flush the 1s network-error retry inside authenticatedFetch and a few
+      // would-be polling ticks (3s each).
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      // The polling fallback is recognizable by its state-poll body; a
+      // keep-alive Core/echo that slips in must not fail the assertion.
+      const statePolls = fetchSpy.mock.calls.filter((call: unknown[]) => {
+        const body = (call[1] as RequestInit | undefined)?.body;
+        return typeof body === 'string' && body.includes('Mailbox/get');
+      });
+      expect(statePolls).toHaveLength(0);
+    });
+
+    it('keeps the replacement connection abortable when the aborted connect settles late', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: false });
+      const client = await createConnectedClient();
+      const signals: AbortSignal[] = [];
+      fetchSpy.mockImplementation(inFlightFetch(signals));
+
+      client.setupPushNotifications();
+      client.closePushNotifications();
+      client.setupPushNotifications();
+      // The retry inside authenticatedFetch re-sends the aborted first
+      // attempt later, so grab the replacement's signal now.
+      const replacementSignal = signals[signals.length - 1];
+
+      // Let the first attempt run through its retry and reject - after the
+      // replacement connect is already up.
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      client.closePushNotifications();
+      expect(replacementSignal.aborted).toBe(true);
     });
   });
 
@@ -395,6 +597,55 @@ describe('JMAPClient resilience', () => {
       await expect(
         client.fetchBlobAsObjectUrl('bad-blob', 'file.dat')
       ).rejects.toThrow('Failed to fetch blob: 404');
+    });
+  });
+
+  // #281 V3: every email fetch path must namespace mailboxIds for shared/
+  // delegated accounts (`${ownerId}:${id}`) so they line up with the store's
+  // namespaced shared-mailbox ids. searchEmails/advancedSearchEmails are the
+  // cross-view (All mail / Unread / Starred) browse paths and previously did not.
+  describe('shared-account mailboxId namespacing', () => {
+    function queryAndGet(email: Record<string, unknown>) {
+      return {
+        methodResponses: [
+          ['Email/query', { total: 1, ids: ['e1'] }, '0'],
+          ['Email/get', { list: [email] }, '1'],
+        ],
+      };
+    }
+
+    it('advancedSearchEmails namespaces bare owner mailboxIds for a foreign account', async () => {
+      const client = await createConnectedClient(); // primary acct-1
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(200, queryAndGet({ id: 'e1', receivedAt: '2026-01-01T00:00:00Z', mailboxIds: { 'x-inbox': true } })),
+      );
+
+      const { emails } = await client.advancedSearchEmails({ inMailbox: 'owner-x:x-inbox' }, 'owner-x');
+
+      expect(emails[0].mailboxIds).toEqual({ 'owner-x:x-inbox': true });
+      expect(emails[0].mailboxIds['x-inbox']).toBeUndefined();
+    });
+
+    it('searchEmails namespaces bare owner mailboxIds for a foreign account', async () => {
+      const client = await createConnectedClient();
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(200, queryAndGet({ id: 'e1', receivedAt: '2026-01-01T00:00:00Z', mailboxIds: { 'x-inbox': true } })),
+      );
+
+      const { emails } = await client.searchEmails('hello', undefined, 'owner-x');
+
+      expect(emails[0].mailboxIds).toEqual({ 'owner-x:x-inbox': true });
+    });
+
+    it('leaves own-account mailboxIds untouched (no foreign accountId)', async () => {
+      const client = await createConnectedClient(); // primary acct-1
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse(200, queryAndGet({ id: 'e1', receivedAt: '2026-01-01T00:00:00Z', mailboxIds: { inbox: true } })),
+      );
+
+      const { emails } = await client.advancedSearchEmails({ inMailbox: 'inbox' });
+
+      expect(emails[0].mailboxIds).toEqual({ inbox: true });
     });
   });
 });

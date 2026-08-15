@@ -18,7 +18,9 @@ import { useAccountStore } from "@/stores/account-store";
 import { useUpdateStore, selectHasUpdate } from "@/stores/update-store";
 import { getActiveAccountSlotHeaders } from "@/lib/auth/active-account-slot";
 import { getMaxAccounts } from "@/lib/account-utils";
+import { isDocumentRTL } from "@/i18n/direction";
 import { cn, formatFileSize } from "@/lib/utils";
+import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { PluginSlot } from "@/components/plugins/plugin-slot";
 import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts-modal";
 import { apiFetch, getPathPrefix, withBasePath } from "@/lib/browser-navigation";
@@ -70,11 +72,19 @@ function StorageQuotaCircle({ quota, usagePercent }: { quota: { used: number; to
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    setPopoverStyle({
-      position: "fixed",
-      left: rect.right + 8,
-      bottom: window.innerHeight - rect.bottom,
-    });
+    setPopoverStyle(
+      isDocumentRTL()
+        ? {
+            position: "fixed",
+            right: window.innerWidth - rect.left + 8,
+            bottom: window.innerHeight - rect.bottom,
+          }
+        : {
+            position: "fixed",
+            left: rect.right + 8,
+            bottom: window.innerHeight - rect.bottom,
+          }
+    );
   }, []);
 
   useEffect(() => {
@@ -91,7 +101,8 @@ function StorageQuotaCircle({ quota, usagePercent }: { quota: { used: number; to
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open, updatePosition]);
 
-  const free = quota.total - quota.used;
+  // Usage can legitimately exceed the quota (e.g. limit lowered after the fact)
+  const free = Math.max(0, quota.total - quota.used);
   const strokeColor = usagePercent > 90
     ? "stroke-destructive"
     : usagePercent > 70
@@ -166,7 +177,6 @@ export function NavigationRail({
   collapsed = false,
   className,
   quota,
-  isPushConnected,
   onLogout,
   onShowShortcuts,
   onManageApps,
@@ -191,6 +201,7 @@ export function NavigationRail({
   const sidebarAppsEnabled = usePolicyStore((s) => s.isFeatureEnabled('sidebarAppsEnabled'));
   const filesEnabled = usePolicyStore((s) => s.isFeatureEnabled('filesEnabled'));
   const contactsEnabled = usePolicyStore((s) => s.isFeatureEnabled('contactsEnabled'));
+  const calendarEnabled = usePolicyStore((s) => s.isFeatureEnabled('calendarEnabled'));
   const visibleSidebarApps = sidebarAppsEnabled ? sidebarApps : [];
   const inboxUnread = mailboxes.find(m => m.role === "inbox")?.unreadEmails || 0;
   const [isStalwartAdmin, setIsStalwartAdmin] = useState(false);
@@ -210,18 +221,33 @@ export function NavigationRail({
   const logoutAll = useAuthStore((s) => s.logoutAll);
   const [logoutMenuOpen, setLogoutMenuOpen] = useState(false);
   const logoutBtnRef = useRef<HTMLButtonElement>(null);
-  const logoutPopoverRef = useRef<HTMLDivElement>(null);
+  // Portalled to <body>, so without explicit focus handling the menu is
+  // unreachable for keyboard and screen reader users (#719).
+  const closeLogoutMenu = useCallback(() => setLogoutMenuOpen(false), []);
+  const { menuRef: logoutPopoverRef, onKeyDown: onLogoutMenuKeyDown } = useMenuNavigation<HTMLDivElement>({
+    open: logoutMenuOpen,
+    onClose: closeLogoutMenu,
+    triggerRef: logoutBtnRef,
+  });
   const [logoutPopoverStyle, setLogoutPopoverStyle] = useState<React.CSSProperties>({});
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   const updateLogoutPosition = useCallback(() => {
     if (!logoutBtnRef.current) return;
     const rect = logoutBtnRef.current.getBoundingClientRect();
-    setLogoutPopoverStyle({
-      position: "fixed",
-      left: rect.right + 8,
-      bottom: Math.max(8, window.innerHeight - rect.bottom),
-    });
+    setLogoutPopoverStyle(
+      isDocumentRTL()
+        ? {
+            position: "fixed",
+            right: window.innerWidth - rect.left + 8,
+            bottom: Math.max(8, window.innerHeight - rect.bottom),
+          }
+        : {
+            position: "fixed",
+            left: rect.right + 8,
+            bottom: Math.max(8, window.innerHeight - rect.bottom),
+          }
+    );
   }, []);
 
   useEffect(() => {
@@ -243,7 +269,7 @@ export function NavigationRail({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [logoutMenuOpen, updateLogoutPosition]);
+  }, [logoutMenuOpen, updateLogoutPosition, logoutPopoverRef]);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,7 +295,7 @@ export function NavigationRail({
 
   const navItems: NavItem[] = [
     { id: "mail", icon: Mail, labelKey: "mail", href: "/", badge: inboxUnread },
-    { id: "calendar", icon: Calendar, labelKey: "calendar", href: "/calendar", hidden: !supportsCalendar },
+    { id: "calendar", icon: Calendar, labelKey: "calendar", href: "/calendar", hidden: !supportsCalendar || !calendarEnabled },
     { id: "contacts", icon: BookUser, labelKey: "contacts", href: "/contacts", hidden: !supportsContacts || !contactsEnabled },
     { id: "files", icon: HardDrive, labelKey: "files", href: "/files", hidden: !supportsFiles || !filesEnabled },
   ];
@@ -546,7 +572,7 @@ export function NavigationRail({
         })}
 
         {/* Manage apps button */}
-        {onManageApps && (
+        {sidebarAppsEnabled && onManageApps && (
           <button
             onClick={onManageApps}
             className={cn(
@@ -695,8 +721,9 @@ export function NavigationRail({
               onClick={() => setLogoutMenuOpen(!logoutMenuOpen)}
               className="flex items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title={t("sign_out")}
+              aria-label={t("sign_out")}
               aria-expanded={logoutMenuOpen}
-              aria-haspopup="true"
+              aria-haspopup="menu"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -704,9 +731,11 @@ export function NavigationRail({
             {logoutMenuOpen && createPortal(
               <div
                 ref={logoutPopoverRef}
+                onKeyDown={onLogoutMenuKeyDown}
                 style={logoutPopoverStyle}
                 className="w-56 rounded-lg border border-border bg-background text-foreground shadow-lg z-50 overflow-hidden"
                 role="menu"
+                aria-label={t("sign_out")}
               >
                 <button
                   onClick={() => { setLogoutMenuOpen(false); logout(); }}

@@ -4,6 +4,7 @@ import { useThemeStore } from './theme-store';
 import { useLocaleStore } from './locale-store';
 import type { NotificationSoundChoice } from '@/lib/notification-sound';
 import { apiFetch } from '@/lib/browser-navigation';
+import { generateAccountId } from '@/lib/account-utils';
 import {
   DEFAULT_SUB_ADDRESS_DELIMITER,
   isValidSubAddressDelimiter,
@@ -15,14 +16,52 @@ const syncLog = (...args: unknown[]) => console.log('[SETTINGS_SYNC]', ...args);
 const syncWarn = (...args: unknown[]) => console.warn('[SETTINGS_SYNC]', ...args);
 const syncError = (...args: unknown[]) => console.error('[SETTINGS_SYNC]', ...args);
 
+/** True for a non-null, non-array plain object (the allMailFolderIds map shape). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 // Settings sync state (module-level, not persisted)
 let syncEnabled = false;
 let syncUsername: string | null = null;
 let syncServerUrl: string | null = null;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+let pendingSync: SettingsSyncJob | null = null;
 let isLoadingFromServer = false;
 
 const SYNC_DEBOUNCE_MS = 2000;
+
+interface SettingsSyncJob {
+  username: string;
+  serverUrl: string;
+  settings: Record<string, unknown>;
+}
+
+async function syncSettingsJob(job: SettingsSyncJob, retries = 1): Promise<void> {
+  syncLog('Syncing settings to server for', job.username);
+  const res = await apiFetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(job),
+  });
+  if (res.status === 404) {
+    syncWarn('Settings sync endpoint returned 404, disabling sync');
+    syncEnabled = false;
+  } else if (res.status === 403) {
+    syncWarn('Settings sync rejected (identity mismatch), disabling sync');
+    syncEnabled = false;
+  } else if (res.status >= 500 && retries > 0) {
+    const body = await res.json().catch(() => ({}));
+    syncWarn('Settings sync got server error:', body.error || `status ${res.status}`, '- retrying...');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return syncSettingsJob(job, retries - 1);
+  } else if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    syncError('Settings sync failed:', body.error || `status ${res.status}`);
+  } else {
+    syncLog('Settings synced to server successfully');
+  }
+}
 
 export type FontSize = 'small' | 'medium' | 'large';
 export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
@@ -31,16 +70,35 @@ export type ListDensity = Density;
 export type DeleteAction = 'trash' | 'trash-and-read' | 'permanent';
 export type ReplyMode = 'reply' | 'replyAll';
 export type SignaturePosition = 'above_quote' | 'below_quote';
+/** How to handle an incoming Disposition-Notification-To (read-receipt) request. */
+export type ReadReceiptResponse = 'ask' | 'always' | 'never';
 export type DateFormat = 'smart' | 'relative' | 'full';
+/**
+ * Regional ordering of numeric dates, independent of the `DateFormat` style.
+ *   - `auto`  — follow the UI language (today's behaviour).
+ *   - `iso`   — ISO 8601, `YYYY-MM-DD`.
+ *   - `en-GB` — Day/Month/Year (`DD/MM/YYYY`).
+ *   - `en-US` — Month/Day/Year (`MM/DD/YYYY`).
+ */
+export type DateLocale = 'auto' | 'iso' | 'en-GB' | 'en-US';
 export type TimeFormat = '12h' | '24h';
-export type FirstDayOfWeek = 0 | 1; // 0 = Sunday, 1 = Monday
+export type FirstDayOfWeek = 0 | 1 | 6; // 0 = Sunday, 1 = Monday, 6 = Saturday
 export type ExternalContentPolicy = 'ask' | 'block' | 'allow';
 export type MailAttachmentAction = 'preview' | 'download';
 export type AttachmentPosition = 'beside-sender' | 'below-header';
 export type ToolbarPosition = 'top' | 'below-subject';
 export type ArchiveMode = 'single' | 'year' | 'month';
 export type MailLayout = 'split' | 'focus' | 'horizontal';
+
+/**
+ * Spacing around a message body in the reader.
+ * - 'auto'  : add a gutter unless the email paints its own full-bleed background
+ * - 'always': always add the gutter
+ * - 'edge'  : never add one (render edge-to-edge)
+ */
+export type MessageSpacing = 'auto' | 'always' | 'edge';
 export type CalendarHoverPreview = 'off' | 'instant' | 'delay-500ms' | 'delay-1s' | 'delay-2s';
+export type SendDelaySeconds = 0 | 10 | 30 | 60;
 export type ProtocolOpenMode = 'active-session' | 'new-tab';
 
 /**
@@ -77,10 +135,19 @@ export const ALL_DEBUG_CATEGORIES: { id: DebugCategory; labelKey: string }[] = [
   { id: 'contacts', labelKey: 'contacts' },
 ];
 
+/** Whether a tag shows in the sidebar always, only when it has unread mail, or never. */
+export type KeywordVisibility = 'show' | 'hide' | 'unread';
+
 export interface KeywordDefinition {
   id: string;     // Used as JMAP keyword suffix: $label:<id>
   label: string;  // Display name
   color: string;  // Key from KEYWORD_PALETTE
+  visibility?: KeywordVisibility; // Absent on tags stored before this was configurable
+}
+
+/** Resolves the sidebar visibility of a tag, defaulting to always shown. */
+export function getKeywordVisibility(keyword: KeywordDefinition): KeywordVisibility {
+  return keyword.visibility ?? 'show';
 }
 
 export interface SidebarApp {
@@ -92,22 +159,85 @@ export interface SidebarApp {
   showOnMobile: boolean;
 }
 
-// Available color palette for keywords
-export const KEYWORD_PALETTE: Record<string, { dot: string; bg: string }> = {
-  red: { dot: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-950/30' },
-  orange: { dot: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/30' },
-  yellow: { dot: 'bg-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-950/30' },
-  green: { dot: 'bg-green-500', bg: 'bg-green-50 dark:bg-green-950/30' },
-  blue: { dot: 'bg-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/30' },
-  purple: { dot: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/30' },
-  pink: { dot: 'bg-pink-500', bg: 'bg-pink-50 dark:bg-pink-950/30' },
-  teal: { dot: 'bg-teal-500', bg: 'bg-teal-50 dark:bg-teal-950/30' },
-  cyan: { dot: 'bg-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-950/30' },
-  indigo: { dot: 'bg-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/30' },
-  amber: { dot: 'bg-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/30' },
-  lime: { dot: 'bg-lime-500', bg: 'bg-lime-50 dark:bg-lime-950/30' },
-  gray: { dot: 'bg-gray-500', bg: 'bg-gray-50 dark:bg-gray-950/30' },
+export interface KeywordColor {
+  /** Solid swatch: the dot form and the settings swatches. */
+  dot: string;
+  /** The same solid colour as `dot`, for glyphs that take a text colour. */
+  icon: string;
+  /** Lozenge background. */
+  fill: string;
+  /** Lozenge border. */
+  border: string;
+  /** Lozenge text. */
+  text: string;
+  /** Full-row wash when `tintListRowsByTag` is on. */
+  rowTint: string;
+}
+
+/**
+ * Tag colours, written out literally.
+ *
+ * Tailwind v4 scans this file, but only for classes that appear verbatim -
+ * a composed `bg-${hue}-500` would compile to nothing. Every shade a tag can
+ * take therefore has to be spelled out, which is why this map is long.
+ *
+ * Three shades per hue: the middle one keeps the bare hue name, so a tag
+ * saved before the lighter and darker rows existed still resolves.
+ */
+export const KEYWORD_PALETTE: Record<string, KeywordColor> = {
+  // light
+  'red-light': { dot: 'bg-red-300', icon: 'text-red-300', fill: 'bg-red-300/10', border: 'border-red-300/30', text: 'text-red-600 dark:text-red-200', rowTint: 'bg-red-50/60 dark:bg-red-950/20' },
+  'orange-light': { dot: 'bg-orange-300', icon: 'text-orange-300', fill: 'bg-orange-300/10', border: 'border-orange-300/30', text: 'text-orange-600 dark:text-orange-200', rowTint: 'bg-orange-50/60 dark:bg-orange-950/20' },
+  'amber-light': { dot: 'bg-amber-300', icon: 'text-amber-300', fill: 'bg-amber-300/10', border: 'border-amber-300/30', text: 'text-amber-600 dark:text-amber-200', rowTint: 'bg-amber-50/60 dark:bg-amber-950/20' },
+  'yellow-light': { dot: 'bg-yellow-300', icon: 'text-yellow-300', fill: 'bg-yellow-300/10', border: 'border-yellow-300/30', text: 'text-yellow-600 dark:text-yellow-200', rowTint: 'bg-yellow-50/60 dark:bg-yellow-950/20' },
+  'lime-light': { dot: 'bg-lime-300', icon: 'text-lime-300', fill: 'bg-lime-300/10', border: 'border-lime-300/30', text: 'text-lime-600 dark:text-lime-200', rowTint: 'bg-lime-50/60 dark:bg-lime-950/20' },
+  'green-light': { dot: 'bg-green-300', icon: 'text-green-300', fill: 'bg-green-300/10', border: 'border-green-300/30', text: 'text-green-600 dark:text-green-200', rowTint: 'bg-green-50/60 dark:bg-green-950/20' },
+  'teal-light': { dot: 'bg-teal-300', icon: 'text-teal-300', fill: 'bg-teal-300/10', border: 'border-teal-300/30', text: 'text-teal-600 dark:text-teal-200', rowTint: 'bg-teal-50/60 dark:bg-teal-950/20' },
+  'cyan-light': { dot: 'bg-cyan-300', icon: 'text-cyan-300', fill: 'bg-cyan-300/10', border: 'border-cyan-300/30', text: 'text-cyan-600 dark:text-cyan-200', rowTint: 'bg-cyan-50/60 dark:bg-cyan-950/20' },
+  'blue-light': { dot: 'bg-blue-300', icon: 'text-blue-300', fill: 'bg-blue-300/10', border: 'border-blue-300/30', text: 'text-blue-600 dark:text-blue-200', rowTint: 'bg-blue-50/60 dark:bg-blue-950/20' },
+  'indigo-light': { dot: 'bg-indigo-300', icon: 'text-indigo-300', fill: 'bg-indigo-300/10', border: 'border-indigo-300/30', text: 'text-indigo-600 dark:text-indigo-200', rowTint: 'bg-indigo-50/60 dark:bg-indigo-950/20' },
+  'purple-light': { dot: 'bg-purple-300', icon: 'text-purple-300', fill: 'bg-purple-300/10', border: 'border-purple-300/30', text: 'text-purple-600 dark:text-purple-200', rowTint: 'bg-purple-50/60 dark:bg-purple-950/20' },
+  'pink-light': { dot: 'bg-pink-300', icon: 'text-pink-300', fill: 'bg-pink-300/10', border: 'border-pink-300/30', text: 'text-pink-600 dark:text-pink-200', rowTint: 'bg-pink-50/60 dark:bg-pink-950/20' },
+  'gray-light': { dot: 'bg-gray-300', icon: 'text-gray-300', fill: 'bg-gray-300/10', border: 'border-gray-300/30', text: 'text-gray-600 dark:text-gray-200', rowTint: 'bg-gray-50/60 dark:bg-gray-950/20' },
+  // base
+  red: { dot: 'bg-red-500', icon: 'text-red-500', fill: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-700 dark:text-red-300', rowTint: 'bg-red-50 dark:bg-red-950/30' },
+  orange: { dot: 'bg-orange-500', icon: 'text-orange-500', fill: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-700 dark:text-orange-300', rowTint: 'bg-orange-50 dark:bg-orange-950/30' },
+  amber: { dot: 'bg-amber-500', icon: 'text-amber-500', fill: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-700 dark:text-amber-300', rowTint: 'bg-amber-50 dark:bg-amber-950/30' },
+  yellow: { dot: 'bg-yellow-500', icon: 'text-yellow-500', fill: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-700 dark:text-yellow-300', rowTint: 'bg-yellow-50 dark:bg-yellow-950/30' },
+  lime: { dot: 'bg-lime-500', icon: 'text-lime-500', fill: 'bg-lime-500/10', border: 'border-lime-500/30', text: 'text-lime-700 dark:text-lime-300', rowTint: 'bg-lime-50 dark:bg-lime-950/30' },
+  green: { dot: 'bg-green-500', icon: 'text-green-500', fill: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-700 dark:text-green-300', rowTint: 'bg-green-50 dark:bg-green-950/30' },
+  teal: { dot: 'bg-teal-500', icon: 'text-teal-500', fill: 'bg-teal-500/10', border: 'border-teal-500/30', text: 'text-teal-700 dark:text-teal-300', rowTint: 'bg-teal-50 dark:bg-teal-950/30' },
+  cyan: { dot: 'bg-cyan-500', icon: 'text-cyan-500', fill: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-700 dark:text-cyan-300', rowTint: 'bg-cyan-50 dark:bg-cyan-950/30' },
+  blue: { dot: 'bg-blue-500', icon: 'text-blue-500', fill: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-700 dark:text-blue-300', rowTint: 'bg-blue-50 dark:bg-blue-950/30' },
+  indigo: { dot: 'bg-indigo-500', icon: 'text-indigo-500', fill: 'bg-indigo-500/10', border: 'border-indigo-500/30', text: 'text-indigo-700 dark:text-indigo-300', rowTint: 'bg-indigo-50 dark:bg-indigo-950/30' },
+  purple: { dot: 'bg-purple-500', icon: 'text-purple-500', fill: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-700 dark:text-purple-300', rowTint: 'bg-purple-50 dark:bg-purple-950/30' },
+  pink: { dot: 'bg-pink-500', icon: 'text-pink-500', fill: 'bg-pink-500/10', border: 'border-pink-500/30', text: 'text-pink-700 dark:text-pink-300', rowTint: 'bg-pink-50 dark:bg-pink-950/30' },
+  gray: { dot: 'bg-gray-500', icon: 'text-gray-500', fill: 'bg-gray-500/10', border: 'border-gray-500/30', text: 'text-gray-700 dark:text-gray-300', rowTint: 'bg-gray-50 dark:bg-gray-950/30' },
+  // dark
+  'red-dark': { dot: 'bg-red-700', icon: 'text-red-700', fill: 'bg-red-700/10', border: 'border-red-700/30', text: 'text-red-800 dark:text-red-400', rowTint: 'bg-red-100 dark:bg-red-950/50' },
+  'orange-dark': { dot: 'bg-orange-700', icon: 'text-orange-700', fill: 'bg-orange-700/10', border: 'border-orange-700/30', text: 'text-orange-800 dark:text-orange-400', rowTint: 'bg-orange-100 dark:bg-orange-950/50' },
+  'amber-dark': { dot: 'bg-amber-700', icon: 'text-amber-700', fill: 'bg-amber-700/10', border: 'border-amber-700/30', text: 'text-amber-800 dark:text-amber-400', rowTint: 'bg-amber-100 dark:bg-amber-950/50' },
+  'yellow-dark': { dot: 'bg-yellow-700', icon: 'text-yellow-700', fill: 'bg-yellow-700/10', border: 'border-yellow-700/30', text: 'text-yellow-800 dark:text-yellow-400', rowTint: 'bg-yellow-100 dark:bg-yellow-950/50' },
+  'lime-dark': { dot: 'bg-lime-700', icon: 'text-lime-700', fill: 'bg-lime-700/10', border: 'border-lime-700/30', text: 'text-lime-800 dark:text-lime-400', rowTint: 'bg-lime-100 dark:bg-lime-950/50' },
+  'green-dark': { dot: 'bg-green-700', icon: 'text-green-700', fill: 'bg-green-700/10', border: 'border-green-700/30', text: 'text-green-800 dark:text-green-400', rowTint: 'bg-green-100 dark:bg-green-950/50' },
+  'teal-dark': { dot: 'bg-teal-700', icon: 'text-teal-700', fill: 'bg-teal-700/10', border: 'border-teal-700/30', text: 'text-teal-800 dark:text-teal-400', rowTint: 'bg-teal-100 dark:bg-teal-950/50' },
+  'cyan-dark': { dot: 'bg-cyan-700', icon: 'text-cyan-700', fill: 'bg-cyan-700/10', border: 'border-cyan-700/30', text: 'text-cyan-800 dark:text-cyan-400', rowTint: 'bg-cyan-100 dark:bg-cyan-950/50' },
+  'blue-dark': { dot: 'bg-blue-700', icon: 'text-blue-700', fill: 'bg-blue-700/10', border: 'border-blue-700/30', text: 'text-blue-800 dark:text-blue-400', rowTint: 'bg-blue-100 dark:bg-blue-950/50' },
+  'indigo-dark': { dot: 'bg-indigo-700', icon: 'text-indigo-700', fill: 'bg-indigo-700/10', border: 'border-indigo-700/30', text: 'text-indigo-800 dark:text-indigo-400', rowTint: 'bg-indigo-100 dark:bg-indigo-950/50' },
+  'purple-dark': { dot: 'bg-purple-700', icon: 'text-purple-700', fill: 'bg-purple-700/10', border: 'border-purple-700/30', text: 'text-purple-800 dark:text-purple-400', rowTint: 'bg-purple-100 dark:bg-purple-950/50' },
+  'pink-dark': { dot: 'bg-pink-700', icon: 'text-pink-700', fill: 'bg-pink-700/10', border: 'border-pink-700/30', text: 'text-pink-800 dark:text-pink-400', rowTint: 'bg-pink-100 dark:bg-pink-950/50' },
+  'gray-dark': { dot: 'bg-gray-700', icon: 'text-gray-700', fill: 'bg-gray-700/10', border: 'border-gray-700/30', text: 'text-gray-800 dark:text-gray-400', rowTint: 'bg-gray-100 dark:bg-gray-950/50' },
 } as const;
+
+/** Palette laid out as the settings picker shows it: lighter, base, darker. */
+export const KEYWORD_PALETTE_ROWS: string[][] = [
+  ['red-light', 'orange-light', 'amber-light', 'yellow-light', 'lime-light', 'green-light', 'teal-light', 'cyan-light', 'blue-light', 'indigo-light', 'purple-light', 'pink-light', 'gray-light'],
+  ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'teal', 'cyan', 'blue', 'indigo', 'purple', 'pink', 'gray'],
+  ['red-dark', 'orange-dark', 'amber-dark', 'yellow-dark', 'lime-dark', 'green-dark', 'teal-dark', 'cyan-dark', 'blue-dark', 'indigo-dark', 'purple-dark', 'pink-dark', 'gray-dark'],
+];
+
+/** The colour a tag falls back to when its definition is gone. */
+export const FALLBACK_KEYWORD_COLOR = 'gray';
 
 export const DEFAULT_KEYWORDS: KeywordDefinition[] = [
   { id: 'red', label: 'Red', color: 'red' },
@@ -119,6 +249,17 @@ export const DEFAULT_KEYWORDS: KeywordDefinition[] = [
   { id: 'pink', label: 'Pink', color: 'pink' },
 ];
 
+export const DEV_KEYWORDS: KeywordDefinition[] = [
+  { id: 'work', label: 'Work', color: 'blue' },
+  { id: 'work/clients', label: 'Clients', color: 'teal' },
+  { id: 'work/clients/acme', label: 'Acme', color: 'green' },
+  { id: 'personal', label: 'Personal', color: 'purple' },
+  { id: 'personal/finance', label: 'Finance', color: 'amber' },
+  { id: 'receipts', label: 'Receipts', color: 'gray' },
+];
+
+const USING_MOCK_SERVER = process.env.NEXT_PUBLIC_DEV_MOCK_JMAP === 'true';
+
 interface SettingsState {
   // Appearance
   fontSize: FontSize;
@@ -127,6 +268,7 @@ interface SettingsState {
 
   // Language & Region
   dateFormat: DateFormat;
+  dateLocale: DateLocale;
   timeFormat: TimeFormat;
   firstDayOfWeek: FirstDayOfWeek;
 
@@ -134,10 +276,12 @@ interface SettingsState {
   markAsReadDelay: number; // milliseconds (0 = instant, -1 = never)
   deleteAction: DeleteAction;
   permanentlyDeleteJunk: boolean; // Permanently delete emails from junk/spam instead of moving to trash
+  returnToListAfterAction: boolean; // After delete / mark-unread in an open message, return to the list instead of opening the next message
   showPreview: boolean;
   mailLayout: MailLayout;
   emailsPerPage: number;
   externalContentPolicy: ExternalContentPolicy;
+  messageSpacing: MessageSpacing; // Gutter around the message body in the reader
   mailAttachmentAction: MailAttachmentAction;
   attachmentPosition: AttachmentPosition;
   emailAlwaysLightMode: boolean; // Always render email content in light mode
@@ -152,18 +296,22 @@ interface SettingsState {
   defaultReplyMode: ReplyMode;
   autoSelectReplyIdentity: boolean;
   plainTextMode: boolean; // Send plain text only (no rich text editor)
+  rtlEditingSupport: boolean; // Show a per-paragraph LTR/RTL direction control in the composer (Gmail-style)
   subAddressDelimiter: string; // Character separating user from tag (e.g. "user+tag@")
+  sendDelaySeconds: SendDelaySeconds;
   signaturePosition: SignaturePosition; // Position of the signature relative to quoted text in replies/forwards
   signatureSeparatorEnabled: boolean; // Prefix the signature with the RFC 3676 "-- " delimiter
+  requestReadReceiptDefault: boolean; // Pre-check "request read receipt" in the composer
+  readReceiptResponse: ReadReceiptResponse; // How to respond to incoming read-receipt requests
 
   // Privacy & Security
   sessionTimeout: number; // minutes (0 = never)
   trustedSenders: string[]; // Email addresses that can load external content
-  trustedSendersAddressBook: boolean; // Store trusted senders in a dedicated JMAP address book
-  // Tracks whether the user has explicitly toggled trustedSendersAddressBook.
-  // Lets us auto-enable the default once on contacts-capable servers without
-  // re-overriding a deliberate user choice on subsequent logins.
-  trustedSendersAddressBookUserSet: boolean;
+  // Store trusted senders in a dedicated JMAP address book so they sync across
+  // devices. `null` means "not yet decided": resolved on first connect to
+  // `true` when the server supports contacts, otherwise left off. Once the user
+  // toggles it, it holds a concrete boolean and is never auto-changed again.
+  trustedSendersAddressBook: boolean | null;
 
   // Filters
   expandedFilterView: boolean;
@@ -180,6 +328,11 @@ interface SettingsState {
   // Contact Birthday Calendar
   showBirthdayCalendar: boolean;
   birthdayCalendarColor: string;
+
+  // Per-viewer color overrides for shared calendars, keyed by
+  // sharedCalendarColorKey(). Lets each recipient recolor calendars shared
+  // with them without changing the owner's color (see #345).
+  sharedCalendarColors: Record<string, string>;
 
   // Contacts Display
   groupContactsByLetter: boolean;
@@ -206,26 +359,59 @@ interface SettingsState {
 
   // Unified Mailbox
   enableUnifiedMailbox: boolean;
+  // Include shared/delegated folders in the unified mailbox. Default true: the
+  // account-bounded unified view is defined by spanning the account's own folders
+  // plus every shared folder it can access.
   includeGroupInUnified: boolean;
+  // When true, the unified mailbox merges across every logged-in account
+  // (cross-account). When false (default for new installs) it stays within the
+  // active account boundary (own + shared folders). Gated by the admin
+  // `unifiedCrossAccountEnabled` feature.
+  unifiedCrossAccount: boolean;
+
+  // Unified Mailbox entries, each gated per-view by the admin policy. These show
+  // the All mail / Unread / Starred lists, scoped by `unifiedCrossAccount` and
+  // narrowed by the `allMailFolderIds` folder selection.
+  enableCrossUnreadView: boolean;
+  enableCrossStarredView: boolean;
+  enableCrossAllView: boolean;
+
+  // Per-account folder selection narrowing the unified All mail / Unread /
+  // Starred lists, keyed by AccountEntry.id. A missing entry = "not configured"
+  // -> defaults to inbox + custom folders; an explicit [] = "no own folders".
+  allMailFolderIds: Record<string, string[]>;
+
+  // Per-account default sender identity, keyed by AccountEntry.id -> JMAP
+  // Identity id. Synced (and exported) so the chosen default survives clearing
+  // site data and follows the user across browsers/devices (issue #507). Kept
+  // per account because JMAP identity ids are account-scoped and would collide.
+  preferredIdentityIds: Record<string, string>;
 
   // Email Display
   disableThreading: boolean; // Show emails as individual messages instead of grouped by conversation
 
   senderFavicons: boolean;
   showAvatarsInJunk: boolean; // Show profile images/favicons in the junk folder
+  faviconUnreadBadge: boolean; // Badge the browser-tab icon with the inbox unread count
 
   // Sidebar
   colorfulSidebarIcons: boolean; // Tint folder icons by role (inbox blue, junk red, etc.)
+  tintListRowsByTag: boolean; // Tint mail-list rows by the first tag color
+  showFolderTotalCount: boolean; // Show total message count next to folders/tags (alongside unread)
 
   // Folders
   folderIcons: Record<string, string>; // mailboxId -> icon name
 
   // Keywords (labels/tags)
   emailKeywords: KeywordDefinition[];
+  nestedTags: boolean; // Treat "/" in a tag id as a parent/child separator
 
   // Attachment Reminder
   attachmentReminderEnabled: boolean;
   attachmentReminderKeywords: string[];
+
+  // Ask for confirmation when sending a message with an empty subject
+  emptySubjectWarningEnabled: boolean;
 
   // Hide inline images (images referenced by cid in the HTML body) from the
   // attachment list shown above the message body.
@@ -266,19 +452,20 @@ interface SettingsState {
   ) => void;
   resetToDefaults: () => void;
   exportSettings: () => string;
-  importSettings: (json: string) => boolean;
+  importSettings: (json: string, opts?: { serverAccountId?: string }) => boolean;
 
   // Folder icons
   setFolderIcon: (mailboxId: string, icon: string) => void;
   removeFolderIcon: (mailboxId: string) => void;
 
+  // Shared-calendar color overrides
+  setSharedCalendarColor: (key: string, color: string) => void;
+  removeSharedCalendarColor: (key: string) => void;
+
   // Trusted senders
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
-  // Auto-enable the address-book backed Trusted Senders on contacts-capable
-  // accounts, but only if the user hasn't already made an explicit choice.
-  ensureTrustedSendersAddressBookDefault: () => void;
 
   // Keywords
   addKeyword: (keyword: KeywordDefinition) => void;
@@ -296,6 +483,7 @@ interface SettingsState {
 
   // Settings sync
   enableSync: (username: string, serverUrl: string) => void;
+  flushSync: () => Promise<void>;
   disableSync: () => void;
   loadFromServer: (username: string, serverUrl: string) => Promise<boolean>;
 }
@@ -308,6 +496,7 @@ const DEFAULT_SETTINGS = {
 
   // Language & Region
   dateFormat: 'smart' as DateFormat,
+  dateLocale: 'auto' as DateLocale,
   timeFormat: '24h' as TimeFormat,
   firstDayOfWeek: 1 as FirstDayOfWeek, // Monday
 
@@ -315,10 +504,12 @@ const DEFAULT_SETTINGS = {
   markAsReadDelay: 0, // Instant
   deleteAction: 'trash' as DeleteAction,
   permanentlyDeleteJunk: false,
+  returnToListAfterAction: true,
   showPreview: true,
   mailLayout: 'split' as MailLayout,
   emailsPerPage: 50,
   externalContentPolicy: 'ask' as ExternalContentPolicy,
+  messageSpacing: 'auto' as MessageSpacing,
   mailAttachmentAction: 'preview' as MailAttachmentAction,
   attachmentPosition: 'beside-sender' as AttachmentPosition,
   emailAlwaysLightMode: false,
@@ -333,15 +524,18 @@ const DEFAULT_SETTINGS = {
   defaultReplyMode: 'reply' as ReplyMode,
   autoSelectReplyIdentity: false,
   plainTextMode: false,
+  rtlEditingSupport: false,
   subAddressDelimiter: DEFAULT_SUB_ADDRESS_DELIMITER,
+  sendDelaySeconds: 0 as SendDelaySeconds,
   signaturePosition: 'below_quote' as SignaturePosition,
   signatureSeparatorEnabled: true,
+  requestReadReceiptDefault: false,
+  readReceiptResponse: 'ask' as ReadReceiptResponse,
 
   // Privacy & Security
   sessionTimeout: 0, // Never
   trustedSenders: [] as string[],
-  trustedSendersAddressBook: false,
-  trustedSendersAddressBookUserSet: false,
+  trustedSendersAddressBook: null as boolean | null,
 
   // Filters
   expandedFilterView: false,
@@ -358,6 +552,8 @@ const DEFAULT_SETTINGS = {
   // Contact Birthday Calendar
   showBirthdayCalendar: false,
   birthdayCalendarColor: '#eab308',
+
+  sharedCalendarColors: {} as Record<string, string>,
 
   // Contacts Display
   groupContactsByLetter: true,
@@ -384,22 +580,34 @@ const DEFAULT_SETTINGS = {
 
   // Unified Mailbox
   enableUnifiedMailbox: false,
-  includeGroupInUnified: false,
+  includeGroupInUnified: true,
+  unifiedCrossAccount: false,
+
+  allMailFolderIds: {} as Record<string, string[]>,
+  preferredIdentityIds: {} as Record<string, string>,
+
+  enableCrossUnreadView: false,
+  enableCrossStarredView: false,
+  enableCrossAllView: false,
 
   // Email Display
   disableThreading: false,
 
   senderFavicons: true,
   showAvatarsInJunk: false,
+  faviconUnreadBadge: true,
 
   // Sidebar
   colorfulSidebarIcons: true,
+  tintListRowsByTag: true,
+  showFolderTotalCount: true,
 
   // Folders
   folderIcons: {} as Record<string, string>,
 
   // Keywords
-  emailKeywords: DEFAULT_KEYWORDS,
+  emailKeywords: USING_MOCK_SERVER ? DEV_KEYWORDS : DEFAULT_KEYWORDS,
+  nestedTags: USING_MOCK_SERVER,
 
   // Attachment Reminder
   attachmentReminderEnabled: true,
@@ -431,6 +639,8 @@ const DEFAULT_SETTINGS = {
     // Latvian
     'pielikumā',
   ] as string[],
+
+  emptySubjectWarningEnabled: true,
 
   hideInlineImageAttachments: true,
   attachmentImagePreviewsEnabled: true,
@@ -476,12 +686,6 @@ export const useSettingsStore = create<SettingsState>()(
       updateSetting: (key, value) => {
         set({ [key]: value });
 
-        // Record explicit user choice so we don't override it with the
-        // contacts-available auto-default on subsequent logins.
-        if (key === 'trustedSendersAddressBook') {
-          set({ trustedSendersAddressBookUserSet: true });
-        }
-
         // Apply font size to document root
         if (key === 'fontSize') {
           applyFontSize(value as FontSize);
@@ -512,14 +716,17 @@ export const useSettingsStore = create<SettingsState>()(
           density: state.density,
           animationsEnabled: state.animationsEnabled,
           dateFormat: state.dateFormat,
+          dateLocale: state.dateLocale,
           timeFormat: state.timeFormat,
           firstDayOfWeek: state.firstDayOfWeek,
           markAsReadDelay: state.markAsReadDelay,
           deleteAction: state.deleteAction,
+          returnToListAfterAction: state.returnToListAfterAction,
           showPreview: state.showPreview,
           mailLayout: state.mailLayout,
           emailsPerPage: state.emailsPerPage,
           externalContentPolicy: state.externalContentPolicy,
+          messageSpacing: state.messageSpacing,
           mailAttachmentAction: state.mailAttachmentAction,
           attachmentPosition: state.attachmentPosition,
           archiveMode: state.archiveMode,
@@ -533,9 +740,13 @@ export const useSettingsStore = create<SettingsState>()(
           defaultReplyMode: state.defaultReplyMode,
           autoSelectReplyIdentity: state.autoSelectReplyIdentity,
           plainTextMode: state.plainTextMode,
+          rtlEditingSupport: state.rtlEditingSupport,
           subAddressDelimiter: state.subAddressDelimiter,
+          sendDelaySeconds: state.sendDelaySeconds,
           signaturePosition: state.signaturePosition,
           signatureSeparatorEnabled: state.signatureSeparatorEnabled,
+          requestReadReceiptDefault: state.requestReadReceiptDefault,
+          readReceiptResponse: state.readReceiptResponse,
           sessionTimeout: state.sessionTimeout,
           emailNotificationsEnabled: state.emailNotificationsEnabled,
           emailNotificationSound: state.emailNotificationSound,
@@ -548,6 +759,7 @@ export const useSettingsStore = create<SettingsState>()(
           showTasksOnCalendar: state.showTasksOnCalendar,
           showBirthdayCalendar: state.showBirthdayCalendar,
           birthdayCalendarColor: state.birthdayCalendarColor,
+          sharedCalendarColors: state.sharedCalendarColors,
           groupContactsByLetter: state.groupContactsByLetter,
           expandedFilterView: state.expandedFilterView,
           showTimeInMonthView: state.showTimeInMonthView,
@@ -560,13 +772,24 @@ export const useSettingsStore = create<SettingsState>()(
           // (see DEVICE_LOCAL_SETTING_KEYS) and must not be synced.
           enableUnifiedMailbox: state.enableUnifiedMailbox,
           includeGroupInUnified: state.includeGroupInUnified,
+          unifiedCrossAccount: state.unifiedCrossAccount,
+          allMailFolderIds: state.allMailFolderIds,
+          preferredIdentityIds: state.preferredIdentityIds,
+          enableCrossUnreadView: state.enableCrossUnreadView,
+          enableCrossStarredView: state.enableCrossStarredView,
+          enableCrossAllView: state.enableCrossAllView,
           senderFavicons: state.senderFavicons,
           showAvatarsInJunk: state.showAvatarsInJunk,
+          faviconUnreadBadge: state.faviconUnreadBadge,
           colorfulSidebarIcons: state.colorfulSidebarIcons,
+          tintListRowsByTag: state.tintListRowsByTag,
+          showFolderTotalCount: state.showFolderTotalCount,
           folderIcons: state.folderIcons,
           emailKeywords: state.emailKeywords,
+          nestedTags: state.nestedTags,
           attachmentReminderEnabled: state.attachmentReminderEnabled,
           attachmentReminderKeywords: state.attachmentReminderKeywords,
+          emptySubjectWarningEnabled: state.emptySubjectWarningEnabled,
           hideInlineImageAttachments: state.hideInlineImageAttachments,
           attachmentImagePreviewsEnabled: state.attachmentImagePreviewsEnabled,
           sidebarApps: state.sidebarApps,
@@ -584,7 +807,7 @@ export const useSettingsStore = create<SettingsState>()(
         return JSON.stringify(settings, null, 2);
       },
 
-      importSettings: (json: string) => {
+      importSettings: (json: string, opts?: { serverAccountId?: string }) => {
         try {
           const settings = JSON.parse(json);
 
@@ -603,7 +826,39 @@ export const useSettingsStore = create<SettingsState>()(
               if (key === 'subAddressDelimiter' && !isValidSubAddressDelimiter(settings[key])) {
                 return;
               }
+              if (key === 'sendDelaySeconds' && ![0, 10, 30, 60].includes(settings[key])) {
+                set({ sendDelaySeconds: 0 });
+                return;
+              }
+              // Ignore a legacy global allMailFolderIds (string[] | null) or any
+              // non-record value - this build keys it per account.
+              if (key === 'allMailFolderIds' && !isPlainRecord(settings[key])) {
+                return;
+              }
+              // Per-account map (accountId -> identityId); ignore any legacy
+              // global/non-record value rather than corrupting the map.
+              if (key === 'preferredIdentityIds' && !isPlainRecord(settings[key])) {
+                return;
+              }
               if (DEVICE_LOCAL_SETTING_KEYS.has(key)) {
+                return;
+              }
+              // Per-account maps (accountId -> value) live in every account's
+              // synced settings blob, so a per-account server load must NOT
+              // replace the whole map - each account's server is authoritative
+              // only for its OWN entry. Merging preserves the other accounts'
+              // local values; without this the last account to load clobbers
+              // the map and the composer picks another account's default sender
+              // (login-order dependent). File imports (no serverAccountId)
+              // still replace wholesale.
+              if (opts?.serverAccountId && (key === 'preferredIdentityIds' || key === 'allMailFolderIds')) {
+                const existing = (get() as unknown as Record<string, unknown>)[key];
+                const merged: Record<string, unknown> = isPlainRecord(existing) ? { ...existing } : {};
+                const incoming = settings[key] as Record<string, unknown>;
+                if (Object.prototype.hasOwnProperty.call(incoming, opts.serverAccountId)) {
+                  merged[opts.serverAccountId] = incoming[opts.serverAccountId];
+                }
+                set({ [key]: merged });
                 return;
               }
               set({ [key]: settings[key] });
@@ -640,36 +895,44 @@ export const useSettingsStore = create<SettingsState>()(
         set({ folderIcons: rest });
       },
 
+      // Shared-calendar color override methods
+      setSharedCalendarColor: (key: string, color: string) => {
+        set({ sharedCalendarColors: { ...get().sharedCalendarColors, [key]: color } });
+      },
+
+      removeSharedCalendarColor: (key: string) => {
+        const { [key]: _, ...rest } = get().sharedCalendarColors;
+        set({ sharedCalendarColors: rest });
+      },
+
       // Trusted senders methods
       addTrustedSender: (email: string) => {
-        const normalizedEmail = email.toLowerCase().trim();
+        // Parse "Name <email>" format to extract just the email address
+        const trimmed = email.trim();
+        const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+        const emailAddress = (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
         const current = get().trustedSenders;
-        if (!current.includes(normalizedEmail)) {
-          set({ trustedSenders: [...current, normalizedEmail] });
+        if (!current.includes(emailAddress)) {
+          set({ trustedSenders: [...current, emailAddress] });
         }
       },
 
       removeTrustedSender: (email: string) => {
-        const normalizedEmail = email.toLowerCase().trim();
+        // Parse "Name <email>" format to extract just the email address
+        const trimmed = email.trim();
+        const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+        const emailAddress = (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
         set({
-          trustedSenders: get().trustedSenders.filter(e => e !== normalizedEmail)
+          trustedSenders: get().trustedSenders.filter(e => e !== emailAddress)
         });
       },
 
       isSenderTrusted: (email: string) => {
-        const normalizedEmail = email.toLowerCase().trim();
-        return get().trustedSenders.includes(normalizedEmail);
-      },
-
-      ensureTrustedSendersAddressBookDefault: () => {
-        const state = get();
-        if (state.trustedSendersAddressBookUserSet) return;
-        if (state.trustedSendersAddressBook) {
-          // Already enabled (e.g. by migration or sync); just mark as set.
-          set({ trustedSendersAddressBookUserSet: true });
-          return;
-        }
-        set({ trustedSendersAddressBook: true, trustedSendersAddressBookUserSet: true });
+        // Parse "Name <email>" format to extract just the email address
+        const trimmed = email.trim();
+        const angleMatch = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+        const emailAddress = (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
+        return get().trustedSenders.includes(emailAddress);
       },
 
       // Keyword methods
@@ -738,6 +1001,16 @@ export const useSettingsStore = create<SettingsState>()(
         syncLog('Settings sync enabled for', username);
       },
 
+      flushSync: async () => {
+        if (syncTimeout) {
+          clearTimeout(syncTimeout);
+          syncTimeout = null;
+        }
+        const job = pendingSync;
+        pendingSync = null;
+        if (job) await syncSettingsJob(job);
+      },
+
       disableSync: () => {
         syncEnabled = false;
         syncUsername = null;
@@ -746,6 +1019,7 @@ export const useSettingsStore = create<SettingsState>()(
           clearTimeout(syncTimeout);
           syncTimeout = null;
         }
+        pendingSync = null;
         syncLog('Settings sync disabled');
       },
 
@@ -770,9 +1044,17 @@ export const useSettingsStore = create<SettingsState>()(
           }
           if (settings && typeof settings === 'object') {
             isLoadingFromServer = true;
-            get().importSettings(JSON.stringify(settings));
+            // Merge (not replace) per-account maps for the account being loaded,
+            // so multi-account logins don't clobber each other by login order.
+            get().importSettings(JSON.stringify(settings), {
+              serverAccountId: generateAccountId(username, serverUrl),
+            });
             isLoadingFromServer = false;
             syncLog('Settings loaded from server successfully');
+            // The per-account preferred sender identity (#507) is re-applied by
+            // applyPreferredIdentity() in auth-store, invoked from the
+            // loadFromServer().finally() of every login / switch / restore path,
+            // so no extra hook is needed here.
             return true;
           }
           return false;
@@ -785,12 +1067,42 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 4,
-      migrate: (persisted, version) => {
-        const state = persisted as Record<string, unknown>;
+      version: 7,
+      migrate: migrateSettings,
+      onRehydrateStorage: () => {
+        return (state) => {
+          if (state) {
+            // Defensive: a legacy global array or any non-record value (e.g.
+            // synced from an older client) is coerced to an empty map so
+            // per-account consumers never see a non-record.
+            if (!isPlainRecord(state.allMailFolderIds)) {
+              state.allMailFolderIds = {};
+            }
+            if (!isPlainRecord(state.preferredIdentityIds)) {
+              state.preferredIdentityIds = {};
+            }
+            applyFontSize(state.fontSize);
+            applyDensity(state.density);
+            applyAnimations(state.animationsEnabled);
+          }
+        };
+      },
+    }
+  )
+);
+
+/**
+ * Versioned migration for persisted settings. Exported for tests. Mutates and
+ * returns the persisted record so each bump only needs to handle its own delta.
+ */
+export function migrateSettings(persisted: unknown, version: number): SettingsState {
+  const state = persisted as Record<string, unknown>;
         if (version < 2 && state.listDensity) {
           state.density = state.listDensity;
           delete state.listDensity;
+        }
+        if (![0, 10, 30, 60].includes(state.sendDelaySeconds as number)) {
+          state.sendDelaySeconds = 0;
         }
         if (version < 3 && typeof state.protocolOpenMode !== 'string' && typeof state.protocolMailtoOpenMode === 'string') {
           state.protocolOpenMode = state.protocolMailtoOpenMode;
@@ -802,20 +1114,48 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 4) {
           state.dateFormat = 'smart';
         }
-        return state as unknown as SettingsState;
-      },
-      onRehydrateStorage: () => {
-        return (state) => {
-          if (state) {
-            applyFontSize(state.fontSize);
-            applyDensity(state.density);
-            applyAnimations(state.animationsEnabled);
+        // v5: allMailFolderIds went from a global `string[] | null` to a
+        // per-account `Record<accountId, string[]>`. The legacy global list
+        // can't be attributed to a specific account here (the active account
+        // isn't known at migrate time), so it's dropped - each account starts
+        // "not configured" (defaults to all no-role folders).
+        if (version < 5 || !isPlainRecord(state.allMailFolderIds)) {
+          state.allMailFolderIds = {};
+        }
+        // "All accounts" was reworked into the account-bounded "Unified
+        // Mailbox". The standalone __all_mail__ view (`enableAllMailView`) was
+        // folded into the unified "All mail" entry (`enableCrossAllView`), and a
+        // `unifiedCrossAccount` toggle now governs whether the views span every
+        // logged-in account. Existing users keep their current behaviour:
+        //  - if any cross view was on, they were already cross-account -> keep it on
+        //  - else if only standalone All Mail was on, enable the account-bounded
+        //    unified "All mail" entry (folder selection carries over via allMailFolderIds)
+        // Guarded at <7 (not <6) so users who stopped at main's interim v6
+        // identity-map bump - which shipped without this rework - still receive it.
+        if (version < 7) {
+          const hadCross = !!(state.enableCrossUnreadView || state.enableCrossStarredView || state.enableCrossAllView);
+          if (hadCross) {
+            state.unifiedCrossAccount = true;
+          } else if (state.enableAllMailView) {
+            state.enableUnifiedMailbox = true;
+            state.enableCrossAllView = true;
+            state.unifiedCrossAccount = false;
           }
-        };
-      },
-    }
-  )
-);
+          delete state.enableAllMailView;
+          if (typeof state.unifiedCrossAccount !== 'boolean') state.unifiedCrossAccount = false;
+          // The reworked unified mailbox spans the account's own folders plus its
+          // shared/group folders, so enable shared inclusion for every migrated
+          // configuration (matches the new-install default).
+          state.includeGroupInUnified = true;
+        }
+        // Per-account default-identity map (issue #507). Coerce any
+        // missing/legacy value to an empty record. Guarded at <6 so users who
+        // already received it via main's v6 bump keep their populated map.
+        if (version < 6 || !isPlainRecord(state.preferredIdentityIds)) {
+          state.preferredIdentityIds = {};
+        }
+        return state as unknown as SettingsState;
+}
 
 // Helper functions to apply settings to DOM
 function applyFontSize(size: FontSize) {
@@ -894,44 +1234,21 @@ if (typeof window !== 'undefined') {
   applyDensity(store.density);
   applyAnimations(store.animationsEnabled);
 
-  // Shared sync function used by all store subscribers
-  const syncToServer = async (retries = 1): Promise<void> => {
-    const settings = JSON.parse(useSettingsStore.getState().exportSettings());
-    syncLog('Syncing settings to server...');
-    const res = await apiFetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: syncUsername, serverUrl: syncServerUrl, settings }),
-    });
-    if (res.status === 404) {
-      syncWarn('Settings sync endpoint returned 404, disabling sync');
-      syncEnabled = false;
-    } else if (res.status === 403) {
-      // Identity mismatch - current session cookies don't match the
-      // username/serverUrl we're syncing for (common in dev mock mode where
-      // no stalwart-context cookie is written, or when rememberMe is off).
-      // Retrying won't help for this session; disable to stop the noise.
-      syncWarn('Settings sync rejected (identity mismatch), disabling sync');
-      syncEnabled = false;
-    } else if (res.status >= 500 && retries > 0) {
-      const body = await res.json().catch(() => ({}));
-      syncWarn('Settings sync got server error:', body.error || `status ${res.status}`, '- retrying...');
-      await new Promise((r) => setTimeout(r, 2000));
-      return syncToServer(retries - 1);
-    } else if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      syncError('Settings sync failed:', body.error || `status ${res.status}`);
-    } else {
-      syncLog('Settings synced to server successfully');
-    }
-  };
-
   const triggerSync = () => {
     if (!syncEnabled || !syncUsername || !syncServerUrl || isLoadingFromServer) return;
+    pendingSync = {
+      username: syncUsername,
+      serverUrl: syncServerUrl,
+      settings: JSON.parse(useSettingsStore.getState().exportSettings()),
+    };
     if (syncTimeout) clearTimeout(syncTimeout);
     syncTimeout = setTimeout(async () => {
+      syncTimeout = null;
+      const job = pendingSync;
+      pendingSync = null;
+      if (!job) return;
       try {
-        await syncToServer();
+        await syncSettingsJob(job);
       } catch (error) {
         syncError('Settings sync error:', error);
       }

@@ -18,6 +18,7 @@ import type {
 import type { Mailbox } from "@/lib/jmap/types";
 import { buildMailboxTree, flattenMailboxTree, type MailboxNode, generateUUID } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
 
 interface FilterRuleModalProps {
   rule?: FilterRule;
@@ -27,7 +28,7 @@ interface FilterRuleModalProps {
 }
 
 const ALL_FIELDS: FilterConditionField[] = [
-  "from", "to", "cc", "subject", "header", "size", "body",
+  "from", "to", "cc", "subject", "header", "size", "body", "attachment",
 ];
 
 const TEXT_COMPARATORS: FilterComparator[] = [
@@ -35,6 +36,14 @@ const TEXT_COMPARATORS: FilterComparator[] = [
 ];
 
 const SIZE_COMPARATORS: FilterComparator[] = ["greater_than", "less_than"];
+
+const ATTACHMENT_COMPARATORS: FilterComparator[] = ["has_any", "has_type"];
+
+function comparatorsFor(field: FilterConditionField): FilterComparator[] {
+  if (field === "size") return SIZE_COMPARATORS;
+  if (field === "attachment") return ATTACHMENT_COMPARATORS;
+  return TEXT_COMPARATORS;
+}
 
 const ALL_ACTION_TYPES: FilterActionType[] = [
   "move", "copy", "forward", "mark_read", "star", "add_label", "discard", "reject", "keep", "stop",
@@ -45,6 +54,27 @@ const ACTIONS_WITH_MAILBOX = new Set<FilterActionType>(["move", "copy"]);
 
 function makeEmptyCondition(): FilterCondition {
   return { field: "from", comparator: "contains", value: "" };
+}
+
+// Multi-value handling: conditions are stored as string | string[]. The UI
+// presents them as a single comma-separated text input — the user types
+// "a, b, c" and the saved value becomes ["a","b","c"]. Single entries stay
+// strings so existing single-value rules don't change shape.
+function valueToInputString(v: string | string[]): string {
+  if (Array.isArray(v)) return v.join(", ");
+  return v;
+}
+
+function inputStringToValue(s: string): string | string[] {
+  const parts = s.split(",").map((p) => p.trim()).filter((p) => p.length > 0);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return parts;
+}
+
+function isConditionValueEmpty(v: string | string[]): boolean {
+  if (Array.isArray(v)) return v.length === 0 || v.every((x) => !x.trim());
+  return !v.trim();
 }
 
 function makeEmptyAction(): FilterAction {
@@ -60,6 +90,7 @@ export function FilterRuleModal({
   const t = useTranslations("settings.filters");
   const isEdit = !!rule;
   const emailKeywords = useSettingsStore((state) => state.emailKeywords);
+  const { tagName } = useKeywordFormat();
 
   const [name, setName] = useState(rule?.name || "");
   const [matchType, setMatchType] = useState<"all" | "any">(rule?.matchType || "all");
@@ -97,9 +128,23 @@ export function FilterRuleModal({
       return;
     }
 
-    const validConditions = conditions.filter(
-      (c) => c.value.trim()
-    );
+    // While editing, condition.value is always the raw string typed into the
+    // input (commas not yet split). Convert to array form here on save so a
+    // user typing "a, b, c" actually persists as ["a","b","c"]. This is the
+    // moment we know editing is finished - splitting earlier would eat any
+    // comma the user just typed mid-edit.
+    const validConditions = conditions
+      .filter((c) => {
+        if (c.field === "attachment" && c.comparator === "has_any") return true;
+        return !isConditionValueEmpty(c.value);
+      })
+      .map((c) => {
+        if (c.field === "attachment" && c.comparator === "has_any") return c;
+        if (c.field === "size") return c; // numeric, single-value only
+        if (typeof c.value !== "string") return c; // already structured
+        const parsed = inputStringToValue(c.value);
+        return { ...c, value: parsed };
+      });
     if (validConditions.length === 0) {
       toast.error(t("validation_empty_conditions"));
       return;
@@ -129,14 +174,26 @@ export function FilterRuleModal({
       prev.map((c, i) => {
         if (i !== index) return c;
         const updated = { ...c, ...updates };
-        if (updates.field === "size" && !SIZE_COMPARATORS.includes(c.comparator)) {
-          updated.comparator = "greater_than";
-        }
-        if (updates.field && updates.field !== "size" && SIZE_COMPARATORS.includes(c.comparator)) {
-          updated.comparator = "contains";
+        // Reconcile the comparator when the field changes so we never end up
+        // with e.g. (field=attachment, comparator=contains) — invalid for the
+        // Sieve generator. Each field has its own valid comparator set.
+        if (updates.field && updates.field !== c.field) {
+          const allowed = comparatorsFor(updates.field);
+          if (!allowed.includes(c.comparator)) {
+            updated.comparator = allowed[0];
+          }
         }
         if (updates.field && updates.field !== "header") {
           delete updated.headerName;
+        }
+        // has_any takes no value; clear it so we don't leak old text into
+        // the generated Sieve.
+        if (updated.field === "attachment" && updated.comparator === "has_any") {
+          updated.value = "";
+        }
+        // Size is numeric, single value only - collapse any list to scalar.
+        if (updated.field === "size" && Array.isArray(updated.value)) {
+          updated.value = updated.value[0] ?? "";
         }
         return updated;
       })
@@ -281,24 +338,58 @@ export function FilterRuleModal({
                     className={selectClass}
                     aria-label={t("comparators.contains")}
                   >
-                    {(condition.field === "size" ? SIZE_COMPARATORS : TEXT_COMPARATORS).map(
-                      (c) => (
-                        <option key={c} value={c}>
-                          {t(`comparators.${c}`)}
-                        </option>
-                      )
-                    )}
+                    {comparatorsFor(condition.field).map((c) => (
+                      <option key={c} value={c}>
+                        {t(`comparators.${c}`)}
+                      </option>
+                    ))}
                   </select>
 
-                  <Input
-                    value={condition.value}
-                    onChange={(e) => updateCondition(index, { value: e.target.value })}
-                    placeholder={
-                      condition.field === "size" ? t("size_placeholder") : t("header_placeholder")
-                    }
-                    className="flex-1 min-w-[120px]"
-                    type={condition.field === "size" ? "number" : "text"}
-                  />
+                  {/* has_any takes no value; render a stub so the row layout
+                      stays consistent but no input is editable. */}
+                  {condition.field === "attachment" && condition.comparator === "has_any" ? (
+                    <div className="flex-1 min-w-[120px]" />
+                  ) : (
+                    <Input
+                      value={valueToInputString(condition.value)}
+                      onChange={(e) =>
+                        // Store the raw input string while typing. Splitting
+                        // commas into an array on every keystroke would eat
+                        // the comma the moment it's typed.
+                        updateCondition(index, { value: e.target.value })
+                      }
+                      onBlur={(e) => {
+                        // On blur: normalise comma-separated input into an
+                        // array (or single string when only one item). Size
+                        // stays numeric/single-value; attachment-has_any has
+                        // no value at all.
+                        if (condition.field === "size") return;
+                        if (
+                          condition.field === "attachment" &&
+                          condition.comparator === "has_any"
+                        )
+                          return;
+                        const parsed = inputStringToValue(e.target.value);
+                        // Only update if the normalised shape actually
+                        // differs - avoids triggering a no-op re-render and
+                        // resetting the user's cursor on every blur.
+                        if (
+                          JSON.stringify(parsed) !== JSON.stringify(condition.value)
+                        ) {
+                          updateCondition(index, { value: parsed });
+                        }
+                      }}
+                      placeholder={
+                        condition.field === "size"
+                          ? t("size_placeholder")
+                          : condition.field === "attachment"
+                            ? t("attachment_type_placeholder")
+                            : t("value_placeholder_multi")
+                      }
+                      className="flex-1 min-w-[120px]"
+                      type={condition.field === "size" ? "number" : "text"}
+                    />
+                  )}
 
                   <button
                     type="button"
@@ -388,7 +479,7 @@ export function FilterRuleModal({
                     >
                       <option value="">{t("label_placeholder")}</option>
                       {emailKeywords.map((kw) => (
-                        <option key={kw.id} value={kw.id}>{kw.label}</option>
+                        <option key={kw.id} value={kw.id}>{tagName(kw.id)}</option>
                       ))}
                     </select>
                   )}

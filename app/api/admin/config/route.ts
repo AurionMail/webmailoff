@@ -4,6 +4,7 @@ import { requireAdminAuth, getClientIP } from '@/lib/admin/session';
 import { auditLog } from '@/lib/admin/audit';
 import { CONFIG_ENV_MAP, SENSITIVE_CONFIG_KEYS } from '@/lib/admin/types';
 import { parseJmapServers } from '@/lib/admin/jmap-servers';
+import { parseDomainBranding } from '@/lib/admin/domain-branding';
 import { logger } from '@/lib/logger';
 
 // Strings that count as "no real secret configured" - used so the dashboard
@@ -86,6 +87,25 @@ export async function PATCH(request: NextRequest) {
         }, { status: 400 });
       }
       updates.jmapServers = sanitized;
+    }
+
+    // Normalize domainBranding: drop entries with an invalid/missing host or
+    // duplicate hosts before persisting. Each entry's branding field strings
+    // are passed through unchanged (URL/string content is the operator's
+    // responsibility, same as the flat branding fields).
+    if ('domainBranding' in updates) {
+      const incoming = updates.domainBranding;
+      if (incoming != null && !Array.isArray(incoming)) {
+        return NextResponse.json({ error: 'domainBranding must be an array' }, { status: 400 });
+      }
+      const sanitized = parseDomainBranding(incoming);
+      const incomingCount = Array.isArray(incoming) ? incoming.length : 0;
+      if (sanitized.length !== incomingCount) {
+        return NextResponse.json({
+          error: 'One or more domainBranding entries are invalid (each needs a unique, valid host).',
+        }, { status: 400 });
+      }
+      updates.domainBranding = sanitized;
     }
 
     // Get old values for audit

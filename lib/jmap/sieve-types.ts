@@ -13,14 +13,21 @@ export interface SieveCapabilities {
   externalLists: string[];
 }
 
-export type FilterConditionField = 'from' | 'to' | 'cc' | 'subject' | 'header' | 'size' | 'body';
+export type FilterConditionField =
+  | 'from' | 'to' | 'cc' | 'subject' | 'header' | 'size' | 'body'
+  | 'attachment';
 
 export type FilterComparator =
   | 'contains' | 'not_contains'
   | 'is' | 'not_is'
   | 'starts_with' | 'ends_with'
   | 'matches'
-  | 'greater_than' | 'less_than';
+  | 'greater_than' | 'less_than'
+  // For field === 'attachment':
+  //   has_any  → message has any attachment (Content-Disposition: attachment)
+  //   has_type → message has an attachment whose Content-Type matches `value`
+  //              (substring match, e.g. "application/pdf" or "image/")
+  | 'has_any' | 'has_type';
 
 export type FilterActionType =
   | 'move' | 'copy' | 'forward'
@@ -30,7 +37,16 @@ export type FilterActionType =
 export interface FilterCondition {
   field: FilterConditionField;
   comparator: FilterComparator;
-  value: string;
+  /**
+   * Match value. Use a string array for OR-within-condition semantics
+   * (e.g. `["@domain1.com", "@domain2.com"]` matches mail from either).
+   * Sieve emits the array as a list literal which the implementation
+   * treats as "matches any item". Use a plain string for single-value
+   * conditions; existing single-value rules continue to work unchanged.
+   *
+   * Not supported for: size (numeric), has_any (no value).
+   */
+  value: string | string[];
   headerName?: string;
 }
 

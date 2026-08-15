@@ -8,6 +8,7 @@ import { discoverOAuth } from '@/lib/oauth/discovery';
 import { getOauthScopes } from '@/lib/oauth/tokens';
 import { getCookieOptions } from '@/lib/oauth/cookie-config';
 import { hasSessionSecret } from '@/lib/auth/session-secret';
+import { configManager } from '@/lib/admin/config-manager';
 
 const SSO_PENDING_COOKIE = 'sso_pending';
 const SSO_PENDING_MAX_AGE = 300; // 5 minutes
@@ -30,7 +31,13 @@ export async function POST(request: NextRequest) {
       server_id: bodyServerId,
       mobile_redirect_uri: rawMobileRedirectUri,
       mobile_state: rawMobileState,
+      purpose: rawPurpose,
     } = await request.json();
+
+    // `reauth` drives the step-up flow for device pairing: it forces a fresh
+    // IdP login (prompt=login) and the /reauth/sso/complete handler sets the
+    // short-lived pairing re-auth proof instead of logging the user in again.
+    const isReauth = rawPurpose === 'reauth';
 
     if (!redirect_uri || typeof redirect_uri !== 'string') {
       return NextResponse.json({ error: 'Missing redirect_uri' }, { status: 400 });
@@ -85,6 +92,7 @@ export async function POST(request: NextRequest) {
       ...(serverId ? { server_id: serverId } : {}),
       ...(mobileRedirectUri ? { mobile_redirect_uri: mobileRedirectUri } : {}),
       ...(mobileState ? { mobile_state: mobileState } : {}),
+      ...(isReauth ? { purpose: 'reauth' } : {}),
     };
 
     const encrypted = encryptPayload(pendingData);
@@ -95,8 +103,12 @@ export async function POST(request: NextRequest) {
       maxAge: SSO_PENDING_MAX_AGE,
     });
 
-    // Build authorize URL
-    const authUrl = new URL(metadata.authorization_endpoint);
+    // Build authorize URL. OAUTH_AUTHORIZE_URL, when set, overrides only the
+    // user-facing authorize endpoint (e.g. a per-brand login host). Discovery,
+    // token exchange and refresh keep using the canonical discovered endpoints.
+    const authorizeOverride =
+      configManager.get<string>('oauthAuthorizeUrl', '') || process.env.OAUTH_AUTHORIZE_URL;
+    const authUrl = new URL(authorizeOverride?.trim() || metadata.authorization_endpoint);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('redirect_uri', redirect_uri);
@@ -107,6 +119,14 @@ export async function POST(request: NextRequest) {
 
     if (locale) {
       authUrl.searchParams.set('ui_locales', locale);
+    }
+
+    // Force a fresh credential entry for step-up re-auth. prompt=login and
+    // max_age=0 both ask the IdP to re-authenticate even if it has an active
+    // session; honoring them depends on the IdP supporting these OIDC params.
+    if (isReauth) {
+      authUrl.searchParams.set('prompt', 'login');
+      authUrl.searchParams.set('max_age', '0');
     }
 
     return NextResponse.json({

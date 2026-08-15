@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiFetch, getPathPrefix } from "@/lib/browser-navigation";
+import { apiFetch, getPathPrefix, toRouterPath } from "@/lib/browser-navigation";
+import { buildSettingsPath } from "@/lib/deep-links";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useParams } from "next/navigation";
@@ -29,6 +30,44 @@ function OAuthCallbackInner() {
 
     if (!code) {
       setError("missing_params");
+      return;
+    }
+
+    // Step-up re-auth for device pairing: the QR generator sent the user here
+    // via prompt=login. Don't create a login session — just confirm the fresh
+    // auth (sets the short-lived pairing proof cookie) and bounce back to the
+    // Security settings, where the QR generation auto-resumes.
+    let pairReauthResume = false;
+    try {
+      pairReauthResume = sessionStorage.getItem("pair_reauth_resume") === "1";
+    } catch { /* sessionStorage unavailable */ }
+    if (pairReauthResume && state) {
+      try { sessionStorage.removeItem("pair_reauth_resume"); } catch { /* ignore */ }
+      (async () => {
+        try {
+          const res = await apiFetch("/api/auth/reauth/sso/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ code, state }),
+          });
+          if (!res.ok) {
+            setError("token_exchange_failed");
+            return;
+          }
+          try {
+            sessionStorage.setItem("pair_reauth_done", "1");
+          } catch { /* ignore */ }
+          // Land back on the Security tab. The tab is part of the URL now
+          // (#733), so the redirect target says where it is going.
+          const prefix = getPathPrefix(params.locale as string);
+          router.push(toRouterPath(
+            `${prefix}/${params.locale}${buildSettingsPath("security")}`,
+          ));
+        } catch {
+          setError("token_exchange_failed");
+        }
+      })();
       return;
     }
 
@@ -69,7 +108,7 @@ function OAuthCallbackInner() {
                 redirectTo = saved;
               }
             } catch { /* sessionStorage may be unavailable */ }
-            router.push(redirectTo);
+            router.push(toRouterPath(redirectTo));
           } else {
             setError("token_exchange_failed");
           }
@@ -153,7 +192,7 @@ function OAuthCallbackInner() {
                 redirectTo = saved;
               }
             } catch { /* sessionStorage may be unavailable */ }
-            router.push(redirectTo);
+            router.push(toRouterPath(redirectTo));
           } else {
             setError("token_exchange_failed");
           }
@@ -181,7 +220,7 @@ function OAuthCallbackInner() {
           </p>
           <Button
             variant="outline"
-            onClick={() => router.push(`${getPathPrefix(params.locale as string)}/${params.locale}/login`)}
+            onClick={() => router.push(toRouterPath(`${getPathPrefix(params.locale as string)}/${params.locale}/login`))}
           >
             {t("oauth_error.back_to_login")}
           </Button>

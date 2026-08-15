@@ -47,12 +47,22 @@ export interface ServerPlugin {
   author: string;
   description: string;
   type: string;
+  /** Requested execution tier ('untrusted' | 'privileged'). Privileged plugins
+   * run in a same-origin sandbox and require admin approval + consent. */
+  tier?: string;
   permissions: string[];
   entrypoint: string;
   enabled: boolean;
   forceEnabled?: boolean;
   configSchema?: Record<string, PluginConfigField>;
   settingsSchema?: Record<string, PluginSettingsField>;
+  /**
+   * Optional per-locale translation tables (locale -> key -> string) declared
+   * in the plugin manifest. Surfaced to the sandbox so plugin code can call
+   * `api.i18n.t(key)`; without it a plugin's strings stay in its hardcoded
+   * default language.
+   */
+  locales?: Record<string, Record<string, string>>;
   installedAt: string;
   updatedAt: string;
   /**

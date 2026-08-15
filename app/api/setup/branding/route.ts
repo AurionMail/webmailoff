@@ -23,10 +23,13 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const VALID_SLOTS = new Set([
   'faviconUrl',
+  'pwaIconUrl',
   'appLogoLightUrl',
   'appLogoDarkUrl',
   'loginLogoLightUrl',
   'loginLogoDarkUrl',
+  'pwaScreenshotMobileUrl',
+  'pwaScreenshotDesktopUrl',
 ]);
 
 const EXT_BY_MIME: Record<string, string> = {

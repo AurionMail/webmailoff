@@ -23,7 +23,12 @@ export function getSessionSecret(): string {
   if (fromFile) return fromFile;
 
   const fromAdmin = configManager.get<string>('sessionSecret', '');
-  return fromAdmin || '';
+  if (fromAdmin) return fromAdmin;
+
+  const fromAdminFile = readFileEnv(
+    configManager.get<string>('sessionSecretFile', ''),
+  );
+  return fromAdminFile || "";
 }
 
 export function hasSessionSecret(): boolean {

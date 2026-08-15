@@ -1,3 +1,5 @@
+import { splitRecipients as splitRecipientString } from "@/lib/email-composer-utils";
+
 export interface ParsedMailto {
   to: string[];
   cc: string[];
@@ -25,10 +27,9 @@ function stripBodyControlChars(value: string): string {
 }
 
 function splitRecipients(value: string): string[] {
-  return stripControlChars(value)
-    .split(",")
-    .map((recipient) => recipient.trim())
-    .filter(Boolean);
+  // Quote/angle-aware split so a `"Doe, John" <john@doo.org>` display name with
+  // an embedded comma stays a single recipient instead of being torn in two.
+  return splitRecipientString(stripControlChars(value));
 }
 
 type QueryParam = {
@@ -114,4 +115,29 @@ export function parseMailto(raw: string): ParsedMailto | null {
     subject: stripControlChars(getQueryValue(searchParams, "subject")).slice(0, MAX_SUBJECT_LENGTH),
     body: stripBodyControlChars(getQueryValue(searchParams, "body")).slice(0, MAX_BODY_LENGTH),
   };
+}
+
+/** Window event carrying a parsed in-app mailto request to the mail page. */
+export const INTERNAL_MAILTO_EVENT = "bulwark:mailto";
+
+/**
+ * Ask the mail page to open its composer for an in-app `mailto:` click.
+ * Loosely coupled through a window event (as `bulwark:rate-limit-blocked`
+ * already is) because the composer state lives in the page component, several
+ * levels above the address links in cards and sidebars.
+ *
+ * Returns whether the request was taken: false when the URL is unusable or no
+ * listener is mounted, so callers can fall back to the browser's behaviour
+ * rather than swallowing the click.
+ */
+export function requestInternalMailto(raw: string): boolean {
+  if (typeof window === "undefined") return false;
+  const parsed = parseMailto(raw);
+  if (!parsed || parsed.to.length === 0) return false;
+  // The listener signals "handled" by cancelling the event, which makes
+  // dispatchEvent report false - so an uncancelled dispatch means nobody took it.
+  const uncancelled = window.dispatchEvent(
+    new CustomEvent<ParsedMailto>(INTERNAL_MAILTO_EVENT, { detail: parsed, cancelable: true }),
+  );
+  return !uncancelled;
 }

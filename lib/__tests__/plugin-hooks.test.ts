@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HookBus, pluginErrorTracker, removeAllPluginHooks, clearAllHooks, emailHooks, calendarHooks } from '../plugin-hooks';
+import { HookBus, pluginErrorTracker, removeAllPluginHooks, clearAllHooks, emailHooks, calendarHooks, isExternalAttachmentResult } from '../plugin-hooks';
 
 beforeEach(() => {
   pluginErrorTracker.resetAll();
@@ -168,6 +168,77 @@ describe('HookBus', () => {
       const result = await bus.transform(5);
       expect(result).toBe(15);
     });
+
+    it('drops a handler that overruns the bus timeout', async () => {
+      vi.useFakeTimers();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const bus = new HookBus<(val: number) => Promise<number>>(50);
+        bus.register('slow', () => new Promise<number>(resolve => setTimeout(() => resolve(99), 500)));
+        const pending = bus.transform(1);
+        await vi.advanceTimersByTimeAsync(60);
+        expect(await pending).toBe(1); // initial value kept, handler timed out
+      } finally {
+        consoleSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    it('honours a per-bus timeout longer than the 5s default', async () => {
+      vi.useFakeTimers();
+      try {
+        const bus = new HookBus<(val: number) => Promise<number>>(120_000);
+        bus.register('slow', () => new Promise<number>(resolve => setTimeout(() => resolve(99), 30_000)));
+        const pending = bus.transform(1);
+        await vi.advanceTimersByTimeAsync(30_100);
+        expect(await pending).toBe(99);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+});
+
+describe('onBeforeBlobUpload offload budget', () => {
+  it('gives the hook room for a real upload, not the 5s default', async () => {
+    vi.useFakeTimers();
+    try {
+      emailHooks.onBeforeBlobUpload.register('offloader', () =>
+        new Promise(resolve => setTimeout(() => resolve({
+          externalAttachment: true, html: '<a href="https://drop.example/x">x</a>', text: 'https://drop.example/x',
+        }), 20_000)),
+      );
+      const pending = emailHooks.onBeforeBlobUpload.transform<unknown>('file-id');
+      await vi.advanceTimersByTimeAsync(20_100);
+      expect(isExternalAttachmentResult(await pending)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('isExternalAttachmentResult', () => {
+  const valid = { externalAttachment: true, html: '<a href="https://x/y">y</a>', text: 'https://x/y' };
+
+  it('accepts a well-formed result', () => {
+    expect(isExternalAttachmentResult(valid)).toBe(true);
+  });
+
+  it('accepts an optional fileId', () => {
+    expect(isExternalAttachmentResult({ ...valid, fileId: 'abc' })).toBe(true);
+  });
+
+  it.each([
+    ['a plain file id', 'some-uuid'],
+    ['null', null],
+    ['undefined', undefined],
+    ['missing marker', { html: 'x', text: 'x' }],
+    ['falsy marker', { ...valid, externalAttachment: false }],
+    ['missing text', { externalAttachment: true, html: 'x' }],
+    ['non-string html', { externalAttachment: true, html: 1, text: 'x' }],
+    ['non-string fileId', { ...valid, fileId: 42 }],
+  ])('rejects %s', (_label, value) => {
+    expect(isExternalAttachmentResult(value)).toBe(false);
   });
 });
 

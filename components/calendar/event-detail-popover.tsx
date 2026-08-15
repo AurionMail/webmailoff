@@ -1,24 +1,25 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   X, Clock, MapPin, Video, Users, Repeat, Bell, AlignLeft,
   Pencil, Trash2, Copy, Send, Check,
 } from "lucide-react";
-import { format, isSameDay, parseISO } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, Calendar, CalendarParticipant } from "@/lib/jmap/types";
 import { parseDuration, getEventColor } from "./event-card";
 import { getEventDisplayEndDate, getEventEndDate, getEventStartDate } from "@/lib/calendar-utils";
+import { buildRecurrenceSummary } from "./recurrence-editor";
 import {
-  isOrganizer,
   getUserParticipantId,
   getUserStatus,
   getParticipantList,
 } from "@/lib/calendar-participants";
+import { getEventEditability } from "@/lib/calendar-editability";
 import { useFormatEventDate } from "@/hooks/use-format-event-date";
 
 interface EventDetailPopoverProps {
@@ -34,6 +35,7 @@ interface EventDetailPopoverProps {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   currentUserEmails?: string[];
+  isSubscriptionCalendar?: (calendarId: string) => boolean;
   timeFormat?: "12h" | "24h";
   isMobile?: boolean;
 }
@@ -101,16 +103,9 @@ function getAlertLabel(event: CalendarEvent, t: ReturnType<typeof useTranslation
   return null;
 }
 
-function getRecurrenceLabel(event: CalendarEvent, t: ReturnType<typeof useTranslations>): string | null {
+function getRecurrenceLabel(event: CalendarEvent, t: ReturnType<typeof useTranslations>, locale: string): string | null {
   if (!event.recurrenceRules?.length) return null;
-  const freq = event.recurrenceRules[0].frequency;
-  const labels: Record<string, string> = {
-    daily: t("recurrence.daily"),
-    weekly: t("recurrence.weekly"),
-    monthly: t("recurrence.monthly"),
-    yearly: t("recurrence.yearly"),
-  };
-  return labels[freq] || null;
+  return buildRecurrenceSummary(event.recurrenceRules[0], t, locale);
 }
 
 export function EventDetailPopover({
@@ -126,10 +121,12 @@ export function EventDetailPopover({
   onMouseEnter,
   onMouseLeave,
   currentUserEmails = [],
+  isSubscriptionCalendar,
   timeFormat = "24h",
   isMobile,
 }: EventDetailPopoverProps) {
   const t = useTranslations("calendar");
+  const locale = useLocale();
   const popoverRef = useRef<HTMLDivElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -158,18 +155,20 @@ export function EventDetailPopover({
   }, [event.virtualLocations]);
 
   const participants = useMemo(() => getParticipantList(event), [event]);
-  const recurrenceLabel = useMemo(() => getRecurrenceLabel(event, t), [event, t]);
+  const recurrenceLabel = useMemo(() => getRecurrenceLabel(event, t, locale), [event, t, locale]);
   const alertLabel = useMemo(() => getAlertLabel(event, t), [event, t]);
 
-  const userIsOrganizer = useMemo(() => {
-    if (!event.participants) return true;
-    return isOrganizer(event, currentUserEmails);
-  }, [event, currentUserEmails]);
-
-  const isAttendeeMode = useMemo(() => {
-    if (!event.participants) return false;
-    return !event.isOrigin && !userIsOrganizer;
-  }, [event, userIsOrganizer]);
+  // Gate affordances on calendar rights, not identity (see calendar-editability).
+  const editability = useMemo(() => {
+    const calendarsById = new Map(calendar ? [[calendar.id, calendar]] : []);
+    return getEventEditability(event, {
+      calendarsById,
+      userCalendarAddresses: currentUserEmails,
+      isSubscriptionCalendar: isSubscriptionCalendar ?? (() => false),
+    });
+  }, [event, calendar, currentUserEmails, isSubscriptionCalendar]);
+  const canEditBody = editability === "editable";
+  const rsvpMode = editability === "rsvp-only";
 
   const userParticipantId = useMemo(
     () => getUserParticipantId(event, currentUserEmails),
@@ -200,14 +199,14 @@ export function EventDetailPopover({
       const tag = target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
       if (target?.getAttribute("contenteditable") === "true") return;
-      if (e.key === "e" && !noteExpanded) {
+      if (e.key === "e" && !noteExpanded && canEditBody) {
         e.preventDefault();
         onEdit();
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose, onEdit, noteExpanded]);
+  }, [onClose, onEdit, noteExpanded, canEditBody]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -295,20 +294,23 @@ export function EventDetailPopover({
               className="w-2.5 h-2.5 rounded-full flex-shrink-0"
               style={{ backgroundColor: color }}
             />
-            <h3 className="text-base font-semibold truncate text-foreground">
+            <h3 className={cn(
+              "text-base font-semibold truncate text-foreground",
+              event.status === "cancelled" && "line-through text-muted-foreground"
+            )}>
               {event.title || t("events.no_title")}
             </h3>
           </div>
           {calendar && (
-            <p className="text-xs text-muted-foreground mt-0.5 pl-[18px]">
+            <p className="text-xs text-muted-foreground mt-0.5 ps-[18px]">
               {calendar.name}
               {event.status === "tentative" && (
-                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/15 text-warning">
+                <span className="ms-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/15 text-warning">
                   {t("detail.tentative")}
                 </span>
               )}
               {event.status === "cancelled" && (
-                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 line-through">
+                <span className="ms-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 line-through">
                   {t("detail.cancelled")}
                 </span>
               )}
@@ -348,13 +350,13 @@ export function EventDetailPopover({
                 <>
                   <div className="font-medium text-foreground">
                     {formatEventDate(startDate)}
-                    <span className="ml-1.5 font-normal text-muted-foreground">
+                    <span className="ms-1.5 font-normal text-muted-foreground">
                       {formatTime(startDate)}
                     </span>
                   </div>
                   <div className="font-medium text-foreground">
                     {formatEventDate(endDate)}
-                    <span className="ml-1.5 font-normal text-muted-foreground">
+                    <span className="ms-1.5 font-normal text-muted-foreground">
                       {formatTime(endDate)}
                     </span>
                   </div>
@@ -369,11 +371,11 @@ export function EventDetailPopover({
                   {formatEventDate(startDate)}
                 </span>
                 {event.showWithoutTime ? (
-                  <span className="text-muted-foreground ml-1.5">{t("events.all_day")}</span>
+                  <span className="text-muted-foreground ms-1.5">{t("events.all_day")}</span>
                 ) : (
                   <div className="text-muted-foreground">
                     {formatTime(startDate)} – {formatTime(endDate)}
-                    <span className="ml-1.5 text-xs">({formatDurationDisplay(durationMinutes)})</span>
+                    <span className="ms-1.5 text-xs">({formatDurationDisplay(durationMinutes)})</span>
                   </div>
                 )}
               </>
@@ -439,7 +441,7 @@ export function EventDetailPopover({
                     <span className="truncate text-foreground">
                       {p.name || p.email}
                       {p.isOrganizer && (
-                        <span className="text-muted-foreground ml-1">
+                        <span className="text-muted-foreground ms-1">
                           ({t("participants.organizer").toLowerCase()})
                         </span>
                       )}
@@ -485,7 +487,7 @@ export function EventDetailPopover({
       </div>
 
       {/* Quick Note */}
-      {!isAttendeeMode && (
+      {canEditBody && (
         <div className="px-4 py-2 border-t border-border">
           {noteExpanded ? (
             <div className="space-y-2">
@@ -517,7 +519,7 @@ export function EventDetailPopover({
                   disabled={!noteText.trim() || isSavingNote}
                   className="h-7 text-xs"
                 >
-                  <Send className="w-3 h-3 mr-1" />
+                  <Send className="w-3 h-3 me-1" />
                   {t("detail.save_note")}
                 </Button>
               </div>
@@ -535,7 +537,7 @@ export function EventDetailPopover({
       )}
 
       {/* RSVP Bar (for attendees) */}
-      {isAttendeeMode && onRsvp && userParticipantId && (
+      {rsvpMode && onRsvp && userParticipantId && (
         <div className="px-4 py-3 border-t border-border">
           <p className="text-xs font-medium text-muted-foreground mb-2">
             {t("participants.rsvp_label")}
@@ -551,7 +553,7 @@ export function EventDetailPopover({
                   : "text-success border-success/30 hover:bg-success/10"
               }
             >
-              {userCurrentStatus === "accepted" && <Check className="w-3.5 h-3.5 mr-1" />}
+              {userCurrentStatus === "accepted" && <Check className="w-3.5 h-3.5 me-1" />}
               {t("participants.accepted")}
             </Button>
             <Button
@@ -564,7 +566,7 @@ export function EventDetailPopover({
                   : "border border-warning/30 text-warning hover:bg-warning/10"
               }
             >
-              {userCurrentStatus === "tentative" && <Check className="w-3.5 h-3.5 mr-1" />}
+              {userCurrentStatus === "tentative" && <Check className="w-3.5 h-3.5 me-1" />}
               {t("participants.tentative")}
             </Button>
             <Button
@@ -577,7 +579,7 @@ export function EventDetailPopover({
                   : "text-destructive hover:bg-destructive/10"
               }
             >
-              {userCurrentStatus === "declined" && <Check className="w-3.5 h-3.5 mr-1" />}
+              {userCurrentStatus === "declined" && <Check className="w-3.5 h-3.5 me-1" />}
               {t("participants.declined")}
             </Button>
           </div>
@@ -610,10 +612,12 @@ export function EventDetailPopover({
           </div>
         ) : (
           <>
-            <Button variant="default" size="sm" onClick={onEdit} className="h-7 text-xs">
-              <Pencil className="w-3.5 h-3.5 mr-1" />
-              {t("events.edit")}
-            </Button>
+            {canEditBody && (
+              <Button variant="default" size="sm" onClick={onEdit} className="h-7 text-xs">
+                <Pencil className="w-3.5 h-3.5 me-1" />
+                {t("events.edit")}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -621,19 +625,21 @@ export function EventDetailPopover({
               className="h-7 text-xs"
               title={t("events.duplicate")}
             >
-              <Copy className="w-3.5 h-3.5 mr-1" />
+              <Copy className="w-3.5 h-3.5 me-1" />
               {t("events.duplicate")}
             </Button>
             <div className="flex-1" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="h-7 text-xs text-red-600 dark:text-red-400"
-              title={t("events.delete")}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
+            {canEditBody && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="h-7 text-xs text-red-600 dark:text-red-400"
+                title={t("events.delete")}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
           </>
         )}
       </div>

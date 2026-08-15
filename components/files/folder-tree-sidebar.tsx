@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronDown,
   Home,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFileStore, type FileResource } from "@/stores/file-store";
@@ -29,6 +30,8 @@ interface FolderTreeSidebarProps {
 export function FolderTreeSidebar({ currentPath, onNavigate, listByParentId, width = 256, isResizing }: FolderTreeSidebarProps) {
   const t = useTranslations("files");
   const client = useFileStore(s => s.client);
+  const sharedRoots = useFileStore(s => s.sharedRoots);
+  const loadSharedRoots = useFileStore(s => s.loadSharedRoots);
   const [rootChildren, setRootChildren] = useState<FolderNode[] | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(["root"]));
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
@@ -81,6 +84,8 @@ export function FolderTreeSidebar({ currentPath, onNavigate, listByParentId, wid
   useEffect(() => {
     if (client) {
       loadChildren(null, "/");
+      // Discover folders shared with the user by other principals.
+      loadSharedRoots();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
@@ -130,7 +135,7 @@ export function FolderTreeSidebar({ currentPath, onNavigate, listByParentId, wid
   return (
     <div
       className={cn(
-        "border-r border-border bg-secondary overflow-hidden shrink-0 flex flex-col h-full",
+        "border-e border-border bg-secondary overflow-hidden shrink-0 flex flex-col h-full",
         !isResizing && "transition-[width] duration-300"
       )}
       style={{ width: `${width}px` }}
@@ -149,10 +154,10 @@ export function FolderTreeSidebar({ currentPath, onNavigate, listByParentId, wid
         >
           <button
             onClick={() => handleFolderClick("/", null)}
-            className="flex items-center px-1 rounded transition-colors duration-150 flex-1 text-left"
+            className="flex items-center px-1 rounded transition-colors duration-150 flex-1 text-start"
             style={{ paddingBlock: "var(--density-sidebar-py)", paddingLeft: "24px" }}
           >
-            <Home className={cn("w-4 h-4 flex-shrink-0 mr-2 transition-colors")} />
+            <Home className={cn("w-4 h-4 flex-shrink-0 me-2 transition-colors")} />
             <span className="truncate">{t("breadcrumb_root")}</span>
           </button>
         </div>
@@ -179,6 +184,40 @@ export function FolderTreeSidebar({ currentPath, onNavigate, listByParentId, wid
               onLoadChildren={loadChildren}
             />
           ))
+        )}
+
+        {/* Shared with me: folders another principal has shared with the user */}
+        {sharedRoots.filter(r => r.isDirectory).length > 0 && (
+          <div className="mt-2 pt-2 border-t border-border/60">
+            <div className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Share2 className="w-3 h-3" />
+              <span className="truncate">{t("shared_with_me")}</span>
+            </div>
+            {sharedRoots.filter(r => r.isDirectory).map(r => {
+              const path = `/${r.name}`;
+              const isSelected = currentPath === path;
+              return (
+                <div
+                  key={r.id}
+                  style={{ paddingBlock: "var(--density-sidebar-py)" }}
+                  className={cn(
+                    "group w-full flex items-center max-lg:min-h-[44px] text-sm transition-all duration-200 px-2",
+                    isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
+                  )}
+                >
+                  <button
+                    onClick={() => handleFolderClick(path, r.id)}
+                    className="flex items-center px-1 rounded transition-colors duration-150 flex-1 text-start min-w-0"
+                    style={{ paddingBlock: "var(--density-sidebar-py)", paddingLeft: "24px" }}
+                    title={r.ownerName ? t("shared_by", { name: r.ownerName }) : r.name}
+                  >
+                    <Folder className="w-4 h-4 flex-shrink-0 me-2 text-primary" />
+                    <span className="truncate">{r.name}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -242,7 +281,7 @@ function FolderTreeItem({
               onToggleExpand(node.id, node.path);
             }}
             className={cn(
-              "p-0.5 rounded mr-1 transition-all duration-200",
+              "p-0.5 rounded me-1 transition-all duration-200",
               "hover:bg-muted active:bg-accent"
             )}
             style={{ marginLeft: `${indentPx}px` }}
@@ -258,14 +297,14 @@ function FolderTreeItem({
         {/* Folder name */}
         <button
           onClick={() => onFolderClick(node.path, node.id)}
-          className="flex items-center px-1 rounded transition-colors duration-150 flex-1 text-left"
+          className="flex items-center px-1 rounded transition-colors duration-150 flex-1 text-start"
           style={{
             paddingBlock: "var(--density-sidebar-py)",
             paddingLeft: hasChildren ? "4px" : `${indentPx + 24}px`,
           }}
         >
           <Icon className={cn(
-            "w-4 h-4 flex-shrink-0 mr-2 transition-colors",
+            "w-4 h-4 flex-shrink-0 me-2 transition-colors",
             isExpanded && hasChildren && "text-primary",
             !hasChildren && depth > 0 && "text-muted-foreground"
           )} />

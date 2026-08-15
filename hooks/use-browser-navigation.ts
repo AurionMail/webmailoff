@@ -17,6 +17,13 @@ interface StoredNavState extends NavSnapshot {
 interface UseBrowserNavigationOptions extends NavSnapshot {
   onRestore: (state: NavSnapshot) => void | Promise<void>;
   enabled?: boolean;
+  /**
+   * Permalink for a snapshot (#733). When supplied, the URL is rewritten
+   * along with the history entry so the address bar is always a shareable
+   * link to what the user is looking at. Return null to leave the URL alone
+   * for that snapshot. Omit the option entirely for state-only history.
+   */
+  buildUrl?: (state: NavSnapshot) => string | null | undefined;
 }
 
 const STATE_KEY = "__mailNav";
@@ -53,8 +60,10 @@ function readStoredState(): StoredNavState | undefined {
  * - Listens for popstate and calls onRestore so the page can apply the
  *   previous snapshot (mailbox, email, view, sidebar, conversation thread).
  *
- * The URL is left untouched so Next.js routes (e.g. /calendar, /settings)
- * continue to behave normally.
+ * Without `buildUrl` the URL is left untouched and only history state moves.
+ * With it, each entry also carries a permalink, written through
+ * history.push/replaceState - shallow routing that Next.js supports natively,
+ * so the route tree is not re-rendered on every message the user opens.
  */
 export function useBrowserNavigation({
   mailboxId,
@@ -64,17 +73,22 @@ export function useBrowserNavigation({
   sidebarOpen,
   onRestore,
   enabled = true,
+  buildUrl,
 }: UseBrowserNavigationOptions) {
   // Counter so overlapping restores don't accidentally clear the flag
   // belonging to a later restore.
   const popDepthRef = useRef(0);
   const isApplyingPopRef = useRef(false);
   const restoreRef = useRef(onRestore);
+  const buildUrlRef = useRef(buildUrl);
   const initializedRef = useRef(false);
 
   // Always keep the latest restore callback in a ref so the popstate
   // listener never sees a stale closure.
   restoreRef.current = onRestore;
+  // Same for the URL builder: it closes over the mailbox list, which arrives
+  // after the first render, and the effect below must not re-run for it.
+  buildUrlRef.current = buildUrl;
 
   // Install the popstate listener once.
   useEffect(() => {
@@ -144,6 +158,9 @@ export function useBrowserNavigation({
     const stored: StoredNavState = { ...snapshot, navId: ++navIdCounter };
     const baseState = (window.history.state ?? {}) as Record<string, unknown>;
     const newState = { ...baseState, [STATE_KEY]: stored };
+    // `history.pushState(state, "", undefined)` keeps the current URL, which is
+    // exactly the old state-only behaviour when no builder is supplied.
+    const newUrl = buildUrlRef.current?.(snapshot) ?? undefined;
 
     if (!initializedRef.current) {
       initializedRef.current = true;
@@ -171,16 +188,17 @@ export function useBrowserNavigation({
         window.history.replaceState(
           { ...baseState, [STATE_KEY]: listStored },
           "",
+          buildUrlRef.current?.(listSnapshot) ?? undefined,
         );
         // Now push the actual email state on top of the synthetic list entry.
-        window.history.pushState(newState, "");
+        window.history.pushState(newState, "", newUrl);
       } else {
         // Replace the current entry on the very first run so we don't
         // create an extra step the user has to back through to leave the app.
-        window.history.replaceState(newState, "");
+        window.history.replaceState(newState, "", newUrl);
       }
     } else {
-      window.history.pushState(newState, "");
+      window.history.pushState(newState, "", newUrl);
     }
   }, [enabled, mailboxId, emailId, threadId, composerOpen, sidebarOpen]);
 }

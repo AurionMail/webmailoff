@@ -63,6 +63,11 @@ const DEFAULT_TIMEOUT_MS = 5000;
 // reply-all, mailto, attachment upload), so they need a much longer budget
 // than observer / transform hooks.
 const INTERCEPT_TIMEOUT_MS = 60_000;
+// onBeforeBlobUpload handlers may push the attachment to an external store
+// before handing back a link (see ExternalAttachmentResult), which is a real
+// upload over the wire - 5s would kill every offload of a file worth
+// offloading, and three of those in a minute would auto-disable the plugin.
+const BLOB_UPLOAD_TIMEOUT_MS = 120_000;
 
 function withTimeout<T>(promise: T | Promise<T>, ms: number = DEFAULT_TIMEOUT_MS): Promise<T> {
   if (!(promise instanceof Promise)) return Promise.resolve(promise);
@@ -86,6 +91,14 @@ interface HookEntry<T extends (...args: never[]) => unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class HookBus<T extends (...args: any[]) => any> {
   private handlers: HookEntry<T>[] = [];
+
+  /**
+   * @param timeoutMs Per-handler budget for `emit` / `emitSync` / `transform`.
+   *   Defaults to 5s; a bus whose handlers legitimately do network work sets
+   *   its own (see `onBeforeBlobUpload`). `intercept` keeps its own longer
+   *   budget because those hooks block on user dialogs.
+   */
+  constructor(private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS) {}
 
   register(pluginId: string, handler: T, order: number = 100): Disposable {
     const entry: HookEntry<T> = { pluginId, handler, order };
@@ -117,7 +130,7 @@ export class HookBus<T extends (...args: any[]) => any> {
     for (const { pluginId, handler } of this.handlers) {
       if (pluginErrorTracker.isDisabled(pluginId)) continue;
       try {
-        await withTimeout(handler(...args));
+        await withTimeout(handler(...args), this.timeoutMs);
       } catch (err) {
         pluginErrorTracker.record(pluginId, err);
       }
@@ -141,7 +154,7 @@ export class HookBus<T extends (...args: any[]) => any> {
     for (const { pluginId, handler } of this.handlers) {
       if (pluginErrorTracker.isDisabled(pluginId)) continue;
       try {
-        const result = await withTimeout(handler(...args), INTERCEPT_TIMEOUT_MS);
+        const result = await withTimeout(handler(...args), Math.max(this.timeoutMs, INTERCEPT_TIMEOUT_MS));
         if (result === false) return false;
       } catch (err) {
         pluginErrorTracker.record(pluginId, err);
@@ -156,7 +169,7 @@ export class HookBus<T extends (...args: any[]) => any> {
     for (const { pluginId, handler } of this.handlers) {
       if (pluginErrorTracker.isDisabled(pluginId)) continue;
       try {
-        const result = await withTimeout(handler(value, ...rest));
+        const result = await withTimeout(handler(value, ...rest), this.timeoutMs);
         if (result !== undefined && result !== false) {
           value = result as V;
         }
@@ -166,6 +179,46 @@ export class HookBus<T extends (...args: any[]) => any> {
     }
     return value;
   }
+}
+
+// ─── Attachment Offload Result ───────────────────────────────
+
+/**
+ * Structured value an `onBeforeBlobUpload` handler may return instead of a
+ * file id. It asks the composer to drop the staged binary attachment and
+ * append replacement content to the message body, so a plugin can offload the
+ * file somewhere else (an external file drop, object storage, a share link)
+ * and leave a link behind.
+ *
+ * Returning a string keeps the stock behaviour: it is treated as the id of the
+ * (possibly rewritten) file to upload.
+ */
+export interface ExternalAttachmentResult {
+  externalAttachment: true;
+  /**
+   * Inserted into the body when the composer is in rich-text mode. Sanitized
+   * by the composer before it goes anywhere near the document - a handler
+   * cannot inject script into the message being written.
+   */
+  html: string;
+  /** Appended to the body when the composer is in plain-text mode. */
+  text: string;
+  /**
+   * Id of the staged file to discard, when the handler re-saved it through
+   * `upfiles.save` (which stores the new copy under a fresh id and deletes the
+   * old one). Defaults to the id the hook was called with. Without this the
+   * re-saved copy would be stranded in IndexedDB, since it is never uploaded.
+   */
+  fileId?: string;
+}
+
+export function isExternalAttachmentResult(value: unknown): value is ExternalAttachmentResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<ExternalAttachmentResult>;
+  return candidate.externalAttachment === true
+    && typeof candidate.html === 'string'
+    && typeof candidate.text === 'string'
+    && (candidate.fileId === undefined || typeof candidate.fileId === 'string');
 }
 
 // ─── All Hook Buses (one per hook across all 20 domains) ─────
@@ -183,7 +236,14 @@ export const emailHooks = {
   onComposerOpen: new HookBus(),
   onBeforeEmailSend: new HookBus(),
   onAfterEmailSend: new HookBus(),
+  // Transform hook - fires before the draft is auto-saved to the server.
+  // Receive fields passed to client.createDraft and may mutate fields in place.
+  // Return false to cancel the auto-save or a the fields.
+  onBeforeDraftAutoSave: new HookBus(),
   onDraftAutoSave: new HookBus(),
+  // Transform hook - fires before a draft is created from an email in draft mailbox.
+  // Receive a Email object and may mutate fields in place.
+  onBeforeEditDraft: new HookBus(),
   onBeforeEmailDelete: new HookBus(),
   onAfterEmailDelete: new HookBus(),
   onBeforeEmailMove: new HookBus(),
@@ -232,6 +292,16 @@ export const emailHooks = {
   // attachment. Handler receives AttachmentInfo (size/type/name only - the
   // raw file is not exposed). Return false to refuse the upload.
   onBeforeAttachmentUpload: new HookBus(),
+  // Intercept hook fired before a file is uploaded to JMAP server. 
+  // It is fired after onBeforeAttachmentUpload.
+  // Handler receive the {file: File, blobId: 'undefined'} object. 
+  // If it uploaded, it must return the object with true blobId. 
+  // Here, the raw file sended is exposed and can be modified or replaced.
+  // A handler may also return an ExternalAttachmentResult to drop the
+  // attachment entirely and append replacement html/text to the body, which
+  // lets a plugin offload the file elsewhere and leave a link behind. That
+  // offload is a real upload, hence the extended per-handler budget.
+  onBeforeBlobUpload: new HookBus(BLOB_UPLOAD_TIMEOUT_MS),
   // Observer fired after an attachment has been uploaded and its blobId is
   // available. Handler receives AttachmentInfo with `blobId` populated.
   onAfterAttachmentUpload: new HookBus(),
@@ -249,6 +319,29 @@ export const emailHooks = {
   // recipients change. Handler receives a DraftView snapshot. Use for AI
   // assistants, grammar checkers, etc.
   onDraftChange: new HookBus(),
+  // Intercept hook - fires at the very TOP of the composer send path, before
+  // the host builds and submits the message. Handler receives a ComposeSend
+  // request (draft fields, recipients, identityId, attachments, and the user's
+  // sign/encrypt intent) and may TAKE OVER sending entirely: build a raw MIME
+  // message, sign/encrypt it, and submit it via `api.jmap.sendRaw`. Returning
+  // false signals "I handled the send" and the host SKIPS its default
+  // submission. Returning anything else (incl. undefined) lets the host send
+  // normally. This is the send-takeover hook used by the S/MIME plugin to
+  // replace the former native sign+encrypt+sendRaw pipeline.
+  onComposeSend: new HookBus(),
+  // Transform hook - receive Email[] or ScheduledEmail[] just after there are fetched to 
+  // lets plugin edit emails before they are shown in row. Used to populate preview 
+  // field for encryption plugins.
+  onEmailsFetched: new HookBus(),
+  // Transform hook - lets plugins edit the recipient chips in composer fields.
+  // They can add, remove, or modify chips (e.g. rewrite addresses, add colors/icons).
+  // Take Recipient[] as argument.
+  onRecipientChipsChange: new HookBus(),
+  // Transform hooks - lets plugins modify the email before host use it to populate fields. 
+  onBeforeComposeOpenToForwardAsAttachment: new HookBus(),
+  onBeforeComposeOpenToReply: new HookBus(),
+  onBeforeComposeOpenToReplyAll: new HookBus(),
+  onBeforeComposeOpenToForward: new HookBus(),
 };
 
 // §7.2 Calendar Hooks
@@ -361,8 +454,22 @@ export const identityHooks = {
 export const filterHooks = {
   onFiltersLoaded: new HookBus(),
   onFilterRuleChange: new HookBus(),
+  // Observer fired after the host successfully uploads the account's active
+  // Sieve script (visual-builder save or plugin-triggered regenerate).
   onFiltersSave: new HookBus(),
   onSieveScriptChange: new HookBus(),
+  /**
+   * Transform hook - runs on the full Sieve script text immediately before
+   * the host uploads it as the account's active script.
+   *
+   *   handler(script: string, ctx: SieveScriptGenerateContext): string | undefined
+   *
+   * Return a modified script (e.g. append a plugin-managed categorizer
+   * section) or undefined to pass through. Handlers MUST keep the script
+   * valid — put extra `require` statements at the very top. Trigger a
+   * regeneration from a plugin via `api.sieve.regenerate()`.
+   */
+  onSieveScriptGenerate: new HookBus(),
 };
 
 // §7.9 Task Hooks
@@ -520,6 +627,38 @@ export const renderHooks = {
   // Handlers return a new (or extended) badges array.
   // Rendered by the email list row component next to the subject line.
   onEmailListItemRender: new HookBus(),
+  // Transform hook - runs when an email is opened, BEFORE the viewer computes
+  // the body it will render. Initial value: RenderableBody { html, text,
+  // attachments, handledBy? }. Second argument: MessageContext { id,
+  // bodyStructure, attachments, blobId, contentType, from }. A handler may
+  // inspect the message (e.g. detect S/MIME), fetch the raw blob via
+  // `api.jmap.fetchBlob`, decrypt/verify in-frame, and return a REPLACED body
+  // with `handledBy` set plus optional `verification` status. Return undefined
+  // (or the unchanged value) to pass through. The host still runs the returned
+  // HTML through its sanitizer — plugin output is not trusted blindly. This is
+  // the render-takeover hook used by the S/MIME plugin to replace the former
+  // native detect/decrypt/verify path in the viewer.
+  onRenderEmailBody: new HookBus(),
+};
+
+// §7.24 Message-List Tab Hooks (Gmail-style category tabs)
+export const messageListTabHooks = {
+  // Observer - the merged tab set changed (a plugin registered or cleared
+  // its tabs). Receives the resolved MessageListTab[] (empty when cleared).
+  onTabsChange: new HookBus(),
+  // Observer - the user switched tabs. Receives TabActivateContext.
+  onTabActivate: new HookBus(),
+  // Intercept - fires before the host applies a category keyword patch to
+  // messages (api.tabs.categorize or native UI). Receives
+  // EmailCategorizeContext; return false to cancel the move.
+  onBeforeEmailCategorize: new HookBus(),
+  // Observer - fires after the keyword patch was applied. Receives the same
+  // EmailCategorizeContext. This is where a plugin persists per-sender
+  // overrides and calls api.sieve.regenerate() ("do this for all mail from X").
+  onEmailCategorize: new HookBus(),
+  // Observer - per-tab unread counts were refreshed. Receives
+  // Record<tabId, number>.
+  onTabCountsRefresh: new HookBus(),
 };
 
 // ─── Aggregate: remove all handlers for a plugin across all buses ───
@@ -530,7 +669,7 @@ const allHookGroups = [
   taskHooks, templateHooks, smimeHooks, vacationHooks,
   uiHooks, themeHooks, toastHooks, dragDropHooks,
   keyboardHooks, appLifecycleHooks, accountSecurityHooks, sidebarAppHooks,
-  avatarHooks, renderHooks, routerHooks,
+  avatarHooks, renderHooks, routerHooks, messageListTabHooks,
 ];
 
 export function removeAllPluginHooks(pluginId: string): void {

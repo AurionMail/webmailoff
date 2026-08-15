@@ -39,6 +39,7 @@ describe('plugin-types constants', () => {
       expect(ALL_PERMISSIONS).toContain('ui:toolbar');
       expect(ALL_PERMISSIONS).toContain('ui:email-banner');
       expect(ALL_PERMISSIONS).toContain('ui:email-footer');
+      expect(ALL_PERMISSIONS).toContain('ui:contact-cryptokeys');
       expect(ALL_PERMISSIONS).toContain('ui:composer-toolbar');
       expect(ALL_PERMISSIONS).toContain('ui:sidebar-widget');
       expect(ALL_PERMISSIONS).toContain('ui:settings-section');
@@ -69,8 +70,8 @@ describe('plugin-types constants', () => {
       expect(MAX_PLUGIN_SIZE).toBe(5 * 1024 * 1024);
     });
 
-    it('MAX_THEME_SIZE is 1 MB', () => {
-      expect(MAX_THEME_SIZE).toBe(1 * 1024 * 1024);
+    it('MAX_THEME_SIZE is 2 MB', () => {
+      expect(MAX_THEME_SIZE).toBe(2 * 1024 * 1024);
     });
   });
 

@@ -1,16 +1,19 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { KeywordSettings } from '../keyword-settings';
 import { useSettingsStore, DEFAULT_KEYWORDS } from '@/stores/settings-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { useEmailStore } from '@/stores/email-store';
 
-// Mock SettingsSection to just render children
-vi.mock('../settings-section', () => ({
+// Mock SettingsSection to just render children, keeping the real controls
+vi.mock('../settings-section', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../settings-section')>()),
   SettingsSection: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 describe('KeywordSettings', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ emailKeywords: [...DEFAULT_KEYWORDS] });
+    useSettingsStore.setState({ emailKeywords: [...DEFAULT_KEYWORDS], nestedTags: false });
   });
 
   it('renders all default keywords', () => {
@@ -29,11 +32,6 @@ describe('KeywordSettings', () => {
   it('renders add keyword button', () => {
     render(<KeywordSettings />);
     expect(screen.getByText('add_keyword')).toBeInTheDocument();
-  });
-
-  it('renders reset defaults button', () => {
-    render(<KeywordSettings />);
-    expect(screen.getByText('reset_defaults')).toBeInTheDocument();
   });
 
   it('shows add form when add button clicked', () => {
@@ -114,18 +112,6 @@ describe('KeywordSettings', () => {
     expect(kw?.label).toBe('Crimson');
   });
 
-  it('resets to defaults when reset button clicked', () => {
-    // Modify keywords first
-    useSettingsStore.getState().removeKeyword('red');
-    useSettingsStore.getState().removeKeyword('blue');
-    expect(useSettingsStore.getState().emailKeywords).toHaveLength(DEFAULT_KEYWORDS.length - 2);
-
-    render(<KeywordSettings />);
-    fireEvent.click(screen.getByText('reset_defaults'));
-
-    expect(useSettingsStore.getState().emailKeywords).toEqual(DEFAULT_KEYWORDS);
-  });
-
   it('normalizes label to id correctly', () => {
     render(<KeywordSettings />);
     fireEvent.click(screen.getByText('add_keyword'));
@@ -138,5 +124,240 @@ describe('KeywordSettings', () => {
     const added = keywords[keywords.length - 1];
     expect(added.id).toBe('my-custom-tag');
     expect(added.label).toBe('My Custom Tag!');
+  });
+
+  it('offers no parent picker while nesting is off', () => {
+    render(<KeywordSettings />);
+    fireEvent.click(screen.getByText('add_keyword'));
+
+    expect(screen.queryByLabelText('parent_field')).not.toBeInTheDocument();
+  });
+
+  it('nests a new tag under the selected parent', () => {
+    useSettingsStore.setState({
+      emailKeywords: [{ id: 'work', label: 'Work', color: 'blue' }],
+      nestedTags: true,
+    });
+    render(<KeywordSettings />);
+    fireEvent.click(screen.getByText('add_keyword'));
+
+    fireEvent.change(screen.getByLabelText('parent_field'), { target: { value: 'work' } });
+    fireEvent.change(screen.getByPlaceholderText('label_placeholder'), { target: { value: 'Clients' } });
+    fireEvent.click(screen.getByText('add'));
+
+    const keywords = useSettingsStore.getState().emailKeywords;
+    expect(keywords[keywords.length - 1]).toMatchObject({ id: 'work/clients', label: 'Clients' });
+  });
+
+  it('shows nested tags by their full path', () => {
+    useSettingsStore.setState({
+      emailKeywords: [
+        { id: 'work', label: 'Work', color: 'blue' },
+        { id: 'work/clients', label: 'Clients', color: 'green' },
+      ],
+      nestedTags: true,
+    });
+    render(<KeywordSettings />);
+
+    expect(screen.getByText('Work/Clients')).toBeInTheDocument();
+    expect(screen.getByText('$label:work/clients')).toBeInTheDocument();
+  });
+
+  it('rejects a path that would exceed the keyword length limit', () => {
+    const deepId = 'a'.repeat(240);
+    useSettingsStore.setState({
+      emailKeywords: [{ id: deepId, label: 'Deep', color: 'blue' }],
+      nestedTags: true,
+    });
+    render(<KeywordSettings />);
+    fireEvent.click(screen.getByText('add_keyword'));
+
+    fireEvent.change(screen.getByLabelText('parent_field'), { target: { value: deepId } });
+    fireEvent.change(screen.getByPlaceholderText('label_placeholder'), { target: { value: 'Overflowing name' } });
+
+    expect(screen.getByText('too_long')).toBeInTheDocument();
+    expect(screen.getByText('add').closest('button')).toBeDisabled();
+  });
+
+  it('locks the name and the delete action of a tag that has nested tags', () => {
+    useSettingsStore.setState({
+      emailKeywords: [
+        { id: 'work', label: 'Work', color: 'blue' },
+        { id: 'work/clients', label: 'Clients', color: 'green' },
+      ],
+      nestedTags: true,
+    });
+    render(<KeywordSettings />);
+
+    expect(screen.getByTitle('has_children_delete')).toBeDisabled();
+
+    fireEvent.click(screen.getAllByTitle('edit')[0]);
+    expect(screen.getByDisplayValue('Work')).toBeDisabled();
+    expect(screen.getByText('has_children_locked')).toBeInTheDocument();
+  });
+
+  it('defaults every tag to always visible in the sidebar', () => {
+    render(<KeywordSettings />);
+
+    const pickers = screen.getAllByLabelText('visibility_field');
+    expect(pickers).toHaveLength(DEFAULT_KEYWORDS.length);
+    pickers.forEach((picker) => expect(picker).toHaveValue('show'));
+  });
+
+  it('stores the visibility chosen for a tag', () => {
+    render(<KeywordSettings />);
+
+    fireEvent.change(screen.getAllByLabelText('visibility_field')[0], { target: { value: 'unread' } });
+
+    expect(useSettingsStore.getState().emailKeywords.find((k) => k.id === 'red')?.visibility).toBe('unread');
+  });
+});
+
+// Tag names and colours live only in these settings, so losing them hides tags
+// whose keywords are still intact on every message. Scanning finds those
+// keywords and offers them back under a name the user never had to remember.
+describe('KeywordSettings unrecognized tags', () => {
+  const discoverKeywords = vi.fn();
+
+  beforeEach(() => {
+    useSettingsStore.setState({ emailKeywords: [...DEFAULT_KEYWORDS], nestedTags: false });
+    discoverKeywords.mockReset();
+    discoverKeywords.mockResolvedValue({ keywords: {}, scanned: 0, total: 0, complete: true });
+    useAuthStore.setState({ client: { discoverKeywords, getTagCounts: vi.fn().mockResolvedValue({}) } as never });
+    useEmailStore.setState({ tagCounts: {} });
+  });
+
+  const scan = async () => {
+    fireEvent.click(screen.getByText('unrecognized.scan'));
+    await waitFor(() => expect(discoverKeywords).toHaveBeenCalled());
+  };
+
+  it('offers no scan when there is no connected account', async () => {
+    useAuthStore.setState({ client: null });
+    render(<KeywordSettings />);
+
+    expect(screen.getByText('unrecognized.scan').closest('button')).toBeDisabled();
+  });
+
+  it('says so when every keyword on the server is already defined', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { $seen: 9, '$label:red': 4 },
+      scanned: 9,
+      total: 9,
+      complete: true,
+    });
+    render(<KeywordSettings />);
+    await scan();
+
+    expect(await screen.findByText('unrecognized.none')).toBeInTheDocument();
+  });
+
+  it('surfaces an unrecognized keyword with a proposed name and its raw id', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { '$label:q3-invoices': 7 },
+      scanned: 9,
+      total: 9,
+      complete: true,
+    });
+    render(<KeywordSettings />);
+    await scan();
+
+    expect(await screen.findByDisplayValue('Q3 Invoices')).toBeInTheDocument();
+    expect(screen.getByText('$label:q3-invoices')).toBeInTheDocument();
+  });
+
+  it('adds the tag under the keyword the messages already carry', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { '$label:q3-invoices': 7 },
+      scanned: 9,
+      total: 9,
+      complete: true,
+    });
+    render(<KeywordSettings />);
+    await scan();
+    await screen.findByDisplayValue('Q3 Invoices');
+
+    fireEvent.click(screen.getAllByText('add').slice(-1)[0]);
+
+    expect(useSettingsStore.getState().emailKeywords).toContainEqual(
+      expect.objectContaining({ id: 'q3-invoices', label: 'Q3 Invoices' }),
+    );
+  });
+
+  it('keeps the id when the proposed name is edited first', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { '$label:q3-invoices': 7 },
+      scanned: 9,
+      total: 9,
+      complete: true,
+    });
+    render(<KeywordSettings />);
+    await scan();
+
+    fireEvent.change(await screen.findByDisplayValue('Q3 Invoices'), { target: { value: 'Invoices' } });
+    fireEvent.click(screen.getAllByText('add').slice(-1)[0]);
+
+    expect(useSettingsStore.getState().emailKeywords).toContainEqual(
+      expect.objectContaining({ id: 'q3-invoices', label: 'Invoices' }),
+    );
+  });
+
+  it('drops a row from the list once its tag is defined', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { '$label:q3-invoices': 7 },
+      scanned: 9,
+      total: 9,
+      complete: true,
+    });
+    render(<KeywordSettings />);
+    await scan();
+    await screen.findByDisplayValue('Q3 Invoices');
+
+    fireEvent.click(screen.getAllByText('add').slice(-1)[0]);
+
+    // The name field belongs to the unrecognized row alone - the tag itself is
+    // now in the list above, where it is named by a badge rather than an input.
+    expect(screen.queryByDisplayValue('Q3 Invoices')).not.toBeInTheDocument();
+    expect(screen.getByText('unrecognized.none')).toBeInTheDocument();
+  });
+
+  it('adds every found tag at once', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { '$label:q3-invoices': 7, '$label:receipts': 3 },
+      scanned: 9,
+      total: 9,
+      complete: true,
+    });
+    render(<KeywordSettings />);
+    await scan();
+
+    fireEvent.click(await screen.findByText('unrecognized.add_all'));
+
+    const ids = useSettingsStore.getState().emailKeywords.map((k) => k.id);
+    expect(ids).toContain('q3-invoices');
+    expect(ids).toContain('receipts');
+  });
+
+  it('warns that a capped scan may have missed tags on older mail', async () => {
+    discoverKeywords.mockResolvedValue({
+      keywords: { '$label:q3-invoices': 7 },
+      scanned: 25000,
+      total: 90000,
+      complete: false,
+    });
+    render(<KeywordSettings />);
+    await scan();
+
+    expect(await screen.findByText('unrecognized.partial')).toBeInTheDocument();
+  });
+
+  it('reports a failed scan instead of claiming nothing was found', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    discoverKeywords.mockRejectedValue(new Error('network down'));
+    render(<KeywordSettings />);
+    await scan();
+
+    expect(await screen.findByText('unrecognized.error')).toBeInTheDocument();
+    expect(screen.queryByText('unrecognized.none')).not.toBeInTheDocument();
   });
 });

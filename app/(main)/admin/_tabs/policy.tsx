@@ -6,13 +6,16 @@ import type { SettingsPolicy, FeatureGates } from '@/lib/admin/types';
 import { DEFAULT_FEATURE_GATES, DEFAULT_POLICY } from '@/lib/admin/types';
 import { apiFetch } from '@/lib/browser-navigation';
 
-const EXCLUDED_FEATURE_GATES: (keyof FeatureGates)[] = ['pluginsEnabled', 'pluginsUploadEnabled', 'themesEnabled', 'userThemesEnabled'];
+// `allMailViewEnabled` is deprecated (folded into `crossAllViewEnabled`, normalized
+// forward on policy load), so it is hidden from the admin UI.
+const EXCLUDED_FEATURE_GATES: (keyof FeatureGates)[] = ['pluginsEnabled', 'pluginsUploadEnabled', 'themesEnabled', 'userThemesEnabled', 'allMailViewEnabled'];
 
 const FEATURE_GATE_LABELS: Partial<Record<keyof FeatureGates, { label: string; description: string }>> = {
   sidebarAppsEnabled: { label: 'Sidebar Apps', description: 'Allow custom web apps in navigation rail' },
   settingsExportEnabled: { label: 'Settings Export/Import', description: 'Allow users to export and import settings JSON' },
   customKeywordsEnabled: { label: 'Custom Keywords', description: 'Allow user-created labels and tags' },
   templatesEnabled: { label: 'Email Templates', description: 'Allow email template creation and library' },
+  calendarEnabled: { label: 'Calendar', description: 'Enable calendar features and views' },
   calendarTasksEnabled: { label: 'Calendar Tasks', description: 'Show task panel in calendar view' },
   contactsEnabled: { label: 'Contacts', description: 'Enable contacts/address book features' },
   smimeEnabled: { label: 'S/MIME', description: 'Enable certificate management and email signing' },
@@ -21,6 +24,10 @@ const FEATURE_GATE_LABELS: Partial<Record<keyof FeatureGates, { label: string; d
   folderIconsEnabled: { label: 'Folder Icons', description: 'Allow custom folder icon picker' },
   hoverActionsConfigEnabled: { label: 'Hover Actions Config', description: 'Allow users to customize email hover actions' },
   filesEnabled: { label: 'Files (WebDAV)', description: 'Enable file storage via WebDAV. WARNING: Large uploads can cause Stalwart/RocksDB instability. Not recommended for production.' },
+  crossUnreadViewEnabled: { label: 'Unified Mailbox: Unread', description: 'Allow an "Unread" entry in the Unified Mailbox section that lists unread mail across the account and its shared folders (or every account when the cross-account sub-option is on). Honors the user\'s folder selection. Requires the matching per-user toggle in Settings → Appearance.' },
+  crossStarredViewEnabled: { label: 'Unified Mailbox: Starred', description: 'Allow a "Starred" entry in the Unified Mailbox section that lists flagged/starred mail across the account and its shared folders (or every account when the cross-account sub-option is on). Honors the user\'s folder selection. Requires the matching per-user toggle in Settings → Appearance.' },
+  crossAllViewEnabled: { label: 'Unified Mailbox: All Mail', description: 'Allow an "All mail" entry in the Unified Mailbox section that lists all mail across the account and its shared folders (or every account when the cross-account sub-option is on). Honors the user\'s folder selection. Requires the matching per-user toggle in Settings → Appearance.' },
+  unifiedCrossAccountEnabled: { label: 'Unified Mailbox: Cross-account', description: 'Allow users to expand the Unified Mailbox beyond the active account boundary so its lists merge across every logged-in account. When off, the Unified Mailbox stays within the active account and its shared folders.' },
 };
 
 const RESTRICTABLE_SETTINGS = [
@@ -70,6 +77,18 @@ export function PolicyTab() {
       ...prev,
       features: { ...prev.features, [key]: !prev.features[key] },
     }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function setPushRelayUrl(value: string) {
+    setPolicy(prev => ({ ...prev, pushRelayUrl: value }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function togglePushRelayLocked() {
+    setPolicy(prev => ({ ...prev, pushRelayUrlLocked: !prev.pushRelayUrlLocked }));
     setDirty(true);
     setMessage(null);
   }
@@ -173,13 +192,42 @@ export function PolicyTab() {
                   <span className="text-sm text-foreground">{label}</span>
                   <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
                 </div>
-                <button onClick={() => toggleFeature(key)}
+                <button type="button" role="switch" aria-checked={enabled} aria-label={label}
+                  onClick={() => toggleFeature(key)}
                   className={`shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}>
                   <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow transition-transform ${enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
                 </button>
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="border border-border rounded-lg">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
+          <h2 className="text-sm font-medium text-foreground">Push Relay</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Override the Web Push relay URL shown in user notification settings. Leave empty to use the built-in default.</p>
+        </div>
+        <div className="px-4 py-3 space-y-3">
+          <input
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            value={policy.pushRelayUrl ?? ''}
+            onChange={(e) => setPushRelayUrl(e.target.value)}
+            placeholder="https://notifications.relay.example.com"
+            className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+          />
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!policy.pushRelayUrlLocked}
+              onChange={togglePushRelayLocked}
+              className="rounded border-input"
+            />
+            <Lock className="w-3 h-3" /> Lock - users cannot change this URL
+          </label>
         </div>
       </div>
 

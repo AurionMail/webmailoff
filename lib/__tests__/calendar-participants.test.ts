@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { CalendarEvent, CalendarParticipant } from '@/lib/jmap/types';
 import {
   isOrganizer,
+  collectUserCalendarAddresses,
   getUserParticipantId,
   getUserStatus,
   getParticipantList,
@@ -10,7 +11,10 @@ import {
   buildParticipantMap,
 } from '@/lib/calendar-participants';
 
-function makeEvent(participants: Record<string, Partial<CalendarParticipant>> | null = null): CalendarEvent {
+function makeEvent(
+  participants: Record<string, Partial<CalendarParticipant>> | null = null,
+  overrides: Partial<CalendarEvent> = {}
+): CalendarEvent {
   return {
     '@type': 'Event',
     id: 'ev1',
@@ -54,8 +58,16 @@ function makeEvent(participants: Record<string, Partial<CalendarParticipant>> | 
     mayInviteSelf: false,
     mayInviteOthers: false,
     hideAttendees: false,
+    ...overrides,
   };
 }
+
+// What Stalwart hands back after an iCalendar round-trip: the ORGANIZER line is
+// rebuilt as a participant carrying only calendarAddress — no roles, no status.
+const stalwartOrganizerParticipant: Partial<CalendarParticipant> = {
+  '@type': 'Participant',
+  calendarAddress: 'mailto:alice@example.com',
+};
 
 const orgParticipant: Partial<CalendarParticipant> = {
   '@type': 'Participant',
@@ -131,6 +143,92 @@ describe('isOrganizer', () => {
   it('returns false when empty user emails', () => {
     const event = makeEvent({ org: orgParticipant });
     expect(isOrganizer(event, [])).toBe(false);
+  });
+
+  it('matches the event-level organizerCalendarAddress when no owner role is set', () => {
+    // Stalwart / imported self-organized events: the user's participant only
+    // carries `attendee`, the organizer lives in organizerCalendarAddress.
+    const event = makeEvent({
+      self: {
+        '@type': 'Participant',
+        name: 'Alice',
+        email: '',
+        roles: { attendee: true },
+        participationStatus: 'accepted',
+        sendTo: { imip: 'mailto:alice@example.com' },
+        kind: 'individual',
+      },
+    });
+    event.organizerCalendarAddress = 'mailto:alice@example.com';
+    expect(isOrganizer(event, ['alice@example.com'])).toBe(true);
+  });
+
+  it('matches the event-level organizerCalendarAddress case-insensitively', () => {
+    const event = makeEvent({ att1: attendeeParticipant });
+    event.organizerCalendarAddress = 'mailto:Alice@Example.com';
+    expect(isOrganizer(event, ['alice@example.com'])).toBe(true);
+  });
+
+  it('falls back to replyTo when organizerCalendarAddress is absent', () => {
+    const event = makeEvent({ att1: attendeeParticipant });
+    event.replyTo = { imip: 'mailto:alice@example.com' };
+    expect(isOrganizer(event, ['alice@example.com'])).toBe(true);
+  });
+
+  it('returns false when the event organizer is someone else', () => {
+    const event = makeEvent({ att1: attendeeParticipant });
+    event.organizerCalendarAddress = 'mailto:someoneelse@example.com';
+    expect(isOrganizer(event, ['alice@example.com'])).toBe(false);
+  });
+
+  // Regression: an event organized under one of the account's ALIAS addresses
+  // is still the user's own event and must be recognised as such (otherwise the
+  // calendar UI flips it to a read-only invite). The primary address alone does
+  // not match; the alias has to be part of the user's address list.
+  it('does NOT match an alias organizer when only the primary address is known', () => {
+    const event = makeEvent({ att1: attendeeParticipant });
+    event.organizerCalendarAddress = 'mailto:info@example.com'; // an account alias
+    expect(isOrganizer(event, ['alice@example.com'])).toBe(false);
+  });
+
+  it('matches an alias organizer once the alias is included in the address list', () => {
+    const event = makeEvent({ att1: attendeeParticipant });
+    event.organizerCalendarAddress = 'mailto:info@example.com';
+    const addresses = collectUserCalendarAddresses(['alice@example.com'], ['info@example.com']);
+    expect(isOrganizer(event, addresses)).toBe(true);
+  });
+
+  it('matches an alias owner participant once the alias is included', () => {
+    const event = makeEvent({
+      org: { ...orgParticipant, email: 'info@example.com', sendTo: { imip: 'mailto:info@example.com' } },
+    });
+    const addresses = collectUserCalendarAddresses(['alice@example.com'], ['INFO@example.com']);
+    expect(isOrganizer(event, addresses)).toBe(true);
+  });
+});
+
+describe('collectUserCalendarAddresses', () => {
+  it('merges identity and alias addresses', () => {
+    expect(collectUserCalendarAddresses(['alice@example.com'], ['info@example.com', 'sales@example.com']))
+      .toEqual(['alice@example.com', 'info@example.com', 'sales@example.com']);
+  });
+
+  it('de-duplicates case-insensitively, keeping the first-seen casing', () => {
+    expect(collectUserCalendarAddresses(['Alice@Example.com'], ['alice@example.com', 'INFO@example.com']))
+      .toEqual(['Alice@Example.com', 'INFO@example.com']);
+  });
+
+  it('drops empty, undefined and whitespace-only entries', () => {
+    expect(collectUserCalendarAddresses(['alice@example.com', '', '  ', undefined, null], []))
+      .toEqual(['alice@example.com']);
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(collectUserCalendarAddresses(['  alice@example.com  '], [])).toEqual(['alice@example.com']);
+  });
+
+  it('returns an empty array when given no addresses', () => {
+    expect(collectUserCalendarAddresses([], [])).toEqual([]);
   });
 });
 
@@ -222,6 +320,37 @@ describe('getParticipantList', () => {
     const list = getParticipantList(event);
     expect(list[0].status).toBe('needs-action');
   });
+
+  // #731: without this the organizer is treated as a plain attendee, seeded
+  // into the invite list on reopen, and re-saved as a duplicate every time.
+  it('flags the roles-less organizer Stalwart derives from ORGANIZER', () => {
+    const event = makeEvent(
+      { org: stalwartOrganizerParticipant, att1: attendeeParticipant },
+      { organizerCalendarAddress: 'mailto:alice@example.com' }
+    );
+    const list = getParticipantList(event);
+    expect(list.find(p => p.id === 'org')).toMatchObject({
+      email: 'alice@example.com',
+      isOrganizer: true,
+    });
+    expect(list.find(p => p.id === 'att1')!.isOrganizer).toBe(false);
+  });
+
+  it('matches the organizer address case-insensitively', () => {
+    const event = makeEvent(
+      { org: { '@type': 'Participant', calendarAddress: 'mailto:Alice@Example.COM' } },
+      { organizerCalendarAddress: 'mailto:alice@example.com' }
+    );
+    expect(getParticipantList(event)[0].isOrganizer).toBe(true);
+  });
+
+  it('flags the organizer via the legacy replyTo address', () => {
+    const event = makeEvent(
+      { org: stalwartOrganizerParticipant },
+      { replyTo: { imip: 'mailto:alice@example.com' } }
+    );
+    expect(getParticipantList(event)[0].isOrganizer).toBe(true);
+  });
 });
 
 describe('getStatusCounts', () => {
@@ -234,7 +363,8 @@ describe('getStatusCounts', () => {
       att4: attendeeParticipant,
     });
     const counts = getStatusCounts(event);
-    expect(counts.accepted).toBe(2);
+    // The organizer is excluded: they are not awaiting their own reply.
+    expect(counts.accepted).toBe(1);
     expect(counts.declined).toBe(1);
     expect(counts.tentative).toBe(1);
     expect(counts['needs-action']).toBe(1);
@@ -244,6 +374,18 @@ describe('getStatusCounts', () => {
     const event = makeEvent(null);
     const counts = getStatusCounts(event);
     expect(counts).toEqual({ accepted: 0, declined: 0, tentative: 0, 'needs-action': 0 });
+  });
+
+  // #731: the statusless participant Stalwart rebuilds from ORGANIZER would
+  // otherwise show the organizer as one more attendee still owing a response.
+  it('does not count the roles-less organizer as pending', () => {
+    const event = makeEvent(
+      { org: stalwartOrganizerParticipant, att1: attendeeParticipant },
+      { organizerCalendarAddress: 'mailto:alice@example.com' }
+    );
+    const counts = getStatusCounts(event);
+    expect(counts['needs-action']).toBe(1);
+    expect(counts.accepted).toBe(0);
   });
 });
 
@@ -274,26 +416,34 @@ describe('buildParticipantMap', () => {
 
     expect(Object.keys(map)).toHaveLength(3);
 
-    const org = map['organizer'];
-    expect(org.name).toBe('Alice');
-    expect(org.email).toBe('alice@example.com');
-    expect(org.roles).toEqual({ owner: true, attendee: true });
-    expect(org.participationStatus).toBe('accepted');
-    expect(org.scheduleAgent).toBe('server');
-    expect(org.sendTo).toEqual({ imip: 'mailto:alice@example.com' });
-    expect(org.expectReply).toBe(false);
+    // Entries are keyed by generated UUIDs (RFC 8984 participant ids), so
+    // look them up by identity rather than by a fixed key.
+    const entries = Object.values(map);
 
-    const att0 = map['attendee-0'];
-    expect(att0.name).toBe('Bob');
-    expect(att0.email).toBe('bob@example.com');
-    expect(att0.roles).toEqual({ attendee: true });
-    expect(att0.participationStatus).toBe('needs-action');
-    expect(att0.scheduleAgent).toBe('server');
-    expect(att0.expectReply).toBe(true);
+    const org = entries.find(p => p.roles?.owner);
+    expect(org).toBeDefined();
+    expect(org!.name).toBe('Alice');
+    expect(org!.email).toBe('alice@example.com');
+    expect(org!.roles).toEqual({ owner: true });
+    expect(org!.participationStatus).toBe('accepted');
+    expect(org!.scheduleAgent).toBe('server');
+    // sendTo is retired in draft-ietf-calext-jscalendarbis; the scheduling
+    // address is carried by calendarAddress instead.
+    expect(org!.sendTo).toBeUndefined();
+    expect(org!.calendarAddress).toBe('mailto:alice@example.com');
+    expect(org!.expectReply).toBe(false);
 
-    const att1 = map['attendee-1'];
-    expect(att1.name).toBe('Carol');
-    expect(att1.email).toBe('carol@example.com');
+    const att0 = entries.find(p => p.email === 'bob@example.com');
+    expect(att0).toBeDefined();
+    expect(att0!.name).toBe('Bob');
+    expect(att0!.roles).toEqual({ attendee: true });
+    expect(att0!.participationStatus).toBe('needs-action');
+    expect(att0!.scheduleAgent).toBe('server');
+    expect(att0!.expectReply).toBe(true);
+
+    const att1 = entries.find(p => p.email === 'carol@example.com');
+    expect(att1).toBeDefined();
+    expect(att1!.name).toBe('Carol');
   });
 
   it('creates only organizer when no attendees', () => {
@@ -302,7 +452,9 @@ describe('buildParticipantMap', () => {
       []
     );
     expect(Object.keys(map)).toHaveLength(1);
-    expect(map['organizer']).toBeDefined();
+    const org = Object.values(map)[0];
+    expect(org).toBeDefined();
+    expect(org.roles).toEqual({ owner: true });
   });
 
   it('sets @type to Participant for all entries', () => {
@@ -323,5 +475,55 @@ describe('buildParticipantMap', () => {
     Object.values(map).forEach(p => {
       expect(p.kind).toBe('individual');
     });
+  });
+
+  // #731: the organizer must never also be written as an attendee, however
+  // they reached the invite list.
+  it('drops the organizer from the attendee list', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [
+        { name: 'Alice', email: 'alice@example.com' },
+        { name: 'Bob', email: 'bob@example.com' },
+      ]
+    );
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(Object.values(map).filter(p => p.roles?.attendee)).toHaveLength(1);
+    const alice = Object.values(map).filter(p => p.email === 'alice@example.com');
+    expect(alice).toHaveLength(1);
+    expect(alice[0].roles).toEqual({ owner: true });
+  });
+
+  it('drops the organizer regardless of case or surrounding whitespace', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [{ name: '', email: '  ALICE@Example.com  ' }]
+    );
+    expect(Object.keys(map)).toHaveLength(1);
+    expect(Object.values(map)[0].roles).toEqual({ owner: true });
+  });
+
+  it('deduplicates repeated attendee addresses case-insensitively', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [
+        { name: 'Bob', email: 'bob@example.com' },
+        { name: 'Bobby', email: 'BOB@example.com' },
+        { name: 'Carol', email: 'carol@example.com' },
+      ]
+    );
+    expect(Object.keys(map)).toHaveLength(3);
+    const bobs = Object.values(map).filter(p => p.email?.toLowerCase() === 'bob@example.com');
+    expect(bobs).toHaveLength(1);
+    expect(bobs[0].name).toBe('Bob');
+  });
+
+  it('skips blank attendee addresses', () => {
+    const map = buildParticipantMap(
+      { name: 'Alice', email: 'alice@example.com' },
+      [{ name: 'Nobody', email: '   ' }, { name: 'Bob', email: 'bob@example.com' }]
+    );
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(Object.values(map).some(p => p.name === 'Nobody')).toBe(false);
   });
 });

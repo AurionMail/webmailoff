@@ -5,10 +5,10 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Identity, EmailAddress } from '@/lib/jmap/types';
-import { sanitizeSignatureHtml } from '@/lib/email-sanitization';
+import { sanitizeSignatureHtml, sanitizeSignatureHtmlForDisplay } from '@/lib/email-sanitization';
 import { getEmailValidationError, validateEmailList } from '@/lib/validation';
 
-// JMAP Identity/set caps signature fields at 2047 UTF-8 bytes per RFC 8621 §6.1.
+// Stalwarts JMAP Identity/set caps signature fields at 2047 UTF-8 bytes
 const SIGNATURE_MAX_BYTES = 2047;
 const utf8Encoder = new TextEncoder();
 
@@ -305,7 +305,7 @@ export function IdentityForm({ identity, onSave, onCancel }: IdentityFormProps) 
             <div className="text-xs text-muted-foreground mb-1">{tDisplay('preview')}</div>
             <div
               dangerouslySetInnerHTML={{
-                __html: sanitizeSignatureHtml(formData.htmlSignature)
+                __html: sanitizeSignatureHtmlForDisplay(formData.htmlSignature)
               }}
             />
           </div>
@@ -352,7 +352,7 @@ function SignatureByteCounter({ id, value }: { id: string; value: string }) {
       aria-live="polite"
     >
       {t('signature_byte_counter', { bytes, max: SIGNATURE_MAX_BYTES })}
-      {atLimit && <span className="ml-1">{t('signature_byte_limit_reached')}</span>}
+      {atLimit && <span className="ms-1">{t('signature_byte_limit_reached')}</span>}
     </p>
   );
 }

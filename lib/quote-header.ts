@@ -8,7 +8,19 @@
 
 import { formatDateTime } from "@/lib/utils";
 import { emailHooks } from "@/lib/plugin-hooks";
+import { escapeHtml } from "@/lib/email-sanitization";
 import type { QuoteHeader, QuoteHeaderContext } from "@/lib/plugin-types";
+
+// Localized label set the caller passes in. Labels live on the client where
+// useTranslations is available; this module stays framework-agnostic.
+export interface QuoteHeaderLabels {
+  /** ICU-formatted reply line, e.g. "On {date}, {from} wrote:" with placeholders already substituted. */
+  formatReplyLine: (vars: { date: string; from: string }) => string;
+  forwardedSeparator: string;
+  fromLabel: string;
+  dateLabel: string;
+  subjectLabel: string;
+}
 
 interface BuildArgs {
   mode: "reply" | "replyAll" | "forward";
@@ -24,10 +36,24 @@ interface BuildArgs {
   locale: string;
   timeFormat: "12h" | "24h";
   unknownLabel: string;
+  /**
+   * Localized labels. Optional for backward compatibility; falls back to
+   * English (matching the original hardcoded behaviour) when not supplied.
+   */
+  labels?: QuoteHeaderLabels;
 }
+
+const DEFAULT_LABELS: QuoteHeaderLabels = {
+  formatReplyLine: ({ date, from }) => `On ${date}, ${from} wrote:`,
+  forwardedSeparator: "---------- Forwarded message ----------",
+  fromLabel: "From",
+  dateLabel: "Date",
+  subjectLabel: "Subject",
+};
 
 function defaultHeader(args: BuildArgs): QuoteHeader {
   const { mode, email, timeFormat, unknownLabel } = args;
+  const labels = args.labels ?? DEFAULT_LABELS;
   const date = email.receivedAt
     ? formatDateTime(email.receivedAt, timeFormat, {
         weekday: "short",
@@ -37,17 +63,30 @@ function defaultHeader(args: BuildArgs): QuoteHeader {
       })
     : "";
   const from = email.from?.[0];
-  const fromStr = from ? `${from.name || from.email}` : unknownLabel;
+  // Both the forward "From:" line and the reply "On … wrote:" line show the
+  // full sender incl. address ("Name <email>"), like Gmail/Outlook (#482).
+  const fromStrFull = from
+    ? (from.name && from.email && from.name !== from.email
+        ? `${from.name} <${from.email}>`
+        : (from.email || from.name || unknownLabel))
+    : unknownLabel;
   const subject = email.subject || "";
 
   if (mode === "forward") {
-    const text = `---------- Forwarded message ----------\nFrom: ${fromStr}\nDate: ${date}\nSubject: ${subject}\n`;
-    const html = `<div>---------- Forwarded message ----------<br>From: ${fromStr}<br>Date: ${date}<br>Subject: ${subject}<br><br></div>`;
+    const text = `${labels.forwardedSeparator}\n${labels.fromLabel}: ${fromStrFull}\n${labels.dateLabel}: ${date}\n${labels.subjectLabel}: ${subject}\n`;
+    // Escape the interpolated values for the HTML variant: the sender string is
+    // "Name <email>", and the unescaped "<email>" would be parsed as an HTML tag
+    // by the rich-text composer and silently dropped (#482). Subject/name are
+    // likewise user-controlled. Label/separator strings are trusted i18n text.
+    const html = `<div>${labels.forwardedSeparator}<br>${labels.fromLabel}: ${escapeHtml(fromStrFull)}<br>${labels.dateLabel}: ${escapeHtml(date)}<br>${labels.subjectLabel}: ${escapeHtml(subject)}<br><br></div>`;
     return { html, text, wrapInBlockquote: false };
   }
 
-  const text = `On ${date}, ${fromStr} wrote:\n`;
-  const html = `<div>On ${date}, ${fromStr} wrote:<br></div>`;
+  const text = `${labels.formatReplyLine({ date, from: fromStrFull })}\n`;
+  // Escape the interpolated sender/date for the HTML reply line: the sender is
+  // now "Name <email>", and the unescaped "<email>" would be parsed as an HTML
+  // tag by the rich-text composer and dropped (#482). Label template is trusted.
+  const html = `<div>${labels.formatReplyLine({ date: escapeHtml(date), from: escapeHtml(fromStrFull) })}<br></div>`;
   return { html, text, wrapInBlockquote: true };
 }
 

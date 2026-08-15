@@ -10,32 +10,25 @@ import {
   activateAllSandboxed,
   deactivateAllSandboxed,
   setSandboxStoreAccessor,
-  setSandboxLocale,
   setupSandboxAutoDisable,
 } from './plugin-sandbox/loader';
 import { all as allActive, get as getActive } from './plugin-sandbox/registry';
 
+// Re-export so the plugin store can keep the sandbox locale in step via this
+// facade, instead of importing lib/plugin-sandbox/loader directly (which would
+// also pull the hook buses into consumers' module graphs).
+export { setSandboxLocale } from './plugin-sandbox/loader';
+
 /**
- * Previously: re-published React/ReactDOM on `globalThis.__PLUGIN_EXTERNALS__`
- * so blob-imported plugin code could resolve `react`. With the sandbox model
- * plugins receive React injected as a function argument inside their iframe
- * runtime - there is nothing to expose on the host window.
- *
- * Kept as a no-op for callers that still invoke it during app bootstrap.
+ * Historically re-published React/ReactDOM on `globalThis` for the blob-import
+ * loader, and later also bootstrapped plugin locale sync. Both are obsolete:
+ * the sandbox injects React per-iframe, and locale sync now lives where plugin
+ * activation is orchestrated (stores/plugin-store -> initializePlugins, via
+ * setSandboxLocale). Kept as a no-op for the legacy activateAllPlugins()
+ * wrapper and its test.
  */
 export function exposePluginExternals(): void {
-  if (typeof window === 'undefined') return;
-  // Initialise the locale sync once. Importing the store lazily avoids the
-  // circular module graph we used to fight before the sandbox refactor.
-  void import('@/stores/locale-store').then(({ useLocaleStore }) => {
-    setSandboxLocale(useLocaleStore.getState().locale);
-    useLocaleStore.subscribe((state) => setSandboxLocale(state.locale));
-    // Mirror on a global so the slot-iframe component can read it at spawn.
-    (globalThis as unknown as { __APP_LOCALE__?: string }).__APP_LOCALE__ = useLocaleStore.getState().locale;
-    useLocaleStore.subscribe((state) => {
-      (globalThis as unknown as { __APP_LOCALE__?: string }).__APP_LOCALE__ = state.locale;
-    });
-  }).catch(() => { /* locale sync is best-effort */ });
+  /* no-op */
 }
 
 // ─── Store accessor (status updates) ──────────────────────────

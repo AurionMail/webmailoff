@@ -6,7 +6,8 @@
  * is config; mutable timestamps live in AdminStateData.
  */
 export interface AdminConfigData {
-  passwordHash: string;
+  passwordHash: string | undefined;
+  passwordHashFile: string | undefined;
 }
 
 /**
@@ -50,6 +51,7 @@ export interface FeatureGates {
   settingsExportEnabled: boolean;
   customKeywordsEnabled: boolean;
   templatesEnabled: boolean;
+  calendarEnabled: boolean;
   calendarTasksEnabled: boolean;
   smimeEnabled: boolean;
   externalContentEnabled: boolean;
@@ -58,6 +60,12 @@ export interface FeatureGates {
   hoverActionsConfigEnabled: boolean;
   filesEnabled: boolean;
   contactsEnabled: boolean;
+  /** @deprecated Folded into `crossAllViewEnabled`; normalized forward on policy load. */
+  allMailViewEnabled: boolean;
+  crossUnreadViewEnabled: boolean;
+  crossStarredViewEnabled: boolean;
+  crossAllViewEnabled: boolean;
+  unifiedCrossAccountEnabled: boolean;
 }
 
 export const DEFAULT_FEATURE_GATES: FeatureGates = {
@@ -70,6 +78,7 @@ export const DEFAULT_FEATURE_GATES: FeatureGates = {
   settingsExportEnabled: true,
   customKeywordsEnabled: true,
   templatesEnabled: true,
+  calendarEnabled: true,
   calendarTasksEnabled: true,
   smimeEnabled: true,
   externalContentEnabled: true,
@@ -78,6 +87,11 @@ export const DEFAULT_FEATURE_GATES: FeatureGates = {
   hoverActionsConfigEnabled: true,
   filesEnabled: true,
   contactsEnabled: true,
+  allMailViewEnabled: false,
+  crossUnreadViewEnabled: false,
+  crossStarredViewEnabled: false,
+  crossAllViewEnabled: false,
+  unifiedCrossAccountEnabled: false,
 };
 
 export interface ThemePolicy {
@@ -106,6 +120,10 @@ export interface SettingsPolicy {
   approvedPlugins: string[];
   /** Theme IDs that are force-enabled (users cannot deactivate) */
   forceEnabledThemes: string[];
+  /** Web Push relay base URL shown to users. Empty means the built-in default. */
+  pushRelayUrl?: string;
+  /** When true, users cannot change pushRelayUrl in notification settings. */
+  pushRelayUrlLocked?: boolean;
 }
 
 export const DEFAULT_POLICY: SettingsPolicy = {
@@ -116,6 +134,8 @@ export const DEFAULT_POLICY: SettingsPolicy = {
   forceEnabledPlugins: [],
   approvedPlugins: [],
   forceEnabledThemes: [],
+  pushRelayUrl: '',
+  pushRelayUrlLocked: false,
 };
 
 export interface AuditEntry {
@@ -130,12 +150,15 @@ export const CONFIG_ENV_MAP: Record<string, { envVar: string; fileEnvVar?: strin
   appName: { envVar: 'APP_NAME', type: 'string', defaultValue: 'Webmail' },
   appShortName: { envVar: 'APP_SHORT_NAME', type: 'string', defaultValue: '' },
   appDescription: { envVar: 'APP_DESCRIPTION', type: 'string', defaultValue: '' },
+  searchEngineIndexing: { envVar: 'SEARCH_ENGINE_INDEXING', type: 'boolean', defaultValue: false },
   jmapServerUrl: { envVar: 'JMAP_SERVER_URL', type: 'url', defaultValue: '' },
   stalwartFeaturesEnabled: { envVar: 'STALWART_FEATURES', type: 'boolean', defaultValue: true },
   demoMode: { envVar: 'DEMO_MODE', type: 'boolean', defaultValue: false },
   devMode: { envVar: 'DEV_MOCK_JMAP', type: 'boolean', defaultValue: false },
   faviconUrl: { envVar: 'FAVICON_URL', type: 'url', defaultValue: '/branding/Bulwark_Favicon.svg' },
   pwaIconUrl: { envVar: 'PWA_ICON_URL', type: 'url', defaultValue: '' },
+  pwaScreenshotMobileUrl: { envVar: 'PWA_SCREENSHOT_MOBILE_URL', type: 'url', defaultValue: '' },
+  pwaScreenshotDesktopUrl: { envVar: 'PWA_SCREENSHOT_DESKTOP_URL', type: 'url', defaultValue: '' },
   pwaThemeColor: { envVar: 'PWA_THEME_COLOR', type: 'string', defaultValue: '#ffffff' },
   pwaBackgroundColor: { envVar: 'PWA_BACKGROUND_COLOR', type: 'string', defaultValue: '#ffffff' },
   appLogoLightUrl: { envVar: 'APP_LOGO_LIGHT_URL', type: 'url', defaultValue: '' },
@@ -146,17 +169,40 @@ export const CONFIG_ENV_MAP: Record<string, { envVar: string; fileEnvVar?: strin
   loginImprintUrl: { envVar: 'LOGIN_IMPRINT_URL', type: 'url', defaultValue: '' },
   loginPrivacyPolicyUrl: { envVar: 'LOGIN_PRIVACY_POLICY_URL', type: 'url', defaultValue: '' },
   loginWebsiteUrl: { envVar: 'LOGIN_WEBSITE_URL', type: 'url', defaultValue: '' },
+  // Login header customization. The logo box is otherwise a fixed 64×64
+  // (w-16/h-16), which fits a wide wordmark to ~13px tall; set a max height
+  // and/or width (any CSS length, e.g. "230px" or "3rem") to size it. The
+  // heading ({appName}) and subtitle can be hidden when the logo already
+  // reads as the brand (e.g. a wordmark) and they'd be redundant.
+  loginLogoMaxHeight: { envVar: 'LOGIN_LOGO_MAX_HEIGHT', type: 'string', defaultValue: '' },
+  loginLogoMaxWidth: { envVar: 'LOGIN_LOGO_MAX_WIDTH', type: 'string', defaultValue: '' },
+  loginShowHeading: { envVar: 'LOGIN_SHOW_HEADING', type: 'boolean', defaultValue: true },
+  loginShowSubtitle: { envVar: 'LOGIN_SHOW_SUBTITLE', type: 'boolean', defaultValue: true },
+  // Hide the manual "I have a 2FA code" toggle on the login form. Deployments
+  // that delegate auth to an external directory (LDAP/OIDC) where 2FA lives in
+  // the IdP have no server-side TOTP, so the toggle only leads to a failed
+  // login. Server-required TOTP (totp_required) still shows regardless.
+  loginShowTotp: { envVar: 'LOGIN_SHOW_TOTP', type: 'boolean', defaultValue: true },
+  // Show the build version in the login footer. Off keeps the exact version
+  // from being disclosed to unauthenticated visitors.
+  loginShowVersion: { envVar: 'LOGIN_SHOW_VERSION', type: 'boolean', defaultValue: true },
   oauthEnabled: { envVar: 'OAUTH_ENABLED', type: 'boolean', defaultValue: false },
   oauthOnly: { envVar: 'OAUTH_ONLY', type: 'boolean', defaultValue: false },
   oauthClientId: { envVar: 'OAUTH_CLIENT_ID', type: 'string', defaultValue: '' },
   oauthClientSecret: { envVar: 'OAUTH_CLIENT_SECRET', fileEnvVar: 'OAUTH_CLIENT_SECRET_FILE', type: 'string', defaultValue: '' },
   oauthIssuerUrl: { envVar: 'OAUTH_ISSUER_URL', type: 'url', defaultValue: '' },
+  // Overrides only the user-facing authorize endpoint. Discovery, token exchange
+  // and refresh continue to use the canonical OAUTH_ISSUER_URL. Lets a per-brand
+  // authorize host front a single canonical issuer. Empty = use the discovered
+  // authorization_endpoint.
+  oauthAuthorizeUrl: { envVar: 'OAUTH_AUTHORIZE_URL', type: 'url', defaultValue: '' },
   oauthScopes: { envVar: 'OAUTH_SCOPES', type: 'string', defaultValue: '' },
   oauthExtraScopes: { envVar: 'OAUTH_EXTRA_SCOPES', type: 'string', defaultValue: '' },
   oauthAllowPrivateEndpoints: { envVar: 'OAUTH_ALLOW_PRIVATE_ENDPOINTS', type: 'boolean', defaultValue: false },
   allowCustomJmapEndpoint: { envVar: 'ALLOW_CUSTOM_JMAP_ENDPOINT', type: 'boolean', defaultValue: false },
   jmapServers: { envVar: 'JMAP_SERVERS', type: 'json', defaultValue: [] },
   jmapServerAutoPickByDomain: { envVar: 'JMAP_SERVER_AUTO_PICK_BY_DOMAIN', type: 'boolean', defaultValue: false },
+  domainBranding: { envVar: 'DOMAIN_BRANDING', type: 'json', defaultValue: [] },
   autoSsoEnabled: { envVar: 'AUTO_SSO_ENABLED', type: 'boolean', defaultValue: false },
   cookieSameSite: { envVar: 'COOKIE_SAME_SITE', type: 'enum', defaultValue: 'lax', enumValues: ['lax', 'strict', 'none'] },
   allowedFrameAncestors: { envVar: 'ALLOWED_FRAME_ANCESTORS', type: 'string', defaultValue: '' },

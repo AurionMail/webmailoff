@@ -173,7 +173,11 @@ export function useMailboxDrop({ mailbox, onDropComplete, onSuccess, onError }: 
         // import call to target the owner's JMAP account.
         const jmapDestId = mailbox.originalId || mailbox.id;
         const destJmapOverride = mailbox.isShared ? mailbox.accountId : undefined;
-        await crossAccountMoveEmails(bySource, destAccountId, jmapDestId, destJmapOverride);
+        // Mirror image for the source: a shared group mailbox is accessed
+        // through the viewing user's client, but the email/blob live in the
+        // owner's JMAP account, so the copy/delete must target it.
+        const sourceJmapOverride = sourceMb?.isShared ? sourceMb.accountId : undefined;
+        await crossAccountMoveEmails(bySource, destAccountId, jmapDestId, destJmapOverride, sourceJmapOverride);
       } else {
         // Single-account or same-account-shared move: bulk JMAP request.
         await moveEmailsToMailbox(client, emailIds, mailbox.id);
@@ -218,7 +222,7 @@ export function useMailboxDrop({ mailbox, onDropComplete, onSuccess, onError }: 
     } finally {
       endDrag();
     }
-  }, [client, mailbox, mailboxes, isValidTarget, moveEmailsToMailbox, crossAccountMoveEmails, draggedEmails, selectedEmailIds, clearSelection, refreshCurrentMailbox, endDrag, onDropComplete, onSuccess, onError]);
+  }, [client, mailbox, mailboxes, isValidTarget, moveEmailsToMailbox, crossAccountMoveEmails, draggedEmails, sourceMailboxId, selectedEmailIds, clearSelection, refreshCurrentMailbox, endDrag, onDropComplete, onSuccess, onError]);
 
   const valid = isValidTarget();
 

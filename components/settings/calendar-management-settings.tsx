@@ -14,26 +14,9 @@ import { cn, formatDateTime, redactUrlCredentials } from '@/lib/utils';
 import { ICalImportModal } from '@/components/calendar/ical-import-modal';
 import { ICalSubscriptionModal } from '@/components/calendar/ical-subscription-modal';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useManagedAccountStore } from '@/stores/managed-account-store';
 import { apiFetch } from '@/lib/browser-navigation';
-
-const CALENDAR_COLORS = [
-  "#3b82f6", // blue
-  "#ef4444", // red
-  "#22c55e", // green
-  "#f59e0b", // amber
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#f97316", // orange
-  "#06b6d4", // cyan
-  "#84cc16", // lime
-  "#6366f1", // indigo
-  "#a855f7", // purple
-  "#e11d48", // rose
-  "#0ea5e9", // sky
-  "#10b981", // emerald
-  "#d946ef", // fuchsia
-];
+import { CALENDAR_COLORS, sharedCalendarColorKey } from '@/lib/shared-calendar-colors';
 
 function CalendarColorPicker({
   value,
@@ -155,6 +138,7 @@ export { CalendarColorPicker, CALENDAR_COLORS };
 export function CalendarManagementSettings() {
   const t = useTranslations('calendar.management');
   const { client, serverUrl, username } = useAuthStore();
+  const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
   const { calendars, updateCalendar, shareCalendar, createCalendar, removeCalendar, clearCalendarEvents, fetchCalendars, icalSubscriptions: allSubs, removeICalSubscription, refreshICalSubscription, isSubscriptionCalendar } = useCalendarStore();
   // Subscriptions are persisted globally but scoped per JMAP account via
   // accountId. Legacy entries with no accountId show in the active account.
@@ -182,6 +166,8 @@ export function CalendarManagementSettings() {
   const tImport = useTranslations('calendar.import');
   const tSub = useTranslations('calendar.subscription');
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
+  const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
   // Load calendars if not yet loaded
@@ -329,6 +315,15 @@ export function CalendarManagementSettings() {
 
   const handleColorChange = async (calendarId: string, color: string) => {
     if (!client) return;
+    // Shared calendars: recolor locally only - the viewer usually can't write
+    // the owner's calendar and it'd recolor it for everyone (see #345).
+    const cal = calendars.find((c) => c.id === calendarId);
+    if (cal?.isShared) {
+      setSharedCalendarColor(sharedCalendarColorKey(cal), color);
+      toast.success(t('color_updated'));
+      setColorPickerId(null);
+      return;
+    }
     try {
       await updateCalendar(client, calendarId, { color });
       toast.success(t('color_updated'));
@@ -395,8 +390,11 @@ export function CalendarManagementSettings() {
   return (
     <SettingsSection title={t('title')} description={t('description')}>
       <div className="space-y-2">
-        {calendars.filter(cal => !isSubscriptionCalendar(cal.id)).map((cal) => {
-          const color = cal.color || '#3b82f6';
+        {calendars
+          .filter(cal => !isSubscriptionCalendar(cal.id))
+          .filter(cal => !managedAccountId || cal.accountId === managedAccountId)
+          .map((cal) => {
+          const color = (cal.isShared && sharedCalendarColors[sharedCalendarColorKey(cal)]) || cal.color || '#3b82f6';
 
           if (editingId === cal.id) {
             return (
@@ -477,7 +475,7 @@ export function CalendarManagementSettings() {
                 {colorPickerId === cal.id && (
                   <div
                     ref={colorPickerRef}
-                    className="absolute left-0 top-full mt-2 z-50 bg-background border border-border rounded-lg shadow-lg p-3 w-56"
+                    className="absolute start-0 top-full mt-2 z-50 bg-background border border-border rounded-lg shadow-lg p-3 w-56"
                   >
                     <CalendarColorPicker
                       value={color}

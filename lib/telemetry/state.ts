@@ -17,6 +17,7 @@ function idPath(): string { return path.join(getDir(), '.telemetry-id'); }
 function envOverride(): ConsentState | null {
   const v = (process.env.BULWARK_TELEMETRY ?? '').toLowerCase();
   if (v === 'off' || v === 'false' || v === '0' || v === 'no') return 'off';
+  if (v === 'on' || v === 'true' || v === '1' || v === 'yes') return 'on';
   if (process.env.BULWARK_TELEMETRY_DISABLED) {
     const d = process.env.BULWARK_TELEMETRY_DISABLED.toLowerCase();
     if (d === '1' || d === 'true' || d === 'yes') return 'off';
@@ -41,11 +42,13 @@ export async function getInstanceId(): Promise<string> {
   return fresh;
 }
 
-// Default consent is 'on' - telemetry is anonymous and enabled by default.
-// Admins can disable via the UI, the BULWARK_TELEMETRY env var, or by clearing
-// the endpoint. See https://bulwarkmail.org/docs/legal/privacy/telemetry.
+// Default consent is 'off' - telemetry is opt-in. Admins can enable it during
+// install (BULWARK_TELEMETRY=on in .env.local), via the BULWARK_TELEMETRY env
+// var, or with one click in the admin UI. Heartbeats are anonymous: no PII,
+// just version/platform/feature toggles. Enabling helps us improve the product.
+// See https://bulwarkmail.org/docs/legal/privacy/telemetry.
 const DEFAULTS: TelemetryStateFile = {
-  consent: 'on',
+  consent: 'off',
   endpoint: DEFAULT_ENDPOINT,
   consentedAt: null,
   lastSentAt: null,
@@ -64,13 +67,10 @@ export async function loadState(): Promise<TelemetryStateFile> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    // First-ever load on a fresh install: persist the default-on state with
-    // an autoEnabledAt stamp so the admin UI can show "telemetry was
-    // auto-enabled at <time>; disable here" without re-arming on restart.
-    const fresh: TelemetryStateFile = {
-      ...DEFAULTS,
-      consentedAt: new Date().toISOString(),
-    };
+    // First-ever load on a fresh install: persist the default-off state so the
+    // instance id and (lack of) consent are stable across restarts. The admin
+    // can opt in later via the UI or the BULWARK_TELEMETRY env var.
+    const fresh: TelemetryStateFile = { ...DEFAULTS };
     await saveState(fresh);
     return fresh;
   }

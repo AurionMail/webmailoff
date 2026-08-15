@@ -10,11 +10,14 @@ import {
   uiHooks, themeHooks, toastHooks, dragDropHooks,
   keyboardHooks, appLifecycleHooks, accountSecurityHooks,
   sidebarAppHooks, avatarHooks, renderHooks, routerHooks,
+  messageListTabHooks,
   removeAllPluginHooks, pluginErrorTracker,
 } from '../plugin-hooks';
+import { useMessageListTabsStore } from '@/stores/message-list-tabs-store';
 import { verifyBundle } from './bundle-integrity';
 import { createBackgroundInstance } from './host-bridge';
-import { register as registerActive, deregister as deregisterActive } from './registry';
+import { resolvePluginTier } from './tier';
+import { register as registerActive, deregister as deregisterActive, all as allActiveEntries } from './registry';
 import { cancelPluginDialogs } from './host-api';
 import { registerShortcuts } from './shortcuts';
 
@@ -29,6 +32,7 @@ const HOOK_BUSES: Record<string, AnyBus> = Object.assign({},
   uiHooks, themeHooks, toastHooks, dragDropHooks,
   keyboardHooks, appLifecycleHooks, accountSecurityHooks,
   sidebarAppHooks, avatarHooks, renderHooks, routerHooks,
+  messageListTabHooks,
 ) as Record<string, AnyBus>;
 
 // ─── Store accessor (status updates flow through the existing store) ──
@@ -41,11 +45,16 @@ export function setSandboxStoreAccessor(a: StoreAccessor): void { storeAccessor 
 
 let currentLocale = 'en';
 export function setSandboxLocale(locale: string): void {
+  // Ignore empty/falsy values so a not-yet-seeded locale store can't clobber a
+  // good locale back to '' - the initial 'en' default stands until the real
+  // locale arrives via the store subscription.
+  if (!locale) return;
   currentLocale = locale;
-  // Push to all active background instances.
-  // Slot iframes inherit locale at spawn time; they're short-lived.
-  // (We don't import the registry here to avoid a circular import; the
-  //  PluginIframeSlot subscribes to locale changes on its own.)
+  // Background instances read `currentLocale` at load time; the slot-iframe
+  // component reads this global at spawn time (plugin-iframe-slot.tsx). Keep
+  // both in step from one place. Already-running instances are not re-pushed,
+  // so a locale switch only affects plugins/slots loaded afterwards.
+  (globalThis as unknown as { __APP_LOCALE__?: string }).__APP_LOCALE__ = locale;
 }
 
 // ─── Bundle fetch ─────────────────────────────────────────────
@@ -88,11 +97,22 @@ export async function loadSandboxedPlugin(plugin: InstalledPlugin): Promise<void
 
   let background: ReturnType<typeof createBackgroundInstance> | null = null;
   try {
+    // Decide the execution tier BEFORE creating any iframe. A refused privileged
+    // request is a hard error (never silently downgraded to null-origin).
+    const resolution = resolvePluginTier(plugin);
+    if (resolution.tier === null) {
+      storeAccessor?.setPluginStatus(plugin.id, 'error', resolution.error);
+      console.error(`[plugin-sandbox] "${plugin.id}" tier refused: ${resolution.error}`);
+      return;
+    }
+    const tier = resolution.tier;
+
     const code = await getBundleCode(plugin);
     background = createBackgroundInstance({
       plugin,
       code,
       locale: currentLocale,
+      tier,
     });
 
     // Wait for the background runtime to evaluate the bundle, register hooks,
@@ -133,6 +153,7 @@ export async function loadSandboxedPlugin(plugin: InstalledPlugin): Promise<void
     registerActive({
       plugin,
       code,
+      tier,
       background: bg,
       slotOffers: info.slots,
       hookDisposables,
@@ -161,6 +182,9 @@ export function unloadSandboxedPlugin(pluginId: string): void {
     try { d.dispose(); } catch { /* ignore */ }
   }
   removeAllPluginHooks(pluginId);
+  // Drop any message-list category tabs the plugin registered so the strip
+  // disappears (and the inbox unfilters) the moment the plugin is disabled.
+  try { useMessageListTabsStore.getState().clearTabs(pluginId); } catch { /* ignore */ }
   try { entry.background.destroy(); } catch { /* ignore */ }
   cancelPluginDialogs(pluginId);
   pluginErrorTracker.reset(pluginId);
@@ -176,10 +200,10 @@ export async function activateAllSandboxed(plugins: InstalledPlugin[]): Promise<
 }
 
 export function deactivateAllSandboxed(): void {
-  // import lazily to avoid a circular dep when registry mutates while we iterate.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { all } = require('./registry') as typeof import('./registry');
-  for (const e of all()) unloadSandboxedPlugin(e.plugin.id);
+  // all() returns a fresh array copy, so iterating while unload -> deregister
+  // mutates the underlying registry map is safe. (No circular import: registry
+  // only pulls in types, so a static import is fine and works under ESM.)
+  for (const e of allActiveEntries()) unloadSandboxedPlugin(e.plugin.id);
 }
 
 // ─── Auto-disable ─────────────────────────────────────────────

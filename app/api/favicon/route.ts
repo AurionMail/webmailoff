@@ -19,6 +19,20 @@ const negativeCache = new Map<string, NegativeCacheEntry>();
 const NEGATIVE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
 const NEGATIVE_CACHE_MAX_SIZE = 2000;
 
+// 1x1 transparent PNG. Returned with HTTP 200 (instead of 404) when no
+// favicon exists for a domain, so the browser's <img> tag loads it cleanly
+// without spamming the DevTools console with red 404 errors. Avatar.tsx
+// checks `naturalWidth <= 1` in onLoad and falls back to initials.
+const TRANSPARENT_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=',
+  'base64',
+);
+const MISSING_FAVICON_HEADERS = {
+  'Content-Type': 'image/png',
+  'Cache-Control': 'public, max-age=86400', // 1 day
+  'X-Bulwark-Favicon': 'missing',
+};
+
 // Strict domain validation to prevent SSRF
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
@@ -434,10 +448,7 @@ export async function GET(request: NextRequest) {
   // Check negative cache (domains known to have no favicon)
   const neg = negativeCache.get(normalizedDomain);
   if (neg && Date.now() - neg.fetchedAt < NEGATIVE_CACHE_TTL_MS) {
-    return new NextResponse(null, {
-      status: 404,
-      headers: { 'Cache-Control': 'public, max-age=86400' }, // 1 day
-    });
+    return new NextResponse(TRANSPARENT_PNG, { headers: MISSING_FAVICON_HEADERS });
   }
 
   // Check cache
@@ -460,10 +471,7 @@ export async function GET(request: NextRequest) {
     if (!upstream.ok) {
       evictNegativeOldest();
       negativeCache.set(normalizedDomain, { fetchedAt: Date.now() });
-      return new NextResponse(null, {
-        status: 404,
-        headers: { 'Cache-Control': 'public, max-age=86400' },
-      });
+      return new NextResponse(TRANSPARENT_PNG, { headers: MISSING_FAVICON_HEADERS });
     }
 
     const contentType = upstream.headers.get('content-type') || 'image/x-icon';
@@ -473,10 +481,7 @@ export async function GET(request: NextRequest) {
     if (data.byteLength < 10) {
       evictNegativeOldest();
       negativeCache.set(normalizedDomain, { fetchedAt: Date.now() });
-      return new NextResponse(null, {
-        status: 404,
-        headers: { 'Cache-Control': 'public, max-age=86400' },
-      });
+      return new NextResponse(TRANSPARENT_PNG, { headers: MISSING_FAVICON_HEADERS });
     }
 
     // Cache the result

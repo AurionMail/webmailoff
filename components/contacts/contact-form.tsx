@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { X, Plus, ChevronDown, ChevronRight, User, Building, MapPin, Globe, Cake, Heart, Tag, StickyNote, Mail, Phone, Calendar, UserCircle, Book, Camera, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,7 +72,7 @@ function FormSection({ icon: Icon, title, children, collapsible, defaultOpen = t
       <button
         type="button"
         className={cn(
-          "flex items-center gap-2 w-full text-left",
+          "flex items-center gap-2 w-full text-start",
           collapsible ? "cursor-pointer" : "cursor-default"
         )}
         onClick={() => collapsible && setOpen(!open)}
@@ -266,6 +266,16 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
     contact?.organizations ? (Object.values(contact.organizations)[0]?.units?.[0]?.name || "") : ""
   );
 
+  // A card may describe an organization instead of a person (RFC 9553 kind "org").
+  // Older cards predate the explicit kind, so fall back to "has an org name but no
+  // personal name".
+  const [isOrg, setIsOrg] = useState(() => {
+    if (!contact) return false;
+    if (contact.kind) return contact.kind === "org";
+    const hasPersonName = !!(findComponent("given") || findComponent("surname"));
+    return !hasPersonName && !!Object.values(contact.organizations || {})[0]?.name;
+  });
+
   const [jobTitle, setJobTitle] = useState(() => {
     if (contact?.titles) {
       const t = Object.values(contact.titles).find(t => t.kind !== "role");
@@ -424,7 +434,10 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
     e.preventDefault();
     setError(null);
 
-    if (!givenName.trim() && !surname.trim()) {
+    // An organization name identifies the card just as well as a personal name.
+    const orgName = organization.trim();
+    const hasPersonName = !!(givenName.trim() || surname.trim());
+    if (isOrg ? !orgName : (!hasPersonName && !orgName)) {
       setError(t("name_required"));
       return;
     }
@@ -461,11 +474,19 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
 
     // Emit JSContact-standard kinds (RFC 9553) so the JMAP server stores them losslessly.
     const nameComponents = [];
-    if (prefix.trim()) nameComponents.push({ kind: "title" as const, value: prefix.trim() });
-    if (givenName.trim()) nameComponents.push({ kind: "given" as const, value: givenName.trim() });
-    if (additionalName.trim()) nameComponents.push({ kind: "given2" as const, value: additionalName.trim() });
-    if (surname.trim()) nameComponents.push({ kind: "surname" as const, value: surname.trim() });
-    if (suffix.trim()) nameComponents.push({ kind: "generation" as const, value: suffix.trim() });
+    if (!isOrg) {
+      if (prefix.trim()) nameComponents.push({ kind: "title" as const, value: prefix.trim() });
+      if (givenName.trim()) nameComponents.push({ kind: "given" as const, value: givenName.trim() });
+      if (additionalName.trim()) nameComponents.push({ kind: "given2" as const, value: additionalName.trim() });
+      if (surname.trim()) nameComponents.push({ kind: "surname" as const, value: surname.trim() });
+      if (suffix.trim()) nameComponents.push({ kind: "generation" as const, value: suffix.trim() });
+    }
+
+    // Without personal name components, carry the organization name in `name.full`
+    // so servers and other clients have something to display.
+    const nameValue: ContactCard["name"] = nameComponents.length > 0
+      ? { components: nameComponents, isOrdered: true }
+      : { full: orgName };
 
     const titlesMap: Record<string, { name: string; kind?: "title" | "role" }> = {};
     if (jobTitle.trim()) titlesMap["t0"] = { name: jobTitle.trim(), kind: "title" };
@@ -525,14 +546,25 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
       mediaMap[photoKey] = { kind: "photo", uri: photoUri, mediaType: photoMediaType };
     }
 
+    // Set mediaVluae to null if we are removing media, so the server removes it
+    const hadMedia = !!contact?.media && Object.keys(contact.media).length > 0;
+    const mediaValue: Record<string, ContactMedia> | null | undefined =
+      Object.keys(mediaMap).length > 0 ? mediaMap : (hadMedia ? null : undefined);
+
+    // Only send `kind` when this form owns the answer: switching a card between
+    // person and organization. Leave other kinds (group, location, ...) untouched.
+    const kindValue: ContactCard["kind"] | undefined =
+      isOrg ? "org" : (contact?.kind === "org" ? "individual" : undefined);
+
     const data: Partial<ContactCard> = {
-      name: { components: nameComponents, isOrdered: true },
+      name: nameValue,
+      ...(kindValue ? { kind: kindValue } : {}),
       nicknames: nickname.trim() ? { n0: { name: nickname.trim() } } : undefined,
       emails: Object.keys(emailsMap).length > 0 ? emailsMap : undefined,
       phones: Object.keys(phonesMap).length > 0 ? phonesMap : undefined,
       titles: Object.keys(titlesMap).length > 0 ? titlesMap : undefined,
-      organizations: organization.trim()
-        ? { o0: { name: organization.trim(), units: orgUnits } }
+      organizations: orgName
+        ? { o0: { name: orgName, units: orgUnits } }
         : undefined,
       addresses: Object.keys(addressesMap).length > 0 ? addressesMap : undefined,
       onlineServices: Object.keys(onlineServicesMap).length > 0 ? onlineServicesMap : undefined,
@@ -551,7 +583,7 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
       calendarUri: calendarUri.trim() || undefined,
       schedulingUri: schedulingUri.trim() || undefined,
       freeBusyUri: freeBusyUri.trim() || undefined,
-      media: Object.keys(mediaMap).length > 0 ? mediaMap : undefined,
+      media: mediaValue as Record<string, ContactMedia> | undefined,
       ...(selectedBookId ? { addressBookIds: { [selectedBookId]: true } } : {}),
     };
 
@@ -565,7 +597,7 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
     }
   };
 
-  const previewName = [givenName, surname].filter(Boolean).join(" ").trim();
+  const previewName = (isOrg ? "" : [givenName, surname].filter(Boolean).join(" ").trim()) || organization.trim();
   const previewEmail = emails.find(e => e.address.trim())?.address.trim() || "";
 
   return (
@@ -656,38 +688,81 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
           )}
 
           <FormSection icon={User} title={t("section_identity")}>
-            <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">{t("prefix")}</label>
-                <Input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder={t("prefix_placeholder")} className="w-20" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">
-                  {t("given_name")} <span className="text-red-500">*</span>
-                </label>
-                <Input value={givenName} onChange={(e) => setGivenName(e.target.value)} placeholder={t("given_name")} autoFocus />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">
-                  {t("surname")} <span className="text-red-500">*</span>
-                </label>
-                <Input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder={t("surname")} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">{t("suffix")}</label>
-                <Input value={suffix} onChange={(e) => setSuffix(e.target.value)} placeholder={t("suffix_placeholder")} className="w-20" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">{t("middle_name")}</label>
-                <Input value={additionalName} onChange={(e) => setAdditionalName(e.target.value)} placeholder={t("middle_name")} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">{t("nickname")}</label>
-                <Input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={t("nickname_placeholder")} />
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">{t("contact_type")}</span>
+              <div role="radiogroup" aria-label={t("contact_type")} className="inline-flex gap-0.5 rounded-md border border-input p-0.5">
+                {[
+                  { org: false, label: t("type_person"), icon: User },
+                  { org: true, label: t("type_organization"), icon: Building },
+                ].map(({ org, label, icon: Icon }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    role="radio"
+                    aria-checked={isOrg === org}
+                    onClick={() => setIsOrg(org)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors",
+                      isOrg === org
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
+            {isOrg ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">
+                    {t("organization")} <span className="text-red-500">*</span>
+                  </label>
+                  <Input value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder={t("organization_placeholder")} autoFocus />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">{t("nickname")}</label>
+                  <Input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={t("nickname_placeholder")} />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t("prefix")}</label>
+                    <Input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder={t("prefix_placeholder")} className="w-20" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">
+                      {t("given_name")} <span className="text-red-500">*</span>
+                    </label>
+                    <Input value={givenName} onChange={(e) => setGivenName(e.target.value)} placeholder={t("given_name")} autoFocus />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">
+                      {t("surname")} <span className="text-red-500">*</span>
+                    </label>
+                    <Input value={surname} onChange={(e) => setSurname(e.target.value)} placeholder={t("surname")} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t("suffix")}</label>
+                    <Input value={suffix} onChange={(e) => setSuffix(e.target.value)} placeholder={t("suffix_placeholder")} className="w-20" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t("middle_name")}</label>
+                    <Input value={additionalName} onChange={(e) => setAdditionalName(e.target.value)} placeholder={t("middle_name")} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t("nickname")}</label>
+                    <Input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={t("nickname_placeholder")} />
+                  </div>
+                </div>
+              </>
+            )}
           </FormSection>
 
           {/* Email */}
@@ -731,12 +806,12 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
                     )}
                   </div>
                   {emailErrors[i] && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 ml-1">{emailErrors[i]}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 ms-1">{emailErrors[i]}</p>
                   )}
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setEmails([...emails, { address: "", context: "" }])} className="text-xs">
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 me-1" />
                 {t("add_email")}
               </Button>
             </div>
@@ -794,19 +869,22 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setPhones([...phones, { number: "", context: "", feature: "" }])} className="text-xs">
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 me-1" />
                 {t("add_phone")}
               </Button>
             </div>
           </FormSection>
 
           {/* Work & Organization */}
-          <FormSection icon={Building} title={t("section_work")} collapsible defaultOpen={!!(organization || department || jobTitle || role)}>
+          <FormSection icon={Building} title={t("section_work")} collapsible defaultOpen={!!((organization && !isOrg) || department || jobTitle || role)}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">{t("organization")}</label>
-                <Input value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder={t("organization_placeholder")} />
-              </div>
+              {/* In organization mode the org name is the card's identity, edited above. */}
+              {!isOrg && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">{t("organization")}</label>
+                  <Input value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder={t("organization_placeholder")} />
+                </div>
+              )}
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">{t("department")}</label>
                 <Input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder={t("department_placeholder")} />
@@ -850,7 +928,7 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setAddresses([...addresses, { street: "", locality: "", region: "", postcode: "", country: "", context: "" }])} className="text-xs">
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 me-1" />
                 {t("add_address")}
               </Button>
             </div>
@@ -879,7 +957,7 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setOnlineServices([...onlineServices, { uri: "", service: "", label: "" }])} className="text-xs">
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 me-1" />
                 {t("add_online_service")}
               </Button>
             </div>
@@ -911,7 +989,7 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setAnniversaries([...anniversaries, { date: "", kind: "birth" }])} className="text-xs">
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 me-1" />
                 {t("add_anniversary")}
               </Button>
             </div>
@@ -952,7 +1030,7 @@ export function ContactForm({ contact, addressBooks, allKeywords, defaultAddress
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setPersonalInfoEntries([...personalInfoEntries, { value: "", kind: "hobby", level: "" }])} className="text-xs">
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3 me-1" />
                 {t("add_personal_info")}
               </Button>
             </div>
@@ -1140,7 +1218,7 @@ function CategoryComboBox({
             <button
               key={kw}
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-start"
               onClick={() => { addKeyword(kw); inputRef.current?.focus(); }}
             >
               <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
@@ -1150,7 +1228,7 @@ function CategoryComboBox({
           {canAddNew && (
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left text-primary"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-start text-primary"
               onClick={() => { addKeyword(inputValue); inputRef.current?.focus(); }}
             >
               <Plus className="w-3.5 h-3.5 flex-shrink-0" />

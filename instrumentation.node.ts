@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { configManager } from "./lib/admin/config-manager";
 import { initAdminPassword } from "./lib/admin/password";
-import { migrateLegacyAdminLayout } from "./lib/admin/migrate";
+import { migrateLegacyAdminLayout, migratePolicyUnifiedMailbox } from "./lib/admin/migrate";
 import { detectSetupState } from "./lib/setup/state";
 import { ensureSetupToken } from "./lib/setup/token";
 
@@ -14,6 +14,7 @@ console.info(`Bulwark Webmail v${current}`);
 // Initialize admin config and password bootstrap. Migration runs first so
 // existing v1 layouts are split before anything reads admin.json.
 migrateLegacyAdminLayout()
+  .then(() => migratePolicyUnifiedMailbox())
   .then(() => configManager.load())
   .then(() => initAdminPassword())
   .then(async () => {

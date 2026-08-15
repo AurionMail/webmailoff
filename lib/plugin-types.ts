@@ -7,6 +7,18 @@ export type MaybePromise<T> = T | Promise<T>;
 
 export type PluginType = 'ui-extension' | 'sidebar-app' | 'hook' | 'theme';
 export type PluginStatus = 'installed' | 'enabled' | 'running' | 'disabled' | 'error';
+/**
+ * Execution tier a plugin runs in.
+ * - 'untrusted' (default): null-origin sandbox iframe. No `crypto.subtle`,
+ *   IndexedDB, or localStorage in-frame; all capabilities go through the host
+ *   RPC. This is the only tier most plugins ever need.
+ * - 'privileged': same-origin sandbox iframe (full WebCrypto + IndexedDB) so a
+ *   plugin can bundle its own crypto libs (e.g. pkijs for S/MIME, openpgp for
+ *   PGP). Because same-origin == full host access, entering this tier is gated
+ *   by a signed bundle + admin approval + high-risk consent — see
+ *   `lib/plugin-sandbox/tier.ts` `resolvePluginTier`.
+ */
+export type PluginTier = 'untrusted' | 'privileged';
 export type ThemeVariant = 'light' | 'dark';
 
 // ─── Manifests ───────────────────────────────────────────────
@@ -97,6 +109,13 @@ export interface PluginManifest {
   author: string;
   description: string;
   type: Exclude<PluginType, 'theme'>;
+  /**
+   * Execution tier the plugin requests. Defaults to 'untrusted' when omitted.
+   * Declaring 'privileged' opts into the same-origin tier and requires the
+   * `crypto:full` permission, a signed bundle, and admin approval (enforced by
+   * `resolvePluginTier`). Most plugins should omit this.
+   */
+  tier?: PluginTier;
   permissions: string[];
   entrypoint: string;
   minAppVersion?: string;
@@ -208,6 +227,9 @@ export interface InstalledPlugin {
   author: string;
   description: string;
   type: Exclude<PluginType, 'theme'>;
+  /** Execution tier carried over from the manifest at install time. Defaults
+   * to 'untrusted'. See `PluginTier` and `resolvePluginTier`. */
+  tier?: PluginTier;
   permissions: string[];
   entrypoint: string;
   enabled: boolean;
@@ -260,11 +282,13 @@ export type SlotName =
   | 'composer-sidebar-right'
   | 'sidebar-widget'
   | 'email-detail-sidebar'
+  | 'email-details-section'
   | 'settings-section'
   | 'context-menu-email'
   | 'navigation-rail-bottom'
   | 'calendar-event-actions'
-  | 'admin-plugin-page';
+  | 'admin-plugin-page'
+  | 'contact-cryptokeys';
 
 export interface SlotRegistration {
   pluginId: string;
@@ -374,6 +398,23 @@ export interface EmailReadView {
   hasAttachment: boolean;
   preview: string;
   keywords: string[];
+  /** Full plain-text body of the message (HTML-only bodies are stripped to
+   *  text). Empty string when the host hasn't loaded the body. Same
+   *  `email:read` sensitivity as the rest of this view. */
+  text: string;
+  /**
+   * Raw parsed header map (header name → value, or values when a header
+   * appears more than once), exactly as JMAP returned it. Absent until the
+   * host has loaded the message's headers. Same `email:read` sensitivity as
+   * the rest of this view.
+   */
+  headers?: Record<string, string | string[]>;
+  /**
+   * Full, human-readable message source — headers, metadata and body — the
+   * same text the "View source" dialog shows. Empty string when the body
+   * hasn't been fetched. Gated by `email:read` like the rest of this view.
+   */
+  source: string;
   /**
    * Parsed Authentication-Results header (SPF, DKIM, DMARC, reverse-DNS).
    * Absent on stores that didn't parse the header (e.g. bodies not yet
@@ -599,6 +640,119 @@ export interface EmailListBadge {
   title?: string;
 }
 
+// ─── Message-list category tabs (Gmail-style inbox tabs) ─────
+//
+// The tab contract lives in core so tabs render natively: a plugin registers
+// tab DEFINITIONS via `api.tabs.set(config)`; the host renders the tab strip
+// above the message list, ANDs the active tab's filter into the mailbox
+// Email/query, and maintains per-tab unread badges.
+//
+// A tab selects its messages in one of two ways:
+//   1. `query` — a raw JMAP Email FilterCondition/FilterOperator evaluated
+//      server-side at view time (search-based tabs). Nothing is written to
+//      the messages; classification is a live query (e.g. match the
+//      List-Unsubscribe header, or an OR of social sender domains).
+//   2. `keyword` — a `hasKeyword` filter (durable tabs). Classification then
+//      happens out-of-band — typically a plugin-managed Sieve section at
+//      delivery (see filterHooks.onSieveScriptGenerate) or explicit
+//      recategorization via `api.tabs.categorize`.
+// A tab with NEITHER is the default bucket ("Primary"): it matches messages
+// that match none of the other tabs' filters (server-side NOT).
+
+/**
+ * One tab in the message-list tab strip.
+ */
+export interface MessageListTab {
+  /** Stable id within the plugin, e.g. "promotions". Used in hooks and counts. */
+  id: string;
+  /** Display label (localize in the plugin via api.i18n before registering). */
+  label: string;
+  /**
+   * Search-based selection: a JMAP Email FilterCondition or FilterOperator
+   * (RFC 8621 §4.4.1), e.g. `{ header: ["List-Unsubscribe"] }` or
+   * `{ operator: "OR", conditions: [{ from: "reddit.com" }, ...] }`.
+   * The host ANDs it with the mailbox condition. Takes precedence over
+   * `keyword` when both are set.
+   */
+  query?: Record<string, unknown>;
+  /**
+   * Keyword-based selection, e.g. "$category-promotions" — filters via
+   * `hasKeyword`. Use for durable, Sieve-assigned categories.
+   */
+  keyword?: string | null;
+  /** Lucide icon name rendered before the label (optional). */
+  icon?: string;
+  /** CSS color for the active-tab indicator / badge accent (optional). */
+  color?: string;
+  /** Sort order within the strip (ascending, default 100). */
+  order?: number;
+  /** Show the unread-count badge for this tab. Default true. */
+  showUnreadBadge?: boolean;
+}
+
+/**
+ * Registered by a plugin via `api.tabs.set(config)` (permission
+ * `ui:message-list-tabs`). Cleared automatically when the plugin unloads,
+ * or explicitly via `api.tabs.clear()`.
+ */
+export interface MessageListTabsConfig {
+  tabs: MessageListTab[];
+  /**
+   * Mailbox roles the strip renders for. Default ['inbox'] — category tabs
+   * on Trash or Sent are almost never what anyone wants.
+   */
+  mailboxRoles?: string[];
+}
+
+/**
+ * Passed to messageListTabHooks.onTabActivate observers when the user
+ * switches tabs.
+ */
+export interface TabActivateContext {
+  tabId: string;
+  previousTabId: string | null;
+  /** Store id of the mailbox the strip is filtering. */
+  mailboxId: string | null;
+}
+
+/**
+ * Passed to messageListTabHooks.onBeforeEmailCategorize (intercept — return
+ * false to cancel) and onEmailCategorize (observer, after the keyword patch
+ * was applied). Describes a host-driven recategorization triggered by
+ * `api.tabs.categorize(emailIds, toTabId)` or native UI. Only keyword-based
+ * (or default) tabs can be categorize targets — search-based tabs derive
+ * membership from their query, so a plugin implements "move to tab" there by
+ * updating its query (e.g. a per-sender override) and re-registering.
+ */
+export interface EmailCategorizeContext {
+  emailIds: string[];
+  /** Target tab id. */
+  toTabId: string;
+  /** Keyword added by the move, or null when the target is the default tab. */
+  keywordAdded: string | null;
+  /** Category keywords removed from the messages by the move. */
+  keywordsRemoved: string[];
+  /**
+   * Unique sender addresses of the affected messages — the hook payload a
+   * plugin needs to offer Gmail-style "do this for all mail from X"
+   * (per-sender overrides, Sieve regeneration).
+   */
+  senders: string[];
+}
+
+/**
+ * Second argument to filterHooks.onSieveScriptGenerate transform handlers.
+ * The transform's value is the full Sieve script the host is about to upload
+ * as the account's active script; handlers return a modified script (e.g.
+ * with a plugin-managed categorizer section appended) or undefined to pass
+ * through. Keep `require` statements at the top of the script — the host
+ * uploads the returned text verbatim after validation.
+ */
+export interface SieveScriptGenerateContext {
+  /** Account whose active script is being (re)generated. */
+  accountId: string | null;
+}
+
 /**
  * Passed to onMailtoIntercept handlers.
  * Return false to prevent the browser from opening the system mail client.
@@ -633,6 +787,22 @@ export interface OutgoingEmail {
   inReplyTo?: string;
   /** Free-form custom headers added by the composer or earlier handlers */
   headers?: Record<string, string>;
+}
+/**
+ * Passed to onBeforeDraftAutoSave handlers as a transform value.
+ */
+export interface AlmostSavedDraft{
+   to: string[],
+    subject: string,
+    body: string,
+    cc?: string[],
+    bcc?: string[],
+    identityId?: string,
+    fromEmail?: string,
+    draftId?: string,
+    attachments?: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }>,
+    fromName?: string,
+    htmlBody?: string
 }
 
 /**
@@ -779,6 +949,11 @@ export interface RecipientSuggestion {
   /** Optional source label rendered as a small tag */
   source?: string;
   avatarUrl?: string;
+  /**
+   * Present when the suggestion is a contact group (empty email). Selecting
+   * it inserts a single group chip that expands into the members on send.
+   */
+  group?: { id: string; memberCount: number };
 }
 
 /**
@@ -834,6 +1009,21 @@ export interface PluginI18n {
 
 export const ALL_PERMISSIONS = [
   'email:read', 'email:write', 'email:send',
+  // ─── Privileged-tier capabilities (require tier: 'privileged') ───
+  // Umbrella high-risk permission gating same-origin crypto execution. A
+  // plugin holding this runs with full cryptographic access and can read
+  // message bodies and private keys; only granted to a signed, admin-approved
+  // privileged bundle after explicit high-risk consent.
+  'crypto:full',
+  // Submit a fully-formed raw RFC822 message via JMAP (used after a plugin
+  // signs/encrypts an outgoing message itself).
+  'email:raw-send',
+  // Fetch a message blob's raw bytes by blobId (for decrypt/verify).
+  'email:blob-read',
+  // Upload a file to server (for encrypt).
+  'email:blob-write',
+  // Replace the rendered body of an opened email (render-takeover).
+  'email:render-takeover',
   'calendar:read', 'calendar:write',
   'contacts:read', 'contacts:write',
   'files:read', 'files:write',
@@ -846,8 +1036,14 @@ export const ALL_PERMISSIONS = [
   'settings:read', 'settings:write',
   'security:read',
   'auth:observe',
+  'auth:emit',
+  'account:read',
   'http:post', 'http:fetch',
-  'ui:observe', 'ui:toolbar', 'ui:app-top-banner', 'ui:email-banner', 'ui:email-footer',
+  'ui:observe', 'ui:toolbar', 'ui:app-top-banner', 'ui:email-banner', 'ui:email-footer', 'ui:contact-cryptokeys',
+  'ui:email-details',
+  'ui:download-file',
+  // Register native message-list category tabs (Gmail-style inbox tabs).
+  'ui:message-list-tabs',
   'ui:composer-toolbar', 'ui:composer-sidebar',
   'ui:sidebar-widget', 'ui:settings-section',
   'ui:context-menu', 'ui:navigation-rail', 'ui:keyboard',
@@ -862,6 +1058,9 @@ export type Permission = (typeof ALL_PERMISSIONS)[number];
 export const IMPLICIT_PERMISSIONS: Permission[] = ['ui:observe', 'app:lifecycle'];
 
 // ─── Validation ──────────────────────────────────────────────
+
+/** Upper bound on tabs a single plugin may register via api.tabs.set. */
+export const MAX_MESSAGE_LIST_TABS = 8;
 
 export const MAX_PLUGIN_SIZE = 5 * 1024 * 1024; // 5 MB
 export const MAX_THEME_SIZE = 2 * 1024 * 1024;  // 2 MB (was 1 MB; v2 themes may ship a skin.css)

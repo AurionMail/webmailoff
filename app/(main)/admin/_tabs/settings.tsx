@@ -117,7 +117,7 @@ export function SettingsTab() {
         <TextSetting label="JMAP Server URL" configKey="jmapServerUrl" value={currentValue('jmapServerUrl') as string} source={config.jmapServerUrl?.source} onChange={handleChange} onRevert={handleRevert} placeholder="https://mail.example.com" />
         <ToggleSetting label="Allow Custom JMAP Endpoint" description="Show a JMAP server URL field on the login form, allowing users to connect to any JMAP server" configKey="allowCustomJmapEndpoint" value={currentValue('allowCustomJmapEndpoint') as boolean} source={config.allowCustomJmapEndpoint?.source} onChange={handleChange} onRevert={handleRevert} />
         {!!currentValue('allowCustomJmapEndpoint') && (
-          <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-l-2 border-amber-400 dark:border-amber-600">
+          <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-s-2 border-amber-400 dark:border-amber-600">
             <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
               <strong>CORS warning:</strong> External JMAP servers must include this domain in their CORS <code className="text-[11px] bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded">Access-Control-Allow-Origin</code> header, or requests from the browser will be blocked.
             </p>
@@ -125,6 +125,7 @@ export function SettingsTab() {
         )}
         <ToggleSetting label="Stalwart Features" description="Enable Stalwart Mail Server-specific features" configKey="stalwartFeaturesEnabled" value={currentValue('stalwartFeaturesEnabled') as boolean} source={config.stalwartFeaturesEnabled?.source} onChange={handleChange} onRevert={handleRevert} />
         <ToggleSetting label="Demo Mode" description="Enable demo mode with sample data" configKey="demoMode" value={currentValue('demoMode') as boolean} source={config.demoMode?.source} onChange={handleChange} onRevert={handleRevert} />
+        <ToggleSetting label="Search Engine Indexing" description="Allow search engines to index this webmail. Off (the default) sends noindex/nofollow in the page head, recommended for private deployments." configKey="searchEngineIndexing" value={currentValue('searchEngineIndexing') as boolean} source={config.searchEngineIndexing?.source} onChange={handleChange} onRevert={handleRevert} />
       </SettingsSection>
 
       <SettingsSection title="JMAP Servers (multi-server)">
@@ -144,7 +145,7 @@ export function SettingsTab() {
           onRevert={() => handleRevert('jmapServers')}
         />
         {Array.isArray(currentValue('jmapServers')) && (currentValue('jmapServers') as JmapServerEntry[]).length > 0 && (
-          <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-l-2 border-amber-400 dark:border-amber-600">
+          <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-s-2 border-amber-400 dark:border-amber-600">
             <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
               <strong>CORS warning:</strong> Each JMAP server must allow this webmail's origin in its <code className="text-[11px] bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded">Access-Control-Allow-Origin</code> header, or browser requests will be blocked.
             </p>
@@ -229,6 +230,10 @@ function ToggleSetting({ label, description, configKey, value, source, onChange,
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button
+          type="button"
+          role="switch"
+          aria-checked={value}
+          aria-label={label}
           onClick={() => onChange(configKey, !value)}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${value ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-muted-foreground/50'}`}
         >

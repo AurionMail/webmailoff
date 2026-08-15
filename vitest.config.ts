@@ -8,7 +8,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    exclude: ['e2e/**', 'node_modules/**', '.next/**'],
+    // integration/** is the dockerized Playwright suite (run via
+    // `npm run test:integration`); examples/** is untracked sample code; and
+    // repos/** holds sibling checkouts with their own runners. node_modules
+    // must be globbed at any depth or the nested repos/*/node_modules trees
+    // get collected too.
+    exclude: ['e2e/**', 'integration/**', 'examples/**', 'repos/**', '**/node_modules/**', '.next/**'],
   },
   resolve: {
     alias: {

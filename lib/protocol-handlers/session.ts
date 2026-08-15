@@ -1,5 +1,6 @@
 import type { ParsedMailto } from "./mailto";
 import type { ParsedWebcal } from "./webcal";
+import { matchSurface } from "@/lib/deep-links";
 
 const MAILTO_KEY = "bulwark:pending-mailto";
 const WEBCAL_KEY = "bulwark:pending-webcal";
@@ -125,7 +126,9 @@ function createRequestId(): string {
 const BROWSER_CLIENT_ID = createRequestId();
 
 function getMailtoClientPriority(info: ProtocolClientInfo): number {
-  const isMailSection = info.path === "/" || info.path === "";
+  // The mail client's URL is a permalink now (#733), so "the mail section" is
+  // "/" plus every "/mail/..." deep link - not just the bare root.
+  const isMailSection = !info.path || matchSurface(info.path)?.surface === "mail";
   if (info.standalone && isMailSection) return 0;
   if (isMailSection) return 1;
   if (info.standalone) return 2;

@@ -1,4 +1,5 @@
 {
+  "meta_description": "JMAPプロトコルを使用するミニマルなウェブメールクライアント",
   "login": {
     "title": "ウェブメール",
     "username_label": "メールアドレス",
@@ -113,6 +114,7 @@
     "unified_archive": "すべてのアーカイブ",
     "unified_junk": "すべての迷惑メール",
     "all_accounts": "すべてのアカウント",
+    "unified_mailbox": "統合メールボックス",
     "expand": "展開",
     "collapse": "折りたたむ",
     "expand_tooltip": "展開",
@@ -120,7 +122,8 @@
     "mobile": {
       "search": "検索",
       "compose": "作成",
-      "go_back": "戻る"
+      "go_back": "戻る",
+      "toggle_menu": "メニューを切り替え"
     },
     "clear_search": "検索をクリア",
     "vacation_active": "不在応答が有効です",
@@ -128,11 +131,19 @@
     "demo_reset": "リセット",
     "demo_tour": "ツアー",
     "tags": "タグ",
+    "show_all_tags": "すべて表示（{count}）",
+    "show_fewer_tags": "表示を減らす",
     "folders": "フォルダ",
     "mail": "メール",
     "nav_label": "ナビゲーション",
     "add_app": "アプリ",
-    "shared": "共有"
+    "shared": "共有",
+    "scheduled": "予約済み",
+    "unified_all_unread": "すべての未読",
+    "unified_all_starred": "すべてのスター付き",
+    "unified_all_mail": "すべてのメール",
+    "remove_account": "Remove account",
+    "remove_account_confirm": "Remove {account} from this device? You can add it back later."
   },
   "protocol_handlers": {
     "title": "既定のアプリ",
@@ -239,9 +250,27 @@
       "confirm_button": "フォルダを空にする",
       "junk_hint": "迷惑メールフォルダを空にして、すべてのメールを完全に削除できます。",
       "trash_hint": "ゴミ箱を空にして、すべてのメールを完全に削除できます。"
-    }
+    },
+    "no_scheduled_emails": "予約送信はありません",
+    "no_scheduled_emails_description": "後で送信するよう予約したメッセージがここに表示されます。",
+    "scheduled_count": "{count, plural, one {1 件の予約送信} other {# 件の予約送信}}",
+    "scheduled_actions_hint": "予約メッセージは予約アクションからキャンセル、再予約、編集できます。",
+    "cancel_scheduled_send": "送信をキャンセル",
+    "reschedule_send": "再予約",
+    "cancel_and_edit": "キャンセルして編集",
+    "cancel_and_compose_again": "キャンセルして新規作成",
+    "reschedule_prompt": "新しい日時を入力してください。例: 2026-05-04T15:30"
   },
   "email_viewer": {
+    "read_receipt": {
+      "prompt": "送信者が開封確認を求めています：",
+      "send": "確認を送信",
+      "ignore": "無視",
+      "sent": "開封確認を送信しました。",
+      "send_failed": "開封確認を送信できませんでした",
+      "mdn_subject": "開封済み: {subject}",
+      "mdn_body": "これは、あなたが {recipient} に送信したメッセージの開封確認です。\n\n注意: この確認は、メッセージが受信者のコンピューターに表示されたことを示すだけです。受信者が内容を読んだ、または理解したことを保証するものではありません。"
+    },
     "no_email_selected": "メールが選択されていません",
     "no_email_description": "リストからメールを選択して表示してください",
     "no_conversation_selected": "会話が選択されていません",
@@ -251,6 +280,8 @@
     "no_subject": "（件名なし）",
     "no_body_content": "（本文がありません）",
     "no_preview_available": "プレビューは利用できません",
+    "show_quoted_text": "引用テキストを表示",
+    "hide_quoted_text": "引用テキストを非表示",
     "loading_email": "メールを読み込み中...",
     "loading": "読み込み中...",
     "reply": "返信",
@@ -270,6 +301,7 @@
     "print": "印刷",
     "view_source": "ソースを表示",
     "export_email": ".emlとしてエクスポート",
+    "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml または .zip をインポート",
     "keyboard_shortcuts": "キーボードショートカット (?)",
     "email_source": "メールソース",
@@ -296,11 +328,13 @@
     "view_contact": "連絡先を表示",
     "message_details": "メッセージの詳細",
     "more_reply_options": "その他の返信オプション",
-    "set_color": "ラベルを設定",
+    "set_tag": "ラベルを設定",
     "tag": "ラベル",
     "more_actions": "その他の操作",
     "move_to": "移動...",
-    "remove_color": "ラベルを削除",
+    "remove_tag": "ラベルを削除",
+    "tag_filter_placeholder": "ラベルを絞り込む",
+    "tag_no_matches": "一致するラベルがありません",
     "more_count": "他{count}件",
     "characters_count": "{count}文字",
     "quick_reply_placeholder": "クイック返信を入力...",
@@ -369,17 +403,6 @@
       "message_id": "メッセージID",
       "list_info": "リスト情報"
     },
-    "color_tag": {
-      "title": "カラータグ",
-      "red": "赤",
-      "orange": "オレンジ",
-      "yellow": "黄色",
-      "green": "緑",
-      "blue": "青",
-      "purple": "紫",
-      "pink": "ピンク",
-      "none": "なし"
-    },
     "tooltips": {
       "reply": "返信",
       "reply_all": "全員に返信 (a)",
@@ -411,7 +434,9 @@
       "confirm_button": "確認",
       "cancel": "キャンセル",
       "success_http": "購読解除ページを新しいタブで開きました",
-      "success_mailto": "購読解除リクエストをメールクライアントに送信しました",
+      "success_mailto": "配信停止メールを送信しました",
+      "confirm_message_http": "配信停止ページを新しいタブで開きます。",
+      "confirm_message_mailto": "送信者に配信停止メールを送信します。",
       "error": "購読解除できませんでした",
       "dismiss": "閉じる"
     },
@@ -514,9 +539,40 @@
       "ai_verdict": "AIの判定",
       "account": "アカウント",
       "no_subject": "(件名なし)"
-    }
+    },
+    "scheduled_banner": "{date} に送信予定",
+    "scheduled_send_created": "メールを送信予約しました",
+    "cancel_scheduled_send": "送信をキャンセル",
+    "reschedule_send": "再予約",
+    "cancel_and_edit": "キャンセルして編集",
+    "cancel_and_compose_again": "キャンセルして新規作成",
+    "reschedule_prompt": "新しい日時を入力してください。例: 2026-05-04T15:30",
+    "scheduled_actions_only": "予約済みビューでは予約アクションのみ利用できます",
+    "undo_send_scheduled": "メッセージは送信予約されています",
+    "undo_send": "送信を取り消す",
+    "contact_sidebar": {
+      "title": "連絡先",
+      "close": "サイドバーを閉じる",
+      "action_email": "メール",
+      "action_email_title": "メールを送信",
+      "action_copy": "コピー",
+      "action_copy_title": "メールアドレスをコピー",
+      "action_edit_title": "連絡先を編集",
+      "section_emails": "メールアドレス",
+      "section_phones": "電話番号",
+      "section_organizations": "組織",
+      "section_addresses": "住所",
+      "section_notes": "メモ",
+      "not_in_contacts": "連絡先に登録されていません",
+      "add_to_contacts": "連絡先に追加",
+      "copied": "コピーしました！",
+      "copy_failed": "コピーに失敗しました"
+    },
+    "send_now": "今すぐ送信"
   },
   "email_composer": {
+    "read_receipt_on": "開封確認を要求中（クリックで無効化）",
+    "read_receipt_off": "開封確認を要求する",
     "new_message": "新規メッセージ",
     "reply": "返信",
     "reply_all": "全員に返信",
@@ -533,8 +589,8 @@
     "send": "送信",
     "cancel": "キャンセル",
     "attach": "添付",
-    "attach_photos": "写真と動画",
-    "attach_files": "ファイル",
+    "attach_photos": "Photos & Videos",
+    "attach_files": "Files",
     "discard": "破棄",
     "discard_draft_title": "下書きを破棄しますか？",
     "discard_draft_confirm": "未保存の変更があります。この下書きを破棄しますか？",
@@ -577,8 +633,9 @@
     "save_as_template": "テンプレートとして保存",
     "validation": {
       "recipient_required": "送信するには宛先を追加してください",
-      "subject_required": "件名を追加してください",
-      "body_required": "メッセージを入力するかファイルを添付してください"
+      "body_required": "メッセージを入力するかファイルを添付してください",
+      "attachments_uploading": "添付ファイルをアップロード中です。完了次第送信します",
+      "attachment_upload_failed": "送信されませんでした。添付ファイルのアップロードに失敗しました。削除してもう一度お試しください。"
     },
     "upload_progress": "アップロード中 {uploaded} / {total}",
     "upload_cancel": "アップロードをキャンセル",
@@ -593,10 +650,10 @@
     "smime_unlock_message": "S/MIME 鍵を解除するためのパスフレーズを入力してください。",
     "smime_unlock_button": "ロック解除",
     "smime_passphrase_placeholder": "S/MIME パスフレーズ",
+    "send_timeout": "サーバーが応答しなくなりました。再送信する前に送信済みフォルダーを確認してください。メッセージはすでに送信されている可能性があります。",
     "continue_draft": "下書きを続ける",
     "close_draft_title": "下書きを保存または破棄しますか？",
     "close_draft_message": "未保存の変更があります。下書きとして保存しますか、それとも破棄しますか？",
-    "save_draft": "下書きを保存",
     "drop_files": "ファイルをドロップして添付",
     "show_less": "折りたたむ",
     "forgot_attachment": {
@@ -605,9 +662,65 @@
       "send_anyway": "そのまま送信",
       "back": "編集に戻る"
     },
+    "empty_subject": {
+      "title": "件名なしで送信しますか？",
+      "message": "このメッセージには件名がありません。このまま送信しますか？",
+      "dont_ask_again": "今後は確認しない",
+      "send_anyway": "そのまま送信",
+      "back": "編集に戻る"
+    },
     "add_link": "リンクを追加",
     "link_url_prompt": "URLを入力してください",
-    "sending": "送信中..."
+    "sending": "送信中...",
+    "schedule_send": "送信を予約",
+    "schedule_send_description": "サーバーがこのメッセージを送信する日時を選択します。",
+    "schedule_send_required": "日時を選択してください。",
+    "schedule_send_invalid": "有効な日時を入力してください。",
+    "schedule_send_future": "未来の日時を選択してください。",
+    "schedule_send_too_late": "この日時はサーバーが許可する範囲を超えています。",
+    "schedule_send_unsupported": "このアカウントでは予約送信はサポートされていません。",
+    "schedule_send_cleanup_warning": "予約送信は作成されましたが、下書きのクリーンアップに失敗しました。",
+    "send_delay_unsupported": "このアカウントでは送信遅延はサポートされていません。",
+    "send_delay_unsupported_confirm": "このアカウントは送信遅延に対応していません。すぐに送信しますか？",
+    "recipient_edit_email": "メールアドレスを編集",
+    "recipient_edit_name": "表示名を編集",
+    "recipient_email_placeholder": "メールアドレス",
+    "recipient_name_placeholder": "表示名",
+    "autocomplete_search_server": "サーバーを検索",
+    "autocomplete_searching": "検索中...",
+    "toolbar": {
+      "bold": "太字",
+      "italic": "斜体",
+      "underline": "下線",
+      "strikethrough": "取り消し線",
+      "text_color": "文字色",
+      "remove_color": "色を解除",
+      "heading_1": "見出し1",
+      "heading_2": "見出し2",
+      "bullet_list": "箇条書き",
+      "ordered_list": "番号付きリスト",
+      "quote": "引用",
+      "code_block": "コードブロック",
+      "align_left": "左揃え",
+      "align_center": "中央揃え",
+      "align_right": "右揃え",
+      "text_direction": "文字方向 (RTL/LTR)",
+      "link": "リンク",
+      "table": "表",
+      "clear_formatting": "書式をクリア",
+      "undo": "元に戻す",
+      "redo": "やり直す",
+      "add_row_above": "上に行を追加",
+      "add_row_below": "下に行を追加",
+      "add_column_before": "左に列を追加",
+      "add_column_after": "右に列を追加",
+      "delete_row": "行を削除",
+      "delete_column": "列を削除",
+      "toggle_header_row": "ヘッダー行の切り替え",
+      "delete_table": "表を削除",
+      "pick_size": "サイズを選択"
+    },
+    "send_filing_warning": "送信されましたが、送信後の整理に失敗しました。古い下書きが残る場合があります。"
   },
   "confirm_dialog": {
     "confirm": "確認",
@@ -735,9 +848,14 @@
     "nl": "Nederlands",
     "pl": "Polski",
     "pt": "Português",
+    "he": "עברית",
     "ru": "Русский",
+    "sk": "Slovenčina",
     "uk": "Українська",
-    "zh": "简体中文"
+    "zh": "简体中文",
+    "fa": "فارسی",
+    "farsi": "فارسی",
+    "switch_to_farsi": "ペルシア語に切り替え"
   },
   "settings": {
     "title": "設定",
@@ -845,27 +963,60 @@
       "unified_mailbox": {
         "label": "統合メールボックス",
         "description": "接続されたすべてのアカウントの統合フォルダ（受信トレイ、送信済みなど）を表示",
+        "cross_account": {
+          "label": "Across all accounts",
+          "description": "Merge the unified mailbox across every connected account instead of staying within the active account."
+        },
         "include_group": {
           "label": "グループ受信トレイを含める",
           "description": "共有/グループ受信トレイも統合ビューに含めます。"
         }
       },
+      "all_mail": {
+        "folders_label": "Folders in All Mail",
+        "folders_description": "Choose which folders are merged into the All Mail view.",
+        "account_hint": "Applies to {account}.",
+        "no_folders": "No folders available."
+      },
       "colorful_sidebar_icons": {
         "label": "カラフルなサイドバーアイコン",
         "description": "フォルダーとタグのアイコンを種類別に色分けします（受信トレイは青、迷惑メールは赤、送信済みは緑など）。モノクロのサイドバーにするには無効にしてください。"
+      },
+      "tint_list_rows": {
+        "label": "Tint List Rows by Tag Color",
+        "description": "Shade each message row with its first tag color. Disable to keep rows plain; tag dots and chips still show the color."
+      },
+      "show_folder_total_count": {
+        "label": "メッセージの総数を表示",
+        "description": "フォルダーやタグの横に、未読数に加えてメッセージの総数を表示します。未読数のみを表示するには無効にします。"
+      },
+      "favicon_unread_badge": {
+        "label": "Unread Count on Tab Icon",
+        "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
       },
       "pro_interface": {
         "label": "Pro インターフェイス（実験的）",
         "description": "デスクトップ専用のパワーユーザー向けレイアウトで、マルチタブのメッセージ閲覧やアカウント横断のワークフローに対応します。標準インターフェイスには影響せず、いつでも元に戻せます。",
         "open_label": "Pro インターフェイスを開く",
         "back_to_standard": "標準に戻る"
+      },
+      "cross_unread": {
+        "label": "すべてのアカウント: 未読",
+        "description": "「すべてのアカウント」セクションに、すべてのアカウントの未読メールを一覧表示する項目を表示します。迷惑メール、送信済み、アーカイブ、ゴミ箱、下書きを除くすべてのフォルダーが対象です。"
+      },
+      "cross_starred": {
+        "label": "すべてのアカウント: スター付き",
+        "description": "「すべてのアカウント」セクションに、すべてのアカウントのスター付きメールを一覧表示する項目を表示します。迷惑メール、送信済み、アーカイブ、ゴミ箱、下書きを除くすべてのフォルダーが対象です。"
+      },
+      "cross_all": {
+        "label": "すべてのアカウント: すべてのメール",
+        "description": "「すべてのアカウント」セクションに、すべてのアカウントのすべてのメールを一覧表示する項目を表示します。迷惑メール、送信済み、アーカイブ、ゴミ箱、下書きを除くすべてのフォルダーが対象です。"
       }
     },
     "keywords": {
       "title": "メールラベル",
       "description": "メールをカラーで整理するためのラベルを定義します。サーバーにJMAPキーワードとして保存されます。",
       "add_keyword": "ラベルを追加",
-      "reset_defaults": "デフォルトに戻す",
       "label_field": "表示名",
       "label_placeholder": "例：仕事、個人、緊急",
       "id_field": "ラベルID",
@@ -878,7 +1029,34 @@
       "add": "追加",
       "cancel": "キャンセル",
       "migrating": "既存のメールのラベルを更新中…",
-      "migration_error": "既存のメールのラベルの更新に失敗しました"
+      "migration_error": "既存のメールのラベルの更新に失敗しました",
+      "nesting": {
+        "label": "ネストされたラベル",
+        "description": "ラベルを他のラベルの下にネストし、サイドバーにツリーとして表示します。"
+      },
+      "parent_field": "親ラベル",
+      "no_parent": "親ラベルなし",
+      "too_long": "このラベルのパスが長すぎます（最大{max}文字）",
+      "has_children_locked": "このラベルの下に他のラベルがネストされているため、名前と親ラベルは変更できません。先に移動または削除してください。",
+      "has_children_delete": "先にこのラベルの下にネストされたラベルを削除してください",
+      "visibility_field": "サイドバーでの表示",
+      "visibility": {
+        "show": "表示する",
+        "unread": "未読がある場合に表示",
+        "hide": "表示しない"
+      },
+      "unrecognized": {
+        "title": "サーバーからラベルを復元",
+        "description": "ラベルの名前と色はこのブラウザーに保存されますが、ラベル自体はJMAPキーワードとしてメールに保存されています。ここに定義のないキーワードをメールから検索し、ラベルとして追加し直せます。",
+        "scan": "ラベルを検索",
+        "rescan": "再検索",
+        "scanning": "検索中… {total}件中{scanned}件",
+        "none": "メールに付いているラベルはすべてここに定義済みです。",
+        "messages": "{count, plural, one {#件} other {#件}}",
+        "add_all": "{count}件すべて追加",
+        "partial": "{total}件のうち最新の{scanned}件のみを検索しました。古いメールにのみ使われているラベルは見つからない場合があります。",
+        "error": "メールからラベルを検索できませんでした。"
+      }
     },
     "notifications": {
       "test_sound": "通知音をテスト",
@@ -919,10 +1097,13 @@
         "description": "このサイトが閉じているときに新着メールのシステム通知を受信します。Bulwark プッシュリレー経由で配信され、リレーがメール内容を見ることはありません。",
         "disable": "無効化",
         "enable": "有効化",
+        "dismiss_aria": "通知プロンプトを閉じる",
         "ios_hint": "iOS では、最初にサイトをホーム画面にインストールしてください。Safari はインストールされた PWA にのみ Web Push を配信します。",
         "reenable": "再登録",
         "relay_desc": "デフォルトはホストされた Bulwark リレーです。セルフホストする場合のみ変更してください。",
         "relay_label": "プッシュリレー",
+        "relay_locked": "管理者が設定",
+        "relay_locked_desc": "プッシュリレーの URL は管理者によって設定されており、変更できません。",
         "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "このデバイスで有効",
         "status_busy": "処理中…",
@@ -950,6 +1131,14 @@
         "preview_this_week": "今週:",
         "preview_older": "それ以前:"
       },
+      "date_locale": {
+        "label": "Date format region",
+        "description": "How numeric dates are ordered (day, month, year)",
+        "auto": "Automatic (match language)",
+        "iso": "ISO 8601 (YYYY-MM-DD)",
+        "dmy": "Day/Month/Year",
+        "mdy": "Month/Day/Year"
+      },
       "time_format": {
         "label": "時刻形式",
         "description": "12時間制または24時間制を選択",
@@ -964,6 +1153,17 @@
       }
     },
     "email_behavior": {
+      "request_read_receipt": {
+        "label": "既定で開封確認を要求する",
+        "description": "新しいメッセージの作成時に、開封確認の要求をあらかじめ有効にします。"
+      },
+      "read_receipt_response": {
+        "label": "開封確認の要求に応答する",
+        "description": "受信メッセージが開封確認を求めたときの動作。",
+        "ask": "毎回確認する",
+        "always": "常に送信",
+        "never": "送信しない"
+      },
       "title": "メール動作",
       "description": "メールの処理方法を設定",
       "mark_read": {
@@ -978,8 +1178,16 @@
         "label": "削除動作",
         "description": "メール削除時の動作",
         "trash": "ゴミ箱に移動",
+        "trash_and_read": "ゴミ箱に移動して既読にする",
         "permanent": "完全に削除",
         "warning": "メールは完全に削除され、復元できません。この操作は元に戻せません。"
+      },
+      "message_spacing": {
+        "label": "メッセージの余白",
+        "description": "閲覧時のメッセージ本文まわりの余白",
+        "auto": "自動（推奨）",
+        "always": "常に余白を追加",
+        "edge": "余白なし"
       },
       "archive_mode": {
         "label": "アーカイブ先",
@@ -1101,6 +1309,7 @@
         "archive": "アーカイブ",
         "tag": "ラベル",
         "spam": "スパムとしてマーク",
+        "not_spam": "迷惑メールではない",
         "none_selected": "アクションが選択されていません",
         "mode_label": "表示モード",
         "mode_inline": "インライン",
@@ -1127,6 +1336,10 @@
         "add": "Add",
         "remove": "削除"
       },
+      "empty_subject_warning": {
+        "label": "件名なしの警告",
+        "description": "件名のないメッセージを送信する前に確認します。"
+      },
       "hide_inline_image_attachments": {
         "label": "添付ファイル一覧からインライン画像を隠す",
         "description": "本文に埋め込まれた画像を個別の添付ファイルとして表示しません"
@@ -1134,6 +1347,21 @@
       "attachment_image_previews": {
         "label": "添付ファイル内の画像プレビューを表示",
         "description": "画像の添付ファイルを汎用ファイルアイコンではなくサムネイルカードとして表示します"
+      },
+      "send_delay": {
+        "label": "送信取り消し / 送信遅延",
+        "description": "通常の送信をサーバー側で短時間遅延します。",
+        "off": "オフ",
+        "seconds": "{seconds} 秒",
+        "unsupported": "現在のアカウントは遅延送信のサポートを通知していません。この設定は他のアカウント用に保存されます。"
+      },
+      "return_to_list_after_action": {
+        "label": "削除または未読にした後に一覧へ戻る",
+        "description": "開いているメッセージを削除または未読にした後、次のメッセージを開かずにメッセージ一覧へ戻ります。"
+      },
+      "rtl_editing": {
+        "label": "右から左への編集サポート",
+        "description": "エディターのツールバーに文字方向ボタンを追加し、段落を左から右または右から左に設定できます"
       }
     },
     "composer": {
@@ -1219,6 +1447,11 @@
         "move_down": "下に移動",
         "drag_handle": "ドラッグして並べ替え",
         "add": "アカウントを追加"
+      },
+      "shared_accounts": {
+        "title": "自分と共有",
+        "description": "管理できるグループアカウントと共有アカウントです。1つ選択して、フィルター、不在応答、カレンダー、連絡先を編集します。",
+        "shared_label": "共有アカウント"
       }
     },
     "security": {
@@ -1308,7 +1541,16 @@
         "inactive": "無効",
         "enabled": "保存時の暗号化が有効になりました",
         "disabled_success": "保存時の暗号化が無効になりました",
-        "error": "暗号化設定を更新できませんでした"
+        "error": "暗号化設定を更新できませんでした",
+        "algorithm_label": "暗号化アルゴリズム",
+        "encrypt_on_append": "アップロード時に新しいメールを暗号化",
+        "allow_spam_training": "メールを暗号化する前に迷惑メール学習を許可",
+        "enable_encryption": "暗号化を有効にする",
+        "enable_tooltip": "この鍵で暗号化を有効にする",
+        "configure_title": "この鍵で暗号化を有効にする",
+        "enable_button": "有効にする",
+        "disable_tooltip": "暗号化を無効にする",
+        "enabled_success": "保存時の暗号化が有効になりました"
       },
       "email_client": {
         "title": "メールクライアントの設定",
@@ -1317,6 +1559,24 @@
         "copy": "コピー",
         "copied": "コピー済み",
         "password_instructions": "上記のJMAPユーザー名とアプリパスワードを使用してメールクライアントにサインインします。まだ作成していない場合は、上のセクションでアプリパスワードを作成してください。"
+      },
+      "link_device": {
+        "title": "モバイルアプリを連携",
+        "description": "入力なしで Bulwark Mail モバイルアプリにサインインできます。ここで QR コードを生成し、アプリのログイン画面からスキャンしてください。",
+        "generate": "QRコードを表示",
+        "regenerate": "新しいコードを表示",
+        "instructions": "Bulwark Mail アプリを開き、ログイン画面で「QRコードをスキャン」をタップして、カメラをここに向けてください。",
+        "expires_in": "このコードは{seconds}秒で期限切れになります。一度しか使用できません。",
+        "expired": "このコードは期限切れです。",
+        "generating": "生成中…",
+        "error": "ペアリングコードを作成できませんでした。もう一度お試しください。"
+      },
+      "public_keys": {
+        "name_label": "公開鍵の名前",
+        "name_placeholder": "例：マイキー",
+        "key_label": "公開鍵（S/MIME または PGP の ASCII 形式）",
+        "key_placeholder": "ここに公開鍵を貼り付けてください",
+        "none": "公開鍵が設定されていません"
       }
     },
     "identities": {
@@ -1364,7 +1624,10 @@
         "subject_placeholder": "不在通知",
         "body_label": "メッセージ本文",
         "body_description": "テキスト形式のメッセージ内容",
-        "body_placeholder": "メールをいただきありがとうございます。現在不在にしており、戻り次第ご返信いたします。"
+        "body_placeholder": "メールをいただきありがとうございます。現在不在にしており、戻り次第ご返信いたします。",
+        "html_label": "書式付きメッセージ（HTML）",
+        "html_description": "リンクやスタイルを含む書式付きの版を追加します。表示できないメールソフトの受信者には上記のプレーンテキストが表示されます。",
+        "html_placeholder": "書式付きの不在返信を入力…"
       },
       "preview": {
         "title": "プレビュー",
@@ -1380,6 +1643,7 @@
       }
     },
     "folders": {
+      "role_memos": "メモ",
       "title": "フォルダー",
       "description": "メールフォルダーを管理し、標準の役割を割り当てます",
       "folder_list": "フォルダー一覧",
@@ -1395,6 +1659,8 @@
       "role_none": "なし",
       "create_folder": "フォルダーを作成",
       "create_subfolder": "サブフォルダーを作成",
+      "reorder": "ドラッグして並べ替え",
+      "reorder_error": "フォルダーの並べ替えに失敗しました",
       "subfolder_of": "{name} の中",
       "subfolder_name": "サブフォルダー名",
       "new_folder_name": "フォルダー名",
@@ -1459,6 +1725,11 @@
         "label": "キーボードショートカット",
         "description": "利用可能なキーボードショートカットを表示",
         "button": "ショートカットを表示"
+      },
+      "refresh_cache": {
+        "label": "Refresh cached data",
+        "description": "Reload contacts, calendars, and folders from the server. Keeps your accounts and sessions — fixes a stale or wrong view without signing out.",
+        "button": "Refresh"
       },
       "reset_settings": {
         "label": "設定をリセット",
@@ -1582,7 +1853,10 @@
       "actions": "アクション",
       "add_action": "アクションを追加",
       "stop_processing": "以降のルールの処理を停止",
+      "attachment_type_placeholder": "例: pdf, doc, jpg",
+      "value_placeholder_multi": "値（カンマで複数指定可）",
       "condition_fields": {
+        "attachment": "添付ファイル",
         "from": "差出人",
         "to": "宛先",
         "cc": "Cc",
@@ -1592,6 +1866,8 @@
         "body": "本文"
       },
       "comparators": {
+        "has_any": "あり",
+        "has_type": "タイプ",
         "contains": "を含む",
         "not_contains": "を含まない",
         "is": "と完全一致",
@@ -1768,7 +2044,11 @@
     },
     "search_placeholder": "設定を検索",
     "search_clear": "検索をクリア",
-    "search_no_results": "一致する設定はありません"
+    "search_no_results": "一致する設定はありません",
+    "scoped": {
+      "back": "自分のアカウントに戻る",
+      "managing": "管理中: {name}"
+    }
   },
   "errors": {
     "page_error_title": "問題が発生しました",
@@ -1795,15 +2075,20 @@
     "mark_unread": "未読にする",
     "star": "スターを付ける",
     "unstar": "スターを外す",
+    "pin": "ピン留め",
+    "unpin": "ピン留めを外す",
     "move_to": "移動...",
     "archive": "アーカイブ",
     "delete": "削除",
     "mark_as_spam": "迷惑メールを報告",
     "not_spam": "迷惑メールでない",
-    "color_tag": "ラベル",
-    "remove_color": "ラベルを削除",
+    "tag": "ラベル",
     "items_selected": "{count}件のメールを選択",
-    "edit_draft": "下書きを編集"
+    "edit_draft": "下書きを編集",
+    "cancel_scheduled_send": "送信をキャンセル",
+    "reschedule_send": "再予約",
+    "cancel_and_edit": "キャンセルして編集",
+    "cancel_and_compose_again": "キャンセルして新規作成"
   },
   "mailbox_context_menu": {
     "mark_folder_read": "フォルダーを既読にする",
@@ -1881,6 +2166,8 @@
       "expand_collapse": "スレッドの展開/折りたたみ"
     },
     "composer": {
+      "send": "メールを送信",
+      "schedule_send": "送信を予約",
       "template_picker": "テンプレートピッカーを開く"
     }
   },
@@ -1928,9 +2215,9 @@
       "email_invalid": "有効なメールアドレスを入力してください",
       "email_immutable": "メールアドレスは作成後に変更できません",
       "reply_to_label": "返信先（オプション）",
-      "reply_to_placeholder": "different@email.com",
+      "reply_to_placeholder": "different@example.com",
       "bcc_label": "自動BCC（オプション）",
-      "bcc_placeholder": "archive@email.com",
+      "bcc_placeholder": "archive@example.com",
       "text_signature_label": "テキスト署名",
       "html_signature_label": "HTML署名",
       "signature_byte_counter": "{bytes} / {max} バイト",
@@ -2023,6 +2310,9 @@
       "title": "共有"
     },
     "address_books": {
+      "create": "新しいアドレス帳",
+      "created": "アドレス帳を作成しました",
+      "create_failed": "アドレス帳の作成に失敗しました",
       "title": "マイアドレス帳",
       "shared_prefix": "共有: {name}",
       "moved": "連絡先を {name} に移動しました",
@@ -2126,6 +2416,9 @@
       "section_address_book": "ディレクトリ",
       "select_address_book": "ディレクトリを選択...",
       "section_identity": "名前と識別情報",
+      "contact_type": "連絡先の種類",
+      "type_person": "個人",
+      "type_organization": "組織",
       "section_work": "職業と組織",
       "prefix": "敬称",
       "prefix_placeholder": "博士、氏",
@@ -2210,7 +2503,7 @@
       "cancel": "キャンセル",
       "creating": "作成中...",
       "updating": "更新中...",
-      "name_required": "名前は必須です",
+      "name_required": "名、姓、または組織を入力してください",
       "email_invalid": "有効なメールアドレスを入力してください",
       "email_error_inline": "メールアドレスの形式が正しくありません",
       "save_failed": "連絡先の保存に失敗しました",
@@ -2235,7 +2528,12 @@
       "members_label": "メンバー",
       "search_members": "追加する連絡先を検索...",
       "no_members": "このグループにメンバーがいません",
-      "member_count": "{count, plural, =0 {メンバーなし} other {#人のメンバー}}"
+      "member_count": "{count, plural, =0 {メンバーなし} other {#人のメンバー}}",
+      "send_email": "Send email to group",
+      "send_email_to": "To",
+      "send_email_cc": "Cc",
+      "send_email_bcc": "Bcc",
+      "no_member_emails": "This group has no members with an email address."
     },
     "import": {
       "title": "連絡先をインポート",
@@ -2415,7 +2713,37 @@
       "every_n_weeks": "{count}週間ごと",
       "every_n_months": "{count}か月ごと",
       "until": "終了日",
-      "occurrences": "{count}回"
+      "occurrences": "{count}回",
+      "custom": "カスタム…",
+      "edit_custom": "カスタム繰り返しを編集",
+      "every_n_years": "{count}年ごと",
+      "on_days": "{days}",
+      "on_day_n": "{day}日",
+      "on_the_nth": "{nth}{day}",
+      "in_month": "{month}",
+      "nth_1": "第1",
+      "nth_2": "第2",
+      "nth_3": "第3",
+      "nth_4": "第4",
+      "nth_last": "最終",
+      "editor_freq_day": "日",
+      "editor_freq_week": "週",
+      "editor_freq_month": "月",
+      "editor_freq_year": "年",
+      "editor_repeats_on": "繰り返し",
+      "editor_every": "間隔:",
+      "editor_unit_days": "日ごと",
+      "editor_unit_weeks": "週間ごと",
+      "editor_unit_months": "か月ごと",
+      "editor_unit_years": "年ごと",
+      "editor_on_day": "日付:",
+      "editor_on_the": "曜日:",
+      "editor_in": "月:",
+      "editor_ends": "終了",
+      "editor_never": "なし",
+      "editor_ends_on": "終了日",
+      "editor_ends_after": "回数",
+      "editor_occurrences": "回"
     },
     "recurrence_scope": {
       "edit_title": "繰り返しイベントを編集",
@@ -2567,6 +2895,7 @@
       "name_placeholder": "カレンダー名",
       "color": "色",
       "change_color": "色を変更",
+      "random_color": "新しいランダムな色",
       "add_calendar": "カレンダーを追加",
       "edit": "編集",
       "delete": "削除",
@@ -2586,6 +2915,9 @@
       "copy_url": "CalDAV URLをコピー",
       "url_copied": "CalDAV URLをクリップボードにコピーしました",
       "confirm_clear": "\"{name}\"のすべてのイベントを削除しますか？この操作は元に戻せません。",
+      "set_default": "デフォルトに設定",
+      "default_updated": "デフォルトのカレンダーを更新しました",
+      "error_default": "デフォルトのカレンダーを設定できませんでした",
       "clear_events": "イベントを削除",
       "events_cleared": "{count}件のイベントを削除しました",
       "error_clear": "カレンダーイベントの削除に失敗しました",
@@ -2683,7 +3015,19 @@
       "sep": "9月",
       "oct": "10月",
       "nov": "11月",
-      "dec": "12月"
+      "dec": "12月",
+      "far": "Farvardin",
+      "ord": "Ordibehesht",
+      "kho": "Khordad",
+      "tir": "Tir",
+      "mor": "Mordad",
+      "sha": "Shahrivar",
+      "meh": "Mehr",
+      "aba": "Aban",
+      "aza": "Azar",
+      "dey": "Dey",
+      "bah": "Bahman",
+      "esf": "Esfand"
     },
     "nav_open_menu": "メニューを開く"
   },
@@ -2738,6 +3082,7 @@
     "hint": "左のメールをクリックして始めるか、ツアーを開始してください。"
   },
   "files": {
+    "open_in_new_tab": "新しいタブで開く",
     "title": "ファイル",
     "search_placeholder": "ファイルを検索...",
     "empty_state_title": "ファイルがありません",
@@ -2800,6 +3145,10 @@
     "duplicate": "複製",
     "duplicate_success": "正常に複製しました",
     "duplicate_error": "複製に失敗しました",
+    "share": "Share",
+    "shared": "Shared",
+    "shared_with_me": "Shared with me",
+    "shared_by": "Shared by {name}",
     "create_file_success": "ファイルを作成しました",
     "create_file_error": "ファイルの作成に失敗しました",
     "favorites": "お気に入り",
@@ -2843,7 +3192,9 @@
     "stability_warning": "大容量ファイルのアップロードはサーバーの不安定性を引き起こす可能性があります。削除されたファイルはストレージからすぐに削除されない場合があります。注意して使用してください。",
     "no_accounts": "接続されているアカウントはありません。",
     "open_folder_tree": "フォルダーツリーを開く",
-    "other_accounts": "その他のアカウント"
+    "other_accounts": "その他のアカウント",
+    "migration_title": "ファイルを更新しています…",
+    "migration_description": "フォルダーとファイルを適切な構造に整理しています。これは一度だけ行われます。"
   },
   "smime": {
     "your_certificates": "あなたの証明書",
@@ -2999,5 +3350,33 @@
       "manager": "管理者",
       "custom": "カスタム"
     }
+  },
+  "quote_header": {
+    "reply_line": "{date}に{from}が書きました:",
+    "forwarded_separator": "---------- 転送メッセージ ----------",
+    "from_label": "差出人",
+    "date_label": "日付",
+    "subject_label": "件名"
+  },
+  "pwa_install": {
+    "title": "{appName} をインストール",
+    "description": "素早いアクセスとオフライン対応のため、アプリをインストールしましょう。",
+    "not_now": "後で",
+    "install": "インストール",
+    "dont_remind": "今後表示しない",
+    "dismiss_aria": "インストールプロンプトを閉じる"
+  },
+  "deep_link": {
+    "message_not_found": "このメッセージは利用できなくなりました。",
+    "thread_not_found": "この会話は利用できなくなりました。",
+    "folder_not_found": "このフォルダーは利用できなくなりました。",
+    "event_not_found": "この予定は利用できなくなりました。",
+    "file_not_found": "このファイルは利用できなくなりました。",
+    "account_unavailable": "このリンクを開くには、そのアカウントにサインインしてください。",
+    "copy_message": "メッセージのリンクをコピー",
+    "copy_conversation": "会話のリンクをコピー",
+    "copy_event": "予定のリンクをコピー",
+    "copied": "リンクをコピーしました",
+    "copy_failed": "リンクをコピーできませんでした"
   }
 }

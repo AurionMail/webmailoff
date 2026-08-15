@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { X, Upload, Check, Loader2, RefreshCw, Globe } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import type { CalendarEvent, Calendar } from "@/lib/jmap/types";
 import type { IJMAPClient } from '@/lib/jmap/client-interface';
 import { getEventStartDate } from "@/lib/calendar-utils";
@@ -444,7 +444,7 @@ export function ICalImportModal({ calendars, client, onClose, initialUrl }: ICal
                 onClick={handleImport}
                 disabled={selectedIndices.size === 0}
               >
-                <Check className="w-4 h-4 mr-1" />
+                <Check className="w-4 h-4 me-1" />
                 {t("import_button")} ({selectedIndices.size})
               </Button>
             )}

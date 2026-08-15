@@ -32,6 +32,9 @@ export const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
     // Measure the rendered menu and clamp it inside the viewport before the
     // browser paints. We hide the element until this runs so the user never
     // sees the menu jump from an unclamped position to a clamped one.
+    // `mounted` must be a dependency: on the very first open the menu isn't
+    // in the DOM yet (mounted is still false), so this effect has to re-run
+    // after the mount flip or the menu stays visibility:hidden.
     useLayoutEffect(() => {
       if (!isOpen) {
         setAdjustedPosition(null);
@@ -57,7 +60,7 @@ export const ContextMenu = forwardRef<HTMLDivElement, ContextMenuProps>(
       y = Math.max(VIEWPORT_MARGIN, y);
 
       setAdjustedPosition({ x, y });
-    }, [isOpen, position.x, position.y]);
+    }, [isOpen, mounted, position.x, position.y]);
 
     const setRefs = (node: HTMLDivElement | null) => {
       localRef.current = node;
@@ -105,6 +108,8 @@ interface ContextMenuItemProps {
   disabled?: boolean;
   destructive?: boolean;
   shortcut?: string;
+  /** Stable hook for integration tests (not user-visible). */
+  testId?: string;
 }
 
 export function ContextMenuItem({
@@ -114,13 +119,15 @@ export function ContextMenuItem({
   disabled = false,
   destructive = false,
   shortcut,
+  testId,
 }: ContextMenuItemProps) {
   return (
     <button
       role="menuitem"
+      data-testid={testId}
       disabled={disabled}
       className={cn(
-        "w-full px-3 py-1.5 text-sm text-left flex items-center gap-2",
+        "w-full px-3 py-1.5 text-sm text-start flex items-center gap-2",
         "transition-colors duration-150",
         "focus:outline-none focus:bg-muted",
         disabled && "opacity-50 cursor-not-allowed",
@@ -136,7 +143,7 @@ export function ContextMenuItem({
       {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
       <span className="flex-1">{label}</span>
       {shortcut && (
-        <span className="text-xs text-muted-foreground ml-auto">{shortcut}</span>
+        <span className="text-xs text-muted-foreground ms-auto">{shortcut}</span>
       )}
     </button>
   );
@@ -150,12 +157,15 @@ interface ContextMenuSubMenuProps {
   icon?: React.ComponentType<{ className?: string }>;
   label: string;
   children: React.ReactNode;
+  /** Stable hook for integration tests (not user-visible). */
+  testId?: string;
 }
 
 export function ContextMenuSubMenu({
   icon: Icon,
   label,
   children,
+  testId,
 }: ContextMenuSubMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [subMenuPos, setSubMenuPos] = useState<Position | null>(null);
@@ -229,6 +239,7 @@ export function ContextMenuSubMenu({
         role="menuitem"
         aria-haspopup="true"
         aria-expanded={isOpen}
+        data-testid={testId}
       >
         {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
         <span className="flex-1">{label}</span>

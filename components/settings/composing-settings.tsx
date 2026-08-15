@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSettingsStore } from '@/stores/settings-store';
+import type { SendDelaySeconds } from '@/stores/settings-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
 import { X } from 'lucide-react';
 import {
@@ -20,13 +22,21 @@ export function ComposingSettings() {
 
   const {
     autoSelectReplyIdentity,
+    plainTextMode,
+    rtlEditingSupport,
     attachmentReminderEnabled,
     attachmentReminderKeywords,
+    emptySubjectWarningEnabled,
+    sendDelaySeconds,
     subAddressDelimiter,
     signaturePosition,
     signatureSeparatorEnabled,
+    requestReadReceiptDefault,
+    readReceiptResponse,
     updateSetting,
   } = useSettingsStore();
+  const { client } = useAuthStore();
+  const delayedSendSupported = client?.hasDelayedSend() ?? false;
 
   return (
     <SettingsSection title={t('title')} description={t('description')}>
@@ -35,6 +45,38 @@ export function ComposingSettings() {
           checked={autoSelectReplyIdentity}
           onChange={(checked) => updateSetting('autoSelectReplyIdentity', checked)}
         />
+      </SettingItem>
+
+      <SettingItem label={t('plain_text_mode.label')} description={t('plain_text_mode.description')}>
+        <ToggleSwitch
+          checked={plainTextMode}
+          onChange={(checked) => updateSetting('plainTextMode', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('rtl_editing.label')} description={t('rtl_editing.description')}>
+        <ToggleSwitch
+          checked={rtlEditingSupport}
+          onChange={(checked) => updateSetting('rtlEditingSupport', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('send_delay.label')} description={t('send_delay.description')}>
+        <div className="flex flex-col items-end gap-1">
+          <Select
+            value={String(sendDelaySeconds)}
+            onChange={(value) => updateSetting('sendDelaySeconds', Number(value) as SendDelaySeconds)}
+            options={[
+              { value: '0', label: t('send_delay.off') },
+              { value: '10', label: t('send_delay.seconds', { seconds: 10 }) },
+              { value: '30', label: t('send_delay.seconds', { seconds: 30 }) },
+              { value: '60', label: t('send_delay.seconds', { seconds: 60 }) },
+            ]}
+          />
+          {sendDelaySeconds > 0 && !delayedSendSupported && (
+            <p className="max-w-64 text-end text-xs text-amber-600 dark:text-amber-400">{t('send_delay.unsupported')}</p>
+          )}
+        </div>
       </SettingItem>
 
       <SettingItem label={t('signature_position.label')} description={t('signature_position.description')}>
@@ -52,6 +94,25 @@ export function ComposingSettings() {
         <ToggleSwitch
           checked={signatureSeparatorEnabled}
           onChange={(checked) => updateSetting('signatureSeparatorEnabled', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('request_read_receipt.label')} description={t('request_read_receipt.description')}>
+        <ToggleSwitch
+          checked={requestReadReceiptDefault}
+          onChange={(checked) => updateSetting('requestReadReceiptDefault', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('read_receipt_response.label')} description={t('read_receipt_response.description')}>
+        <Select
+          value={readReceiptResponse}
+          onChange={(value) => updateSetting('readReceiptResponse', value as 'ask' | 'always' | 'never')}
+          options={[
+            { value: 'ask', label: t('read_receipt_response.ask') },
+            { value: 'always', label: t('read_receipt_response.always') },
+            { value: 'never', label: t('read_receipt_response.never') },
+          ]}
         />
       </SettingItem>
 
@@ -96,6 +157,13 @@ export function ComposingSettings() {
             />
           )}
         </div>
+      </SettingItem>
+
+      <SettingItem label={t('empty_subject_warning.label')} description={t('empty_subject_warning.description')}>
+        <ToggleSwitch
+          checked={emptySubjectWarningEnabled}
+          onChange={(checked) => updateSetting('emptySubjectWarningEnabled', checked)}
+        />
       </SettingItem>
 
       <SettingItem label={t('attachment_reminder.label')} description={t('attachment_reminder.description')}>

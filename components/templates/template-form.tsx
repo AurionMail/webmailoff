@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Star, Plus } from 'lucide-react';
+import { Star, Plus, Square, CheckSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { validateTemplateName } from '@/lib/template-utils';
 import { BUILT_IN_PLACEHOLDERS } from '@/lib/template-types';
@@ -38,6 +38,7 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
   const [category, setCategory] = useState(template?.category || '');
   const [subject, setSubject] = useState(template?.subject || initialData?.subject || '');
   const [body, setBody] = useState(template?.body || initialData?.body || '');
+  const [isHTML, setIsHTML] = useState(template?.isHTML || false);
   const [toRecipients, setToRecipients] = useState(
     template?.defaultRecipients?.to?.join(', ') || initialData?.to?.join(', ') || ''
   );
@@ -76,6 +77,7 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
       name: name.trim(),
       subject,
       body,
+      isHTML,
       category: category.trim(),
       defaultRecipients: to.length || cc.length || bcc.length
         ? { to: to.length ? to : undefined, cc: cc.length ? cc : undefined, bcc: bcc.length ? bcc : undefined }
@@ -142,7 +144,7 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
               className="h-6 px-2 text-xs"
               onClick={() => setShowPlaceholderMenu(showPlaceholderMenu === 'subject' ? null : 'subject')}
             >
-              <Plus className="w-3 h-3 mr-1" />
+              <Plus className="w-3 h-3 me-1" />
               {t('placeholder')}
             </Button>
             {showPlaceholderMenu === 'subject' && (
@@ -172,7 +174,7 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
               className="h-6 px-2 text-xs"
               onClick={() => setShowPlaceholderMenu(showPlaceholderMenu === 'body' ? null : 'body')}
             >
-              <Plus className="w-3 h-3 mr-1" />
+              <Plus className="w-3 h-3 me-1" />
               {t('placeholder')}
             </Button>
             {showPlaceholderMenu === 'body' && (
@@ -190,6 +192,14 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
           rows={6}
           className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-y"
         />
+        <button
+          type="button"
+          onClick={() => setIsHTML(!isHTML)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {isHTML ? <CheckSquare className={cn('w-4 h-4')}></CheckSquare> : <Square className={cn('w-4 h-4')}></Square>}
+          HTML
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -232,7 +242,7 @@ export function TemplateForm({ template, initialData, onSave, onCancel }: Templa
           >
             <option value="">{tSettings('default_identity')}</option>
             {identities.map((id) => (
-              <option key={id.id} value={id.id}>
+              <option key={id.id} value={id.id} dir="ltr">
                 {id.name ? `${id.name} <${id.email}>` : id.email}
               </option>
             ))}
@@ -275,17 +285,17 @@ function PlaceholderDropdown({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-md shadow-lg min-w-[180px]">
+      <div className="absolute end-0 top-full mt-1 z-50 bg-background border border-border rounded-md shadow-lg min-w-[180px]">
         <div className="p-1">
           {BUILT_IN_PLACEHOLDERS.map((p) => (
             <button
               key={p}
               type="button"
-              className="w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors"
+              className="w-full text-start px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors"
               onClick={() => onSelect(p)}
             >
               <span className="font-mono text-xs text-primary">{`{{${p}}}`}</span>
-              <span className="ml-2 text-muted-foreground">{t(`placeholders.${p}`)}</span>
+              <span className="ms-2 text-muted-foreground">{t(`placeholders.${p}`)}</span>
             </button>
           ))}
         </div>

@@ -64,6 +64,11 @@ export const BUNDLE_TOKENS: { token: string; description: string }[] = [
   { token: "day", description: "2-digit day" },
 ];
 
+// Overall cap for a generated filename stem. Also used as the per-token cap so
+// a single long token (e.g. {subject}) isn't truncated earlier than the final
+// filename would be.
+const FILENAME_MAX_LEN = 200;
+
 function sanitizePart(input: string, maxLen = 80): string {
   const cleaned = input
     .replace(SAFE_CHARS, "_")
@@ -173,7 +178,7 @@ function renderRaw(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => {
     const value = vars[key];
     if (value === undefined) return "";
-    return sanitizePart(value);
+    return sanitizePart(value, FILENAME_MAX_LEN);
   });
 }
 
@@ -184,9 +189,9 @@ export function emailExportFilename(
   const opts = typeof options === "string" ? { template: options } : options;
   const template = opts.template ?? DEFAULT_EMAIL_TEMPLATE;
   const rendered = renderRaw(template, emailVars(email));
-  const cleaned = sanitizePart(rendered, 200);
+  const cleaned = sanitizePart(rendered, FILENAME_MAX_LEN);
   const transformed = applyTransforms(cleaned, opts);
-  const stem = transformed.slice(0, 200) || "email";
+  const stem = transformed.slice(0, FILENAME_MAX_LEN) || "email";
   return `${stem}.eml`;
 }
 
@@ -199,7 +204,7 @@ export function attachmentDownloadFilename(
   const template = opts.template ?? DEFAULT_ATTACHMENT_TEMPLATE;
   if (!email) {
     const filename = (attachment.name || "attachment").trim();
-    const cleaned = sanitizePart(filename, 200) || "attachment";
+    const cleaned = sanitizePart(filename, FILENAME_MAX_LEN) || "attachment";
     return applyTransforms(cleaned, opts) || cleaned;
   }
   const vars = attachmentVars(email, attachment);
@@ -208,10 +213,10 @@ export function attachmentDownloadFilename(
     if (value === undefined) return "";
     // Preserve dots in {filename} so the original extension survives the
     // sanitiser (it strips trailing dots otherwise).
-    return key === "filename" ? value.replace(SAFE_CHARS, "_") : sanitizePart(value);
+    return key === "filename" ? value.replace(SAFE_CHARS, "_") : sanitizePart(value, FILENAME_MAX_LEN);
   });
   const templateMentionsExt = /\{(ext|filename)\}/.test(template);
-  const cleaned = sanitizePart(rendered, 200) || "attachment";
+  const cleaned = sanitizePart(rendered, FILENAME_MAX_LEN) || "attachment";
   if (templateMentionsExt) {
     return applyTransforms(cleaned, opts) || cleaned;
   }
@@ -220,6 +225,15 @@ export function attachmentDownloadFilename(
   if (!ext) return transformedStem;
   const transformedExt = opts.lowercase ? ext.toLocaleLowerCase() : ext;
   return `${transformedStem}.${transformedExt}`;
+}
+
+// Name for a .zip bundling every attachment of a single email, e.g.
+// `attachments_Invoice March.zip`. Falls back to `attachments.zip` when the
+// subject is empty or sanitises away to nothing.
+export function attachmentsBundleFilename(email: Email | null | undefined): string {
+  const subject = email?.subject?.trim();
+  const stem = subject ? sanitizePart(subject, FILENAME_MAX_LEN) : "";
+  return stem ? `attachments_${stem}.zip` : "attachments.zip";
 }
 
 export function bundleVars(count: number, iso?: string): Record<string, string> {
@@ -235,9 +249,9 @@ export function bundleExportFilename(
   const opts = typeof options === "string" ? { template: options } : options;
   const template = opts.template ?? DEFAULT_BUNDLE_TEMPLATE;
   const rendered = renderRaw(template, bundleVars(count, iso));
-  const cleaned = sanitizePart(rendered, 200);
+  const cleaned = sanitizePart(rendered, FILENAME_MAX_LEN);
   const transformed = applyTransforms(cleaned, opts);
-  const stem = transformed.slice(0, 200) || "emails";
+  const stem = transformed.slice(0, FILENAME_MAX_LEN) || "emails";
   return `${stem}.zip`;
 }
 

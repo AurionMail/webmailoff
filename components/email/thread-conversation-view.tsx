@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { Email, ThreadGroup } from "@/lib/jmap/types";
-import { EMAIL_SANITIZE_CONFIG, collapseBlockedImageContainers, plainTextToSafeHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
+import { EMAIL_SANITIZE_CONFIG, collapseBlockedImageContainers, plainTextToSafeHtml, restrictDataUriResourcesOnNode, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
+import { collapsePlainTextQuotes, setupQuoteCollapse } from "@/lib/quote-collapse";
 import { transformInlineStyles, transformColorForDarkMode, transformBgColorForDarkMode } from "@/lib/color-transform";
 import { useThemeStore } from "@/stores/theme-store";
 import { Avatar } from "@/components/ui/avatar";
@@ -150,7 +151,7 @@ export function ThreadConversationView({
       <div className="flex items-center px-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10" style={{ gap: 'var(--density-item-gap)', paddingBlock: 'var(--density-header-py)' }}>
         <button
           onClick={onBack}
-          className="p-2 -ml-2 rounded-full hover:bg-muted transition-colors"
+          className="p-2 -ms-2 rounded-full hover:bg-muted transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -363,6 +364,9 @@ function EmailCard({
         DOMPurify.addHook('afterSanitizeAttributes', (node) => {
           const htmlNode = node as HTMLElement;
 
+          // Re-apply the data:-URI allowlist DOMPurify skips on media tags.
+          restrictDataUriResourcesOnNode(node);
+
           if (!allowExternal) {
             if (node.tagName === 'IMG') {
               const src = node.getAttribute('src');
@@ -424,7 +428,14 @@ function EmailCard({
       // Plain text fallback
       if (email.textBody?.[0]?.partId && email.bodyValues[email.textBody[0].partId]) {
         const text = email.bodyValues[email.textBody[0].partId].value;
-        return { html: plainTextToSafeHtml(text, 'text-primary hover:underline'), isHtml: false };
+        return {
+          // Trailing ">"-quoted block collapses behind a <details> toggle (#480).
+          html: collapsePlainTextQuotes(plainTextToSafeHtml(text, 'text-primary hover:underline'), {
+            show: t('email_viewer.show_quoted_text'),
+            hide: t('email_viewer.hide_quoted_text'),
+          }),
+          isHtml: false,
+        };
       }
     }
 
@@ -438,7 +449,7 @@ function EmailCard({
     }
 
     return { html: "", isHtml: false };
-  }, [email, allowExternal, resolvedTheme, emailAlwaysLightMode, cidBlobUrls]);
+  }, [email, allowExternal, resolvedTheme, emailAlwaysLightMode, cidBlobUrls, t]);
 
   // Render the sanitized HTML body inside a sandboxed iframe so a malicious
   // (or accidentally-bypassed) email cannot inject styles/scripts/forms into
@@ -469,6 +480,12 @@ function EmailCard({
     try {
       const doc = iframe.contentDocument;
       if (!doc?.body) return;
+      // Collapse the quoted original of a reply behind a "•••" toggle (#480),
+      // before the first resize so the height reflects the collapsed body.
+      setupQuoteCollapse(doc, {
+        show: t('email_viewer.show_quoted_text'),
+        hide: t('email_viewer.hide_quoted_text'),
+      });
       const resize = () => {
         iframe.style.height = doc.documentElement.scrollHeight + 'px';
       };
@@ -482,19 +499,19 @@ function EmailCard({
     } catch {
       // contentDocument may be inaccessible under stricter sandboxes; ignore.
     }
-  }, []);
+  }, [t]);
 
   return (
     <div className={cn(
       "rounded-lg border border-border overflow-hidden transition-all duration-200",
       isExpanded ? "bg-background shadow-sm" : "bg-muted/30",
-      isUnread && !isExpanded && "border-l-2 border-l-primary"
+      isUnread && !isExpanded && "border-s-2 border-l-primary"
     )}>
       {/* Card Header - Always visible */}
       <button
         onClick={onToggleExpanded}
         className={cn(
-          "w-full flex items-start text-left transition-colors",
+          "w-full flex items-start text-start transition-colors",
           !isExpanded && "hover:bg-muted/50"
         )}
         style={{ gap: 'var(--density-item-gap)', padding: 'var(--density-card-p)' }}
@@ -657,7 +674,7 @@ function EmailCard({
                 }}
                 className="flex-1"
               >
-                <Reply className="w-4 h-4 mr-2" />
+                <Reply className="w-4 h-4 me-2" />
                 {t("email_viewer.reply")}
               </Button>
             )}
@@ -671,7 +688,7 @@ function EmailCard({
                 }}
                 className="flex-1"
               >
-                <ReplyAll className="w-4 h-4 mr-2" />
+                <ReplyAll className="w-4 h-4 me-2" />
                 {t("email_viewer.reply_all")}
               </Button>
             )}
@@ -685,7 +702,7 @@ function EmailCard({
                 }}
                 className="flex-1"
               >
-                <Forward className="w-4 h-4 mr-2" />
+                <Forward className="w-4 h-4 me-2" />
                 {t("email_viewer.forward")}
               </Button>
             )}

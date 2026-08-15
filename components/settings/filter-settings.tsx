@@ -12,7 +12,9 @@ import { useEmailStore } from "@/stores/email-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "@/stores/toast-store";
 import type { FilterRule } from "@/lib/jmap/sieve-types";
+import type { Mailbox } from "@/lib/jmap/types";
 import { useVacationStore } from "@/stores/vacation-store";
+import { useManagedAccountStore } from "@/stores/managed-account-store";
 import {
   Plus,
   GripVertical,
@@ -36,7 +38,17 @@ function RuleSummary({ rule }: { rule: FilterRule }) {
   const conditions = rule.conditions.slice(0, 2).map((c) => {
     const field = t(`condition_fields.${c.field}`);
     const comparator = t(`comparators.${c.comparator}`);
-    return `${field} ${comparator} "${c.value}"`;
+    // has_any is a no-value test ("attachment is present"); appending
+    // `""` would look broken in the summary line.
+    if (c.field === "attachment" && c.comparator === "has_any") {
+      return `${field} ${comparator}`;
+    }
+    // Multi-value conditions render as "a" / "b" / "c" with the locale's
+    // OR-glue between items so the line still reads as natural language.
+    const valueStr = Array.isArray(c.value)
+      ? c.value.map((v) => `"${v}"`).join(` ${t("or")} `)
+      : `"${c.value}"`;
+    return `${field} ${comparator} ${valueStr}`;
   });
 
   const joiner = rule.matchType === "all" ? t("and") : t("or");
@@ -97,7 +109,22 @@ function VisualRuleSummary({ rule }: { rule: FilterRule }) {
               <span className="inline-flex items-baseline gap-1 px-1.5 py-px rounded-sm bg-muted/60 text-foreground">
                 <span className="font-medium text-blue-600 dark:text-blue-400">{field}</span>
                 <span className="text-muted-foreground">{comparator}</span>
-                <span className="text-foreground">“{c.value}”</span>
+                {!(c.field === "attachment" && c.comparator === "has_any") && (
+                  <span className="text-foreground">
+                    {Array.isArray(c.value)
+                      ? c.value.map((v, k) => (
+                          <span key={k}>
+                            {k > 0 && (
+                              <span className="text-muted-foreground/70 italic mx-0.5">
+                                {t("or")}
+                              </span>
+                            )}
+                            “{v}”
+                          </span>
+                        ))
+                      : <>“{c.value}”</>}
+                  </span>
+                )}
               </span>
             </span>
           );
@@ -132,7 +159,8 @@ export function FilterSettings() {
   const t = useTranslations("settings.filters");
   const tNotifications = useTranslations("notifications");
   const { client } = useAuthStore();
-  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const storeMailboxes = useEmailStore((s) => s.mailboxes);
+  const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const expandedFilterView = useSettingsStore((s) => s.expandedFilterView);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
@@ -145,7 +173,7 @@ export function FilterSettings() {
     isOpaque,
     rawScript,
     vacationSettings,
-    fetchFilters,
+    selectAccount,
     saveFilters,
     addRule,
     updateRule,
@@ -157,7 +185,57 @@ export function FilterSettings() {
     validateScript,
   } = useFilterStore();
 
-  const vacationEnabled = useVacationStore((s) => s.isEnabled) || vacationSettings?.isEnabled;
+  // Scoped to a shared/group account when the settings panel is managing one.
+  const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
+  const isPrimaryAccount = !managedAccountId;
+
+  // Folders offered as "move to" targets in the rule editor must belong to the
+  // account whose filters we're editing. For a shared account, fetch that
+  // account's mailboxes (the email store only holds the active account's). They
+  // are this account's own folders within its Sieve context, so present them as
+  // non-shared — otherwise the rule modal filters them out (it drops isShared
+  // mailboxes, which are normally other accounts' folders merged into the view).
+  const [scopedMailboxes, setScopedMailboxes] = useState<Mailbox[]>([]);
+  useEffect(() => {
+    if (!client || !managedAccountId) {
+      setScopedMailboxes([]);
+      return;
+    }
+    let cancelled = false;
+    void client
+      .getMailboxes(managedAccountId)
+      .then((mbs) => {
+        if (!cancelled) setScopedMailboxes(mbs.map((mb) => ({ ...mb, isShared: false })));
+      })
+      .catch(() => {
+        if (!cancelled) setScopedMailboxes([]);
+      });
+    return () => { cancelled = true; };
+  }, [client, managedAccountId]);
+
+  // The "move to" folder list for the primary account comes from the email
+  // store, which is normally populated when the mail view mounts. When the app
+  // is opened or refreshed directly on Settings (the mail view never mounted),
+  // that store is empty, leaving the rule editor's folder dropdown blank. Fetch
+  // mailboxes on demand here so Filters never depends on having visited Inbox
+  // first. fetchMailboxes guards against transient empty results and selecting
+  // an inbox, so it's safe to call independently; a ref keeps it to one attempt
+  // per client.
+  const primaryFetchClientRef = useRef<typeof client | null>(null);
+  useEffect(() => {
+    if (managedAccountId || !client || storeMailboxes.length > 0) return;
+    if (primaryFetchClientRef.current === client) return;
+    primaryFetchClientRef.current = client;
+    void fetchMailboxes(client);
+  }, [client, managedAccountId, storeMailboxes.length, fetchMailboxes]);
+
+  const mailboxes = managedAccountId ? scopedMailboxes : storeMailboxes;
+
+  const vacationStoreEnabled = useVacationStore((s) => s.isEnabled);
+  // Vacation uses a separate per-(primary)-account mechanism (RFC 9661), so the
+  // "vacation active" banner only applies when editing the personal account.
+  const vacationEnabled =
+    isPrimaryAccount && (vacationStoreEnabled || vacationSettings?.isEnabled);
 
   const [editingRule, setEditingRule] = useState<FilterRule | undefined>();
   const [showRuleModal, setShowRuleModal] = useState(false);
@@ -169,9 +247,12 @@ export function FilterSettings() {
 
   useEffect(() => {
     if (client && isSupported) {
-      void fetchFilters(client);
+      // Always pass a concrete account id (managed shared account, or the
+      // primary Sieve account) so switching never falls back to a stale
+      // previously-selected account.
+      void selectAccount(client, managedAccountId ?? client.getSieveAccountId());
     }
-  }, [client, isSupported, fetchFilters]);
+  }, [client, isSupported, managedAccountId, selectAccount]);
 
   const handleToggle = useCallback(
     async (ruleId: string) => {
@@ -406,7 +487,7 @@ export function FilterSettings() {
               try { localStorage.setItem('settings-active-tab', 'vacation'); } catch { /* ignore */ }
               window.dispatchEvent(new CustomEvent('settings-tab-change', { detail: 'vacation' }));
             }}
-            className="flex items-center gap-3 w-full p-3 rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors text-left"
+            className="flex items-center gap-3 w-full p-3 rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors text-start"
           >
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40">
               <PalmtreeIcon className="w-4 h-4 text-green-600 dark:text-green-400" />
@@ -580,7 +661,7 @@ export function FilterSettings() {
                 setShowRuleModal(true);
               }}
             >
-              <Plus className="w-4 h-4 mr-1" />
+              <Plus className="w-4 h-4 me-1" />
               {t("add_rule")}
             </Button>
           )}
@@ -589,7 +670,7 @@ export function FilterSettings() {
             size="sm"
             onClick={() => setShowSieveEditor(true)}
           >
-            <Code className="w-4 h-4 mr-1" />
+            <Code className="w-4 h-4 me-1" />
             {t("raw_editor")}
           </Button>
         </div>

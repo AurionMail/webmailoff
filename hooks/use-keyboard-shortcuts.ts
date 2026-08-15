@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useRef } from "react";
 import { Email } from "@/lib/jmap/types";
+import { isEditableEventTarget } from "@/lib/keyboard";
 
 export interface KeyboardShortcutHandlers {
   // Navigation
@@ -43,16 +44,27 @@ export interface UseKeyboardShortcutsOptions {
   handlers: KeyboardShortcutHandlers;
 }
 
-// Check if user is typing in an input field
-function isInputFocused(): boolean {
-  const activeElement = document.activeElement;
-  if (!activeElement) return false;
-
-  const tagName = activeElement.tagName.toLowerCase();
-  const isInput = tagName === "input" || tagName === "textarea" || tagName === "select";
-  const isContentEditable = activeElement.getAttribute("contenteditable") === "true";
-
-  return isInput || isContentEditable;
+// Shortcuts must fire regardless of the active keyboard layout (e.g. Cyrillic,
+// Greek). Derive the key from the PHYSICAL key (event.code) instead of the
+// layout-dependent event.key: letters from KeyA..KeyZ, and the symbol shortcuts
+// (/, ?, #, !) from their US-QWERTY positions so they stay reachable on non-Latin
+// layouts. Arrows/Enter/Escape keep event.key, which is already layout-neutral.
+function physicalShortcutKey(event: KeyboardEvent): string {
+  const code = event.code;
+  if (code && code.length === 4 && code.startsWith("Key")) {
+    return code.charAt(3).toLowerCase();
+  }
+  switch (code) {
+    case "Slash":
+      return event.shiftKey ? "?" : "/";
+    case "Digit1":
+      if (event.shiftKey) return "!";
+      break;
+    case "Digit3":
+      if (event.shiftKey) return "#";
+      break;
+  }
+  return event.key.toLowerCase();
 }
 
 export function useKeyboardShortcuts({
@@ -71,11 +83,13 @@ export function useKeyboardShortcuts({
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in inputs
-      if (isInputFocused()) return;
+      // Don't trigger shortcuts when typing in inputs. Must be event-based
+      // (composedPath), not document.activeElement: the QuotedHtml island's
+      // shadow root retargets activeElement to its plain-div host (#654).
+      if (isEditableEventTarget(event)) return;
 
       const h = handlersRef.current;
-      const key = event.key.toLowerCase();
+      const key = physicalShortcutKey(event);
       const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
 
       // Shortcuts that work with modifiers
@@ -289,6 +303,8 @@ export const KEYBOARD_SHORTCUTS = {
     { key: "x", description: "shortcuts.threads.expand_collapse" },
   ],
   composer: [
+    { key: "Ctrl/Cmd + Enter", description: "shortcuts.composer.send" },
+    { key: "Ctrl/Cmd + Shift + Enter", description: "shortcuts.composer.schedule_send" },
     { key: "t", description: "shortcuts.composer.template_picker" },
   ],
 } as const;

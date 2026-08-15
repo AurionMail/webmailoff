@@ -1,21 +1,63 @@
 "use client";
 
 import React, { useCallback } from "react";
-import { formatDate, stripInvisibleLeading } from "@/lib/utils";
+import { formatDate, formatDateTime, stripInvisibleLeading } from "@/lib/utils";
 import { Email, ThreadGroup } from "@/lib/jmap/types";
 import { cn } from "@/lib/utils";
-import { Avatar } from "@/components/ui/avatar";
-import { Paperclip, Star, Circle, ChevronRight, ChevronDown, Loader2, MessageSquare, CheckSquare, Square, Reply, Forward } from "lucide-react";
-import { useSettingsStore, KEYWORD_PALETTE } from "@/stores/settings-store";
+import { SelectableAvatar } from "@/components/email/selectable-avatar";
+import { Paperclip, Star, Pin, Circle, ChevronRight, ChevronDown, Loader2, MessageSquare, CheckSquare, Square, Reply, Forward, CalendarClock, Folder } from "lucide-react";
+import { useSettingsStore } from "@/stores/settings-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useAccountStore } from "@/stores/account-store";
-import { getThreadColorTag, getEmailColorTags } from "@/lib/thread-utils";
+import { getThreadTagIds, getEmailTagIds } from "@/lib/thread-utils";
+import { useKeywordFormat } from "@/hooks/use-keyword-format";
+import { useTagDisplay } from "@/hooks/use-tag-display";
+import { TagBadge, TAG_GROUP_CLASS, TAG_LOZENGE_CLASS } from "./tag-badge";
 import { useEmailDrag } from "@/hooks/use-email-drag";
 import { useLongPress } from "@/hooks/use-long-press";
 import { ThreadEmailItem } from "./thread-email-item";
 import { EmailHoverActions } from "./email-hover-actions";
 import { useTranslations } from "next-intl";
+
+/**
+ * Small chip showing the originating folder of a message, rendered in the
+ * aggregate "All …" views (All Mail / unified / cross-account) where rows come
+ * from different folders. `email.sourceFolder` is stamped at fetch time.
+ */
+function SourceFolderTag({ name }: { name: string }) {
+  return (
+    <span
+      className="inline-flex max-w-[8rem] shrink-0 items-center gap-1 truncate rounded-full border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] text-muted-foreground"
+      title={name}
+    >
+      <Folder className="h-3 w-3 shrink-0" />
+      <span className="truncate">{name}</span>
+    </span>
+  );
+}
+
+/**
+ * How many messages a collapsed thread stands for.
+ *
+ * Built from the tag lozenge so it lines up with the tags it sits next to: the
+ * same shape, and the same group spacing.
+ */
+function ThreadCountPill({ count, hasUnread, title }: { count: number; hasUnread: boolean; title: string }) {
+  return (
+    <span
+      className={cn(
+        TAG_LOZENGE_CLASS,
+        "gap-0.5",
+        hasUnread ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+      )}
+      title={title}
+    >
+      <MessageSquare className="w-3 h-3" />
+      {count}
+    </span>
+  );
+}
 
 interface ThreadListItemProps {
   thread: ThreadGroup;
@@ -24,6 +66,7 @@ interface ThreadListItemProps {
   isLoading?: boolean;
   expandedEmails?: Email[];
   onToggleExpand: () => void;
+  onCollapseAllThreads?: () => void;
   onEmailSelect: (email: Email) => void;
   onEmailDoubleClick?: (email: Email) => void;
   onContextMenu?: (e: React.MouseEvent, email: Email) => void;
@@ -32,8 +75,9 @@ interface ThreadListItemProps {
   onMarkAsRead?: (email: Email, read: boolean) => void;
   onDelete?: (email: Email) => void;
   onArchive?: (email: Email) => void;
-  onSetColorTag?: (emailId: string, color: string | null) => void;
+  onSetTag?: (emailId: string, tagId: string | null) => void;
   onMarkAsSpam?: (email: Email) => void;
+  onUndoSpam?: (email: Email) => void;
 }
 
 interface SingleEmailItemProps {
@@ -43,33 +87,43 @@ interface SingleEmailItemProps {
   onDoubleClick?: () => void;
   onContextMenu?: (e: React.MouseEvent, email: Email) => void;
   showPreview: boolean;
-  colorTag: string | null;
+  rowTint: string | null;
   onToggleStar?: () => void;
   onMarkAsRead?: (read: boolean) => void;
   onDelete?: () => void;
   onArchive?: () => void;
-  onSetColorTag?: (color: string | null) => void;
+  onSetTag?: (tagId: string | null) => void;
   onMarkAsSpam?: () => void;
+  onUndoSpam?: () => void;
 }
 
 const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
-  function SingleEmailItem({ email, selected, onClick, onDoubleClick, onContextMenu, showPreview, colorTag, onToggleStar, onMarkAsRead, onDelete, onArchive, onSetColorTag, onMarkAsSpam }, ref) {
+  function SingleEmailItem({ email, selected, onClick, onDoubleClick, onContextMenu, showPreview, rowTint, onToggleStar, onMarkAsRead, onDelete, onArchive, onSetTag, onMarkAsSpam, onUndoSpam }, ref) {
     const t = useTranslations('email_viewer');
+    const tBatch = useTranslations('email_list.batch_actions');
     const isUnread = !email.keywords?.$seen;
     const isStarred = email.keywords?.$flagged;
+    const isPinned = email.keywords?.['$pinned'] === true;
     const isAnswered = email.keywords?.$answered;
     const isForwarded = email.keywords?.$forwarded;
-    const { selectedMailbox, mailboxes, selectedEmailIds, toggleEmailSelection, selectRangeEmails, clearSelection } = useEmailStore();
-    // In Sent/Drafts folders, show recipient instead of sender (which is always "me")
-    const currentMailboxRole = mailboxes.find(mb => mb.id === selectedMailbox)?.role;
+    const { selectedMailbox, mailboxes, selectedEmailIds, toggleEmailSelection, selectRangeEmails, clearSelection, isUnifiedView, unifiedRole } = useEmailStore();
+    // In Sent/Drafts folders, show recipient instead of sender (which is always
+    // "me"). In aggregate role-views the selected mailbox is virtual → fall back
+    // to the unified role so junk-contextual UI and avatar hiding work.
+    const currentMailboxRole = mailboxes.find(mb => mb.id === selectedMailbox)?.role
+      ?? (isUnifiedView ? (unifiedRole ?? undefined) : undefined);
     const showRecipient = currentMailboxRole === 'sent' || currentMailboxRole === 'drafts';
     const sender = showRecipient ? (email.to?.[0] ?? email.from?.[0]) : email.from?.[0];
-    const emailKeywords = useSettingsStore((state) => state.emailKeywords);
+    const { sortTagIds, tagColor } = useKeywordFormat();
+    const { variant: tagVariant, placement: tagPlacement } = useTagDisplay();
+    const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
     const density = useSettingsStore((state) => state.density);
     const mailLayout = useSettingsStore((state) => state.mailLayout);
+    const timeFormat = useSettingsStore((state) => state.timeFormat);
     const showAvatarsInJunk = useSettingsStore((state) => state.showAvatarsInJunk);
     const hideJunkAvatarImages = currentMailboxRole === 'junk' && !showAvatarsInJunk;
-    const isUnifiedView = useEmailStore((state) => state.isUnifiedView);
+    // Show the originating folder in the aggregate "All …" views.
+    const showSourceFolder = isUnifiedView && !!email.sourceFolder;
     const getAccountById = useAccountStore((state) => state.getAccountById);
     const accountColor = email.accountId ? getAccountById(email.accountId)?.avatarColor : undefined;
     const isChecked = selectedEmailIds.has(email.id);
@@ -78,15 +132,12 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
     const isFocusedMailLayout = mailLayout === 'focus' && !isMobile;
     const trimmedPreview = stripInvisibleLeading(email.preview ?? '');
     const inlinePreview = showPreview && trimmedPreview ? ` ${trimmedPreview}` : '';
+    const scheduledSendLabel = email.isScheduled && email.scheduledSendAt
+      ? formatDateTime(email.scheduledSendAt, timeFormat)
+      : null;
 
-    // Resolve color tags using keyword definitions; unknown tags fall back to gray
-    const tagIds = getEmailColorTags(email.keywords);
-    const resolvedKeywordDefs = tagIds.map(id => emailKeywords.find(k => k.id === id) ?? { id, label: id, color: 'gray' });
-    const resolvedKeywordDef = resolvedKeywordDefs[0] ?? null;
-    const resolvedColorTag = (() => {
-      if (colorTag) return colorTag;
-      return resolvedKeywordDef ? KEYWORD_PALETTE[resolvedKeywordDef.color]?.bg ?? null : null;
-    })();
+    const tagIds = sortTagIds(getEmailTagIds(email.keywords));
+    const resolvedRowTint = !tintListRowsByTag ? null : (rowTint ?? (tagIds[0] ? tagColor(tagIds[0]).rowTint : null));
 
     const { dragHandlers, isDragging } = useEmailDrag({
       email,
@@ -106,7 +157,11 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
 
     const handleCheckboxClick = (e: React.MouseEvent) => {
       e.stopPropagation();
-      toggleEmailSelection(email.id);
+      if (e.shiftKey) {
+        selectRangeEmails(email.id);
+      } else {
+        toggleEmailSelection(email.id);
+      }
     };
 
     const handleContextMenu = (e: React.MouseEvent) => {
@@ -131,21 +186,28 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
         ref={ref}
         {...dragHandlers}
         {...longPressHandlers}
+        data-testid="email-list-item"
+        data-email-id={email.id}
+        data-subject={email.subject || ''}
+        data-unread={isUnread ? 'true' : 'false'}
+        data-starred={email.keywords?.$flagged ? 'true' : 'false'}
         className={cn(
           "relative group cursor-pointer select-none transition-shadow duration-200 border-b border-border overflow-hidden",
-          resolvedColorTag ? resolvedColorTag : (
+          resolvedRowTint ? resolvedRowTint : (
             selected
               ? "bg-accent"
               : "bg-background"
           ),
-          selected && !resolvedColorTag && "shadow-sm",
-          !resolvedColorTag && !selected && !isChecked && "hover:bg-muted hover:shadow-sm",
-          !resolvedColorTag && (selected || isChecked) && "hover:bg-accent hover:shadow-sm",
-          resolvedColorTag && "hover:brightness-95 dark:hover:brightness-110",
-          isUnread && !resolvedColorTag && "bg-accent/30",
-          isChecked && "ring-2 ring-primary/20 bg-accent/40",
+          selected && !resolvedRowTint && "shadow-sm",
+          !resolvedRowTint && !selected && !isChecked && "hover:bg-muted hover:shadow-sm",
+          !resolvedRowTint && (selected || isChecked) && "hover:bg-accent hover:shadow-sm",
+          resolvedRowTint && "hover:brightness-95 dark:hover:brightness-110",
+          isUnread && !resolvedRowTint && "bg-accent/30",
+          isChecked && "ring-2 ring-primary/20",
+          isChecked && !resolvedRowTint && "bg-accent/40",
           isDragging && "opacity-50 scale-[0.98] ring-2 ring-primary/30",
-          isPressed && "bg-muted scale-[0.98] ring-2 ring-primary/30"
+          isPressed && "scale-[0.98] ring-2 ring-primary/30",
+          isPressed && !resolvedRowTint && "bg-muted"
         )}
         onClick={handleClick}
         onDoubleClick={(e) => {
@@ -183,18 +245,21 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
           )}
 
           {isUnread && (
-            <div className="absolute left-1 top-1/2 -translate-y-1/2">
+            <div className="absolute start-0.5 top-1/2 -translate-y-1/2">
               <Circle className="w-2 h-2 fill-unread text-unread" />
             </div>
           )}
 
           {density !== 'extra-compact' && (
-            <Avatar
+            <SelectableAvatar
               name={sender?.name}
               email={sender?.email}
               size={isFocusedMailLayout ? "sm" : "md"}
               className="flex-shrink-0 shadow-sm"
               disableImages={hideJunkAvatarImages}
+              checked={isChecked}
+              onToggle={() => toggleEmailSelection(email.id)}
+              selectLabel={tBatch('select')}
             />
           )}
 
@@ -216,18 +281,26 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                     {sender?.name || sender?.email || 'Unknown'}
                   </span>
                   <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                    {tagIds.length > 0 && (
+                      <span className={TAG_GROUP_CLASS}>
+                        {tagIds.map((id) => (
+                          <TagBadge key={id} tagId={id} variant={tagVariant} />
+                        ))}
+                      </span>
+                    )}
                     <span className={cn(
-                      'shrink-0 truncate',
+                      'min-w-0 truncate',
                       isUnread ? 'font-semibold text-foreground' : 'text-foreground/90'
                     )}>
                       {email.subject || '(no subject)'}
                     </span>
                     {inlinePreview && (
-                      <span className="min-w-0 truncate text-muted-foreground">{inlinePreview}</span>
+                      <span className="min-w-0 shrink-[9999] truncate text-muted-foreground">{inlinePreview}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2.5 shrink-0">
+                  {isPinned && <Pin className="w-3.5 h-3.5 text-primary" />}
                   {isStarred && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
                   {isAnswered && !isForwarded && <Reply className="w-3.5 h-3.5 text-muted-foreground" />}
                   {isForwarded && !isAnswered && <Forward className="w-3.5 h-3.5 text-muted-foreground" />}
@@ -238,15 +311,23 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                     </>
                   )}
                   {email.hasAttachment && <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />}
-                  {resolvedKeywordDefs.map((kd) => (
-                    <span key={kd.id} className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[kd.color]?.dot || 'bg-gray-400')} />
-                  ))}
-                  <span className={cn(
-                    'text-xs tabular-nums',
-                    isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'
-                  )}>
-                    {formatDate(email.receivedAt)}
-                  </span>
+                  {showSourceFolder && <SourceFolderTag name={email.sourceFolder!} />}
+                  {scheduledSendLabel ? (
+                    <span
+                      className="inline-flex max-w-[11rem] shrink-0 items-center gap-1 truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-sky-700 dark:text-sky-300"
+                      title={scheduledSendLabel}
+                    >
+                      <CalendarClock className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{scheduledSendLabel}</span>
+                    </span>
+                  ) : (
+                    <span className={cn(
+                      'text-xs tabular-nums',
+                      isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                    )}>
+                      {formatDate(email.receivedAt)}
+                    </span>
+                  )}
                 </div>
               </div>
             ) : (
@@ -268,7 +349,17 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                     )}>
                       {sender?.name || sender?.email || "Unknown"}
                     </span>
+                    {tagPlacement === 'sender' && tagIds.length > 0 && (
+                      <span className={TAG_GROUP_CLASS}>
+                        {tagIds.map((id) => (
+                          <TagBadge key={id} tagId={id} variant={tagVariant} />
+                        ))}
+                      </span>
+                  )}
                     <div className="flex items-center gap-1.5">
+                      {isPinned && (
+                        <Pin className="w-3.5 h-3.5 text-primary" />
+                      )}
                       {isStarred && (
                         <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                       )}
@@ -290,33 +381,44 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {resolvedKeywordDefs.map((kd) => (
-                      <span key={kd.id} className={cn(
-                        "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full",
-                        KEYWORD_PALETTE[kd.color]?.bg || "bg-muted"
-                      )}>
-                        <span className={cn("w-1.5 h-1.5 rounded-full", KEYWORD_PALETTE[kd.color]?.dot || "bg-gray-400")} />
-                        {kd.label}
+                    {showSourceFolder && <SourceFolderTag name={email.sourceFolder!} />}
+                    {scheduledSendLabel ? (
+                      <span
+                        className="inline-flex max-w-[11rem] shrink-0 items-center gap-1 truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-sky-700 dark:text-sky-300"
+                        title={scheduledSendLabel}
+                      >
+                        <CalendarClock className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{scheduledSendLabel}</span>
                       </span>
-                    ))}
-                    <span className={cn(
-                      "text-xs tabular-nums",
-                      isUnread
-                        ? "text-foreground font-semibold"
-                        : "text-muted-foreground"
-                    )}>
-                      {formatDate(email.receivedAt)}
-                    </span>
+                    ) : (
+                      <span className={cn(
+                        "text-xs tabular-nums",
+                        isUnread
+                          ? "text-foreground font-semibold"
+                          : "text-muted-foreground"
+                      )}>
+                        {formatDate(email.receivedAt)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className={cn(
-                  "mb-1 line-clamp-1 text-sm",
-                  isUnread
-                    ? "font-semibold text-foreground"
-                    : "font-normal text-foreground/90"
-                )}>
-                  {email.subject || "(no subject)"}
+                <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                  {tagPlacement === 'subject' && tagIds.length > 0 && (
+                      <span className={TAG_GROUP_CLASS}>
+                        {tagIds.map((id) => (
+                          <TagBadge key={id} tagId={id} variant={tagVariant} />
+                        ))}
+                      </span>
+                  )}
+                  <span className={cn(
+                    "min-w-0 flex-1 truncate text-sm",
+                    isUnread
+                      ? "font-semibold text-foreground"
+                      : "font-normal text-foreground/90"
+                  )}>
+                    {email.subject || "(no subject)"}
+                  </span>
                 </div>
 
                 {showPreview && density !== 'extra-compact' && density !== 'compact' && (
@@ -335,16 +437,21 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
         </div>
 
         {/* Hover Quick Actions */}
-        <EmailHoverActions
-          email={email}
-          backgroundClassName={resolvedColorTag ? resolvedColorTag : ((selected || isChecked) ? "bg-accent" : "bg-muted")}
-          onToggleStar={onToggleStar}
-          onMarkAsRead={onMarkAsRead}
-          onDelete={onDelete}
-          onArchive={onArchive}
-          onSetColorTag={onSetColorTag}
-          onMarkAsSpam={onMarkAsSpam}
-        />
+        {!email.isScheduled && (
+          <EmailHoverActions
+            email={email}
+            backgroundClassName={resolvedRowTint ? resolvedRowTint : ((selected || isChecked) ? "bg-accent" : "bg-muted")}
+            onToggleStar={onToggleStar}
+            onMarkAsRead={onMarkAsRead}
+            onDelete={onDelete}
+            onArchive={onArchive}
+            onSetTag={onSetTag}
+            onMarkAsSpam={onMarkAsSpam}
+            onUndoSpam={onUndoSpam}
+            isInJunk={currentMailboxRole === 'junk'}
+            spamApplicable={!['sent', 'drafts', 'scheduled'].includes(currentMailboxRole || '')}
+          />
+        )}
       </div>
     );
   }
@@ -358,6 +465,7 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
     isLoading = false,
     expandedEmails,
     onToggleExpand,
+    onCollapseAllThreads,
     onEmailSelect,
     onEmailDoubleClick,
     onContextMenu,
@@ -366,27 +474,37 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
     onMarkAsRead,
     onDelete,
     onArchive,
-    onSetColorTag,
+    onSetTag,
     onMarkAsSpam,
+    onUndoSpam,
   }, ref) {
     const t = useTranslations('threads');
     const tEmailViewer = useTranslations('email_viewer');
+    const tBatch = useTranslations('email_list.batch_actions');
     const showPreview = useSettingsStore((state) => state.showPreview);
     const density = useSettingsStore((state) => state.density);
     const mailLayout = useSettingsStore((state) => state.mailLayout);
+    const timeFormat = useSettingsStore((state) => state.timeFormat);
     const showAvatarsInJunk = useSettingsStore((state) => state.showAvatarsInJunk);
     const isMobile = useUIStore((state) => state.isMobile);
-    const { latestEmail, participantNames, hasUnread, hasStarred, hasAttachment, hasAnswered, hasForwarded, emailCount } = thread;
+    const { latestEmail, participantNames, hasUnread, hasStarred, hasPinned, hasAttachment, hasAnswered, hasForwarded, emailCount } = thread;
     // The horizontal one-line "focus" layout doesn't fit on narrow screens; fall back to multi-line on mobile.
     const isFocusedMailLayout = mailLayout === 'focus' && !isMobile;
     const trimmedPreview = stripInvisibleLeading(latestEmail.preview ?? '');
     const inlinePreview = showPreview && trimmedPreview ? ` ${trimmedPreview}` : '';
+    const scheduledSendLabel = latestEmail.isScheduled && latestEmail.scheduledSendAt
+      ? formatDateTime(latestEmail.scheduledSendAt, timeFormat)
+      : null;
 
-    const { selectedMailbox, mailboxes, selectedEmailIds, toggleEmailSelection, selectRangeEmails, clearSelection, isUnifiedView } = useEmailStore();
+    const { selectedMailbox, mailboxes, selectedEmailIds, toggleEmailSelection, selectRangeEmails, clearSelection, isUnifiedView, unifiedRole } = useEmailStore();
+    const showSourceFolder = isUnifiedView && !!latestEmail.sourceFolder;
     const getAccountById = useAccountStore((state) => state.getAccountById);
     const threadAccountColor = latestEmail.accountId ? getAccountById(latestEmail.accountId)?.avatarColor : undefined;
-    // In Sent/Drafts folders, show recipient instead of sender (which is always "me")
-    const currentMailboxRole = mailboxes.find(mb => mb.id === selectedMailbox)?.role;
+    // In Sent/Drafts folders, show recipient instead of sender (which is always
+    // "me"). Aggregate role-views use a virtual selected mailbox → fall back to
+    // the unified role so junk-contextual UI and avatar hiding work.
+    const currentMailboxRole = mailboxes.find(mb => mb.id === selectedMailbox)?.role
+      ?? (isUnifiedView ? (unifiedRole ?? undefined) : undefined);
     const showRecipient = currentMailboxRole === 'sent' || currentMailboxRole === 'drafts';
     const displayNames = showRecipient
       ? Array.from(new Set(
@@ -413,10 +531,12 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
     );
     const threadLongPressHandlers = { onTouchStart: threadOnTouchStart, onTouchEnd: threadOnTouchEnd, onTouchMove: threadOnTouchMove, onTouchCancel: threadOnTouchCancel };
 
-    const threadColor = getThreadColorTag(thread.emails);
-    const emailKeywordDefs = useSettingsStore((state) => state.emailKeywords);
-    const keywordDef = threadColor ? (emailKeywordDefs.find(k => k.id === threadColor) ?? { id: threadColor, label: threadColor, color: 'gray' }) : null;
-    const colorTag = keywordDef ? KEYWORD_PALETTE[keywordDef.color]?.bg ?? null : null;
+    const { sortTagIds, tagColor } = useKeywordFormat();
+    const { variant: tagVariant, placement: tagPlacement } = useTagDisplay();
+    const tintListRowsByTag = useSettingsStore((state) => state.tintListRowsByTag);
+    // A collapsed row speaks for every message under it, so it carries their tags too.
+    const tagIds = sortTagIds(getThreadTagIds(thread.emails));
+    const rowTint = (tintListRowsByTag && tagIds[0]) ? tagColor(tagIds[0]).rowTint : null;
 
     const isSelected = selectedEmailId === latestEmail.id ||
       thread.emails.some(e => e.id === selectedEmailId);
@@ -433,22 +553,22 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
           onDoubleClick={onEmailDoubleClick ? () => onEmailDoubleClick(latestEmail) : undefined}
           onContextMenu={onContextMenu}
           showPreview={showPreview}
-          colorTag={colorTag}
+          rowTint={rowTint}
           onToggleStar={onToggleStar ? () => onToggleStar(latestEmail) : undefined}
           onMarkAsRead={onMarkAsRead ? (read) => onMarkAsRead(latestEmail, read) : undefined}
           onDelete={onDelete ? () => onDelete(latestEmail) : undefined}
           onArchive={onArchive ? () => onArchive(latestEmail) : undefined}
-          onSetColorTag={onSetColorTag ? (color) => onSetColorTag(latestEmail.id, color) : undefined}
+          onSetTag={onSetTag ? (color) => onSetTag(latestEmail.id, color) : undefined}
           onMarkAsSpam={onMarkAsSpam ? () => onMarkAsSpam(latestEmail) : undefined}
+          onUndoSpam={onUndoSpam ? () => onUndoSpam(latestEmail) : undefined}
         />
       );
     }
 
     const emailsToShow = expandedEmails || thread.emails;
 
-    const handleThreadCheckboxClick = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      // Toggle selection for all emails in this thread
+    // Toggle selection for all emails in this thread.
+    const toggleThreadSelection = () => {
       const allSelected = thread.emails.every(em => selectedEmailIds.has(em.id));
       const newSelection = new Set(selectedEmailIds);
       thread.emails.forEach(em => {
@@ -459,6 +579,15 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
         }
       });
       useEmailStore.setState({ selectedEmailIds: newSelection, lastSelectedEmailId: latestEmail.id });
+    };
+
+    const handleThreadCheckboxClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        selectRangeEmails(latestEmail.id);
+        return;
+      }
+      toggleThreadSelection();
     };
 
     const handleHeaderClick = (e: React.MouseEvent) => {
@@ -485,6 +614,7 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
       } else {
         if (selectedEmailIds.size > 0) clearSelection();
         if (!isExpanded) {
+          onCollapseAllThreads?.();
           onToggleExpand();
         }
         onEmailSelect(latestEmail);
@@ -502,19 +632,21 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
           {...threadLongPressHandlers}
           className={cn(
             "relative group cursor-pointer select-none transition-shadow duration-200 overflow-hidden",
-            colorTag ? colorTag : (
+            rowTint ? rowTint : (
               isSelected
                 ? "bg-accent"
                 : "bg-background"
             ),
-            isSelected && !colorTag && "shadow-sm",
-            !colorTag && !isSelected && !isChecked && "hover:bg-muted hover:shadow-sm",
-            !colorTag && (isSelected || isChecked) && "hover:bg-accent hover:shadow-sm",
-            colorTag && "hover:brightness-95 dark:hover:brightness-110",
-            hasUnread && !colorTag && !isSelected && "bg-accent/30",
+            isSelected && !rowTint && "shadow-sm",
+            !rowTint && !isSelected && !isChecked && "hover:bg-muted hover:shadow-sm",
+            !rowTint && (isSelected || isChecked) && "hover:bg-accent hover:shadow-sm",
+            rowTint && "hover:brightness-95 dark:hover:brightness-110",
+            hasUnread && !rowTint && !isSelected && "bg-accent/30",
             isExpanded && "border-b border-border/50",
-            isChecked && "ring-2 ring-primary/20 bg-accent/40",
-            isThreadPressed && "bg-muted scale-[0.98] ring-2 ring-primary/30"
+            isChecked && "ring-2 ring-primary/20",
+            isChecked && !rowTint && "bg-accent/40",
+            isThreadPressed && "scale-[0.98] ring-2 ring-primary/30",
+            isThreadPressed && !rowTint && "bg-muted"
           )}
           onClick={handleHeaderClick}
           onDoubleClick={(e) => {
@@ -551,46 +683,52 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
               </button>
             )}
 
-            {!isMobile && !isFocusedMailLayout && (
-              <button
-                data-expand-toggle
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleExpand();
-                }}
-                className={cn(
-                  "p-1 rounded mt-2 flex-shrink-0 transition-all duration-200",
-                  "hover:bg-muted/50 hover:scale-110",
-                  "active:scale-95",
-                  "text-muted-foreground hover:text-foreground"
-                )}
-                aria-expanded={isExpanded}
-                aria-label={t('toggle_thread')}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : isExpanded ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-            )}
-
             {hasUnread && (
-              <div className="absolute left-1 top-1/2 -translate-y-1/2">
+              <div className="absolute start-0.5 top-1/2 -translate-y-1/2">
                 <Circle className="w-2 h-2 fill-unread text-unread" />
               </div>
             )}
 
             {density !== 'extra-compact' && (
-              <Avatar
-                name={avatarPerson?.name}
-                email={avatarPerson?.email}
-                size={isFocusedMailLayout ? "sm" : "md"}
-                className="flex-shrink-0 shadow-sm"
-                disableImages={hideJunkAvatarImages}
-              />
+              <div className="relative flex-shrink-0">
+                <SelectableAvatar
+                  name={avatarPerson?.name}
+                  email={avatarPerson?.email}
+                  size={isFocusedMailLayout ? "sm" : "md"}
+                  className="shadow-sm"
+                  disableImages={hideJunkAvatarImages}
+                  checked={isChecked}
+                  onToggle={toggleThreadSelection}
+                  selectLabel={tBatch('select')}
+                />
+                {!isMobile && (
+                  <button
+                    data-expand-toggle
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleExpand();
+                    }}
+                    className={cn(
+                      "absolute -bottom-2.5 left-1/2 -translate-x-1/2 p-0.5 rounded-full",
+                      "transition-all duration-200",
+                      "hover:bg-muted/50 hover:scale-110",
+                      "active:scale-95",
+                      "text-muted-foreground hover:text-foreground",
+                      "bg-background border border-border"
+                    )}
+                    aria-expanded={isExpanded}
+                    aria-label={t('toggle_thread')}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : isExpanded ? (
+                      <ChevronDown className="w-3 h-3" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3" />
+                    )}
+                  </button>
+                )}
+              </div>
             )}
 
             <div className="flex-1 min-w-0">
@@ -605,34 +743,38 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                       />
                     )}
                     <span className={cn(
-                      'w-32 shrink-0 truncate text-sm lg:w-44',
+                      // Matches SingleEmailItem: the sender column sets where
+                      // every row's tags and subject begin, so the two have to
+                      // agree or thread rows sit 1rem further right.
+                      'w-32 shrink-0 truncate text-sm lg:w-40',
                       hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'
                     )}>
                       {displayNames.join(', ')}
                     </span>
-                    <span
-                      className={cn(
-                        'inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium',
-                        hasUnread ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                      )}
-                      title={t('messages_tooltip', { count: emailCount })}
-                    >
-                      <MessageSquare className="w-3 h-3" />
-                      {emailCount}
-                    </span>
                     <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                      <span className={TAG_GROUP_CLASS}>
+                        <ThreadCountPill
+                          count={emailCount}
+                          hasUnread={hasUnread}
+                          title={t('messages_tooltip', { count: emailCount })}
+                        />
+                        {tagIds.map((id) => (
+                          <TagBadge key={id} tagId={id} variant={tagVariant} />
+                        ))}
+                      </span>
                       <span className={cn(
-                        'shrink-0 truncate',
+                        'min-w-0 truncate',
                         hasUnread ? 'font-semibold text-foreground' : 'text-foreground/90'
                       )}>
                         {latestEmail.subject || '(no subject)'}
                       </span>
                       {inlinePreview && (
-                        <span className="min-w-0 truncate text-muted-foreground">{inlinePreview}</span>
+                        <span className="min-w-0 shrink-[9999] truncate text-muted-foreground">{inlinePreview}</span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2.5 shrink-0">
+                    {hasPinned && <Pin className="w-3.5 h-3.5 text-primary" />}
                     {hasStarred && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
                     {hasAnswered && !hasForwarded && <Reply className="w-3.5 h-3.5 text-muted-foreground" />}
                     {hasForwarded && !hasAnswered && <Forward className="w-3.5 h-3.5 text-muted-foreground" />}
@@ -643,15 +785,23 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                       </>
                     )}
                     {hasAttachment && <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />}
-                    {keywordDef && (
-                      <span className={cn('h-2.5 w-2.5 rounded-full', KEYWORD_PALETTE[keywordDef.color]?.dot || 'bg-gray-400')} />
+                    {showSourceFolder && <SourceFolderTag name={latestEmail.sourceFolder!} />}
+                    {scheduledSendLabel ? (
+                      <span
+                        className="inline-flex max-w-[11rem] shrink-0 items-center gap-1 truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-sky-700 dark:text-sky-300"
+                        title={scheduledSendLabel}
+                      >
+                        <CalendarClock className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{scheduledSendLabel}</span>
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        'text-xs tabular-nums',
+                        hasUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                      )}>
+                        {formatDate(latestEmail.receivedAt)}
+                      </span>
                     )}
-                    <span className={cn(
-                      'text-xs tabular-nums',
-                      hasUnread ? 'text-foreground font-semibold' : 'text-muted-foreground'
-                    )}>
-                      {formatDate(latestEmail.receivedAt)}
-                    </span>
                   </div>
                 </div>
               ) : (
@@ -673,19 +823,20 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                       )}>
                         {displayNames.join(", ")}
                       </span>
-                      <span
-                        className={cn(
-                          "flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs rounded-full font-medium",
-                          hasUnread
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
-                        )}
-                        title={t('messages_tooltip', { count: emailCount })}
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        {emailCount}
+                      <span className={TAG_GROUP_CLASS}>
+                        <ThreadCountPill
+                          count={emailCount}
+                          hasUnread={hasUnread}
+                          title={t('messages_tooltip', { count: emailCount })}
+                        />
+                        {tagPlacement === 'sender' && tagIds.map((id) => (
+                          <TagBadge key={id} tagId={id} variant={tagVariant} />
+                        ))}
                       </span>
                       <div className="flex items-center gap-1.5">
+                        {hasPinned && (
+                          <Pin className="w-3.5 h-3.5 text-primary" />
+                        )}
                         {hasStarred && (
                           <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                         )}
@@ -707,33 +858,44 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {keywordDef && (
+                      {showSourceFolder && <SourceFolderTag name={latestEmail.sourceFolder!} />}
+                      {scheduledSendLabel ? (
+                        <span
+                          className="inline-flex max-w-[11rem] shrink-0 items-center gap-1 truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-sky-700 dark:text-sky-300"
+                          title={scheduledSendLabel}
+                        >
+                          <CalendarClock className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{scheduledSendLabel}</span>
+                        </span>
+                      ) : (
                         <span className={cn(
-                          "inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full",
-                          KEYWORD_PALETTE[keywordDef.color]?.bg || "bg-muted"
+                          "text-xs tabular-nums",
+                          hasUnread
+                            ? "text-foreground font-semibold"
+                            : "text-muted-foreground"
                         )}>
-                          <span className={cn("w-1.5 h-1.5 rounded-full", KEYWORD_PALETTE[keywordDef.color]?.dot || "bg-gray-400")} />
-                          {keywordDef.label}
+                          {formatDate(latestEmail.receivedAt)}
                         </span>
                       )}
-                      <span className={cn(
-                        "text-xs tabular-nums",
-                        hasUnread
-                          ? "text-foreground font-semibold"
-                          : "text-muted-foreground"
-                      )}>
-                        {formatDate(latestEmail.receivedAt)}
-                      </span>
                     </div>
                   </div>
 
-                  <div className={cn(
-                    "mb-1 line-clamp-1 text-sm",
-                    hasUnread
-                      ? "font-semibold text-foreground"
-                      : "font-normal text-foreground/90"
-                  )}>
-                    {latestEmail.subject || "(no subject)"}
+                  <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                    {tagPlacement === 'subject' && tagIds.length > 0 && (
+                        <span className={TAG_GROUP_CLASS}>
+                          {tagIds.map((id) => (
+                            <TagBadge key={id} tagId={id} variant={tagVariant} />
+                          ))}
+                        </span>
+                    )}
+                    <span className={cn(
+                      "min-w-0 flex-1 truncate text-sm",
+                      hasUnread
+                        ? "font-semibold text-foreground"
+                        : "font-normal text-foreground/90"
+                    )}>
+                      {latestEmail.subject || "(no subject)"}
+                    </span>
                   </div>
 
                   {showPreview && density !== 'extra-compact' && density !== 'compact' && (
@@ -752,23 +914,28 @@ export const ThreadListItem = React.forwardRef<HTMLDivElement, ThreadListItemPro
           </div>
 
           {/* Hover Quick Actions for thread header */}
-          <EmailHoverActions
-            email={latestEmail}
-            backgroundClassName={colorTag ? colorTag : ((isSelected || isChecked) ? "bg-accent" : "bg-muted")}
-            onToggleStar={onToggleStar ? () => onToggleStar(latestEmail) : undefined}
-            onMarkAsRead={onMarkAsRead ? (read) => onMarkAsRead(latestEmail, read) : undefined}
-            onDelete={onDelete ? () => onDelete(latestEmail) : undefined}
-            onArchive={onArchive ? () => onArchive(latestEmail) : undefined}
-            onSetColorTag={onSetColorTag ? (color) => onSetColorTag(latestEmail.id, color) : undefined}
-            onMarkAsSpam={onMarkAsSpam ? () => onMarkAsSpam(latestEmail) : undefined}
-          />
+          {!latestEmail.isScheduled && (
+            <EmailHoverActions
+              email={latestEmail}
+              backgroundClassName={rowTint ? rowTint : ((isSelected || isChecked) ? "bg-accent" : "bg-muted")}
+              onToggleStar={onToggleStar ? () => onToggleStar(latestEmail) : undefined}
+              onMarkAsRead={onMarkAsRead ? (read) => onMarkAsRead(latestEmail, read) : undefined}
+              onDelete={onDelete ? () => onDelete(latestEmail) : undefined}
+              onArchive={onArchive ? () => onArchive(latestEmail) : undefined}
+              onSetTag={onSetTag ? (color) => onSetTag(latestEmail.id, color) : undefined}
+              onMarkAsSpam={onMarkAsSpam ? () => onMarkAsSpam(latestEmail) : undefined}
+              onUndoSpam={onUndoSpam ? () => onUndoSpam(latestEmail) : undefined}
+              isInJunk={currentMailboxRole === 'junk'}
+              spamApplicable={!['sent', 'drafts', 'scheduled'].includes(currentMailboxRole || '')}
+            />
+          )}
         </div>
 
-        {isExpanded && !isMobile && !isFocusedMailLayout && (
+        {isExpanded && !isMobile && (
           <div className="bg-muted/20 animate-in slide-in-from-top-2 duration-200">
             {isLoading ? (
               <div className="py-4 flex items-center justify-center text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <Loader2 className="w-4 h-4 animate-spin me-2" />
                 {t('loading')}
               </div>
             ) : (

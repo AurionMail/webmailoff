@@ -4,6 +4,7 @@ import { authenticateWizardRequest } from '@/lib/setup/session';
 import { configManager } from '@/lib/admin/config-manager';
 import { CONFIG_ENV_MAP } from '@/lib/admin/types';
 import { parseJmapServers } from '@/lib/admin/jmap-servers';
+import { effectiveConsent, loadState, saveState, reschedule } from '@/lib/telemetry';
 import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -76,8 +77,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'values must be an object' }, { status: 400 });
   }
 
+  const valuesObj = { ...(values as Record<string, unknown>) };
+
+  // Telemetry consent lives in the telemetry state file, not admin config, so
+  // it has no CONFIG_ENV_MAP entry. Pull it out of the security step and
+  // persist it directly, mirroring POST /api/admin/telemetry (set-consent).
+  if (step === 'security' && 'telemetryConsent' in valuesObj) {
+    const consent = valuesObj.telemetryConsent;
+    delete valuesObj.telemetryConsent;
+    if (consent !== 'on' && consent !== 'off') {
+      return NextResponse.json({ error: 'telemetryConsent must be "on" or "off"' }, { status: 400 });
+    }
+    // A BULWARK_TELEMETRY env var hard-locks the choice; don't fight it.
+    const { source } = await effectiveConsent();
+    if (source !== 'env') {
+      const tstate = await loadState();
+      tstate.consent = consent;
+      if (consent === 'on' && !tstate.consentedAt) {
+        tstate.consentedAt = new Date().toISOString();
+      }
+      await saveState(tstate);
+      await reschedule();
+    }
+  }
+
   const updates: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(values as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(valuesObj)) {
     if (!allowedKeys.includes(key)) {
       return NextResponse.json({ error: `Key not allowed in step ${step}: ${key}` }, { status: 400 });
     }

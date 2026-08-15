@@ -27,7 +27,10 @@ import type {
   BackgroundInit,
   SlotInit,
 } from './protocol';
+import { themeSnapshotToCSS, type ThemeSnapshot } from './host-theme';
 import type { SlotName } from '../plugin-types';
+import { ContactCard } from '../jmap/types';
+import { EncryptionAtRestConfig, PublicKeyInput } from '@/stores/account-security-store';
 
 // ─── Module-scope state ──────────────────────────────────────
 
@@ -67,24 +70,59 @@ function sendToHost(msg: SandboxToHost): void {
   parentWindow.postMessage(msg, parentOrigin);
 }
 
+// ─── Theme replay ────────────────────────────────────────────
+
+const THEME_STYLE_ID = '__plugin_host_theme';
+
+/**
+ * Replay a host theme snapshot inside the iframe: inject the token + font CSS
+ * and mirror the `.dark` class onto <html> so plugin styles that key off
+ * `.dark` (or read `var(--color-*)`) behave like the host. Idempotent — safe
+ * to call again on every 'theme-change'.
+ */
+function applyHostTheme(theme: ThemeSnapshot): void {
+  if (typeof document === 'undefined') return;
+  let styleEl = document.getElementById(THEME_STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = THEME_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = themeSnapshotToCSS(theme);
+  document.documentElement.classList.toggle('dark', theme.dark);
+}
+
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 // ─── Sandboxed API facade (calls flow to host via postMessage) ─
 
-function callApi(method: string, args: unknown[]): Promise<unknown> {
+const DEFAULT_API_TIMEOUT_MS = 30_000;
+// http.post / http.fetch can be carrying an attachment to an external store,
+// which is a transfer rather than a round-trip - 30s is not enough for the
+// files a plugin has any reason to offload. Still bounded so a hung host
+// can't leak the pending promise.
+const NETWORK_API_TIMEOUT_MS = 120_000;
+
+function callApi(method: string, args: unknown[], timeoutMs: number = DEFAULT_API_TIMEOUT_MS): Promise<unknown> {
   const id = uid();
   return new Promise((resolve, reject) => {
     pendingApi.set(id, { resolve, reject });
     sendToHost({ type: 'api-request', id, method, args });
-    // Reject after 30s to prevent unbounded promise leaks if the host hangs.
-    setTimeout(() => {
-      const entry = pendingApi.get(id);
-      if (!entry) return;
-      pendingApi.delete(id);
-      entry.reject(new Error(`API call ${method} timed out after 30s`));
-    }, 30_000);
+    // Bounded so a hung host can't leak the promise forever. Interactive UI
+    // dialogs (ui.confirm/ui.alert) pass timeoutMs <= 0 to opt out: they wait
+    // for human input, the host always resolves them on confirm/cancel/close,
+    // and any still-pending call dies with the iframe on teardown - so there's
+    // nothing to leak, and a thinking user must not trip a 30s timeout.
+    if (timeoutMs > 0 && Number.isFinite(timeoutMs)) {
+      setTimeout(() => {
+        const entry = pendingApi.get(id);
+        if (!entry) return;
+        pendingApi.delete(id);
+        entry.reject(new Error(`API call ${method} timed out after ${Math.round(timeoutMs / 1000)}s`));
+      }, timeoutMs);
+    }
   });
 }
 
@@ -127,6 +165,22 @@ function decodeCallbacks(value: unknown, depth = 0): unknown {
 
 type PluginManifest = BackgroundInit['manifest'];
 
+type PluginKeywordVisibility = 'show' | 'hide' | 'unread';
+
+interface PluginKeywordDefinition {
+  id: string;
+  label: string;
+  color: string;
+  visibility?: PluginKeywordVisibility;
+}
+
+type PluginKeywordDefinitionInput = Omit<PluginKeywordDefinition, 'color'> & { color?: string };
+
+interface PluginKeywordCounts {
+  total: number;
+  unread: number;
+}
+
 function buildPluginApi(manifest: PluginManifest) {
   return {
     plugin: {
@@ -134,15 +188,112 @@ function buildPluginApi(manifest: PluginManifest) {
       version: manifest.version,
       settings: { ...manifest.settings },
     },
+    crypto: {
+      getPublicKeys: () => callApi('crypto.getPublicKeys', []),
+      createPublicKey: (input: PublicKeyInput) => callApi('crypto.createPublicKey', [input]),
+      removePublicKey: (keyId: string) => callApi('crypto.removePublicKey', [keyId]),
+      setEncryptionAtRest: (config: EncryptionAtRestConfig) => callApi('crypto.setEncryptionAtRest', [config]),
+      getEncryptionAtRest: () => callApi('crypto.getEncryptionAtRest', []),
+      getOrCreateWebAuthn: (masterCredentialIdBytes?: number[], name?: string, displayName?: string) => callApi('crypto.getOrCreateWebAuthn', [masterCredentialIdBytes, manifest.id, name, displayName], 0)
+    },
     storage: {
       get: (key: string) => callApi('storage.get', [key]),
       set: (key: string, value: unknown) => callApi('storage.set', [key, value]),
       remove: (key: string) => callApi('storage.remove', [key]),
       keys: () => callApi('storage.keys', []),
     },
+    user: {
+      getAccounts: () => callApi('user.getAccounts', []),
+      getIdentities: () => callApi('user.getIdentities', []),
+      logout: () => callApi('user.logout', []),
+    },
     http: {
-      post: (path: string, body: Record<string, unknown>) => callApi('http.post', [path, body]),
-      fetch: (url: string, init?: unknown) => callApi('http.fetch', [url, init]),
+      // A Blob/File body is sent as a binary request; options.headers may then
+      // carry Content-Type and X-Plugin-* metadata for the receiving route.
+      // Any other body keeps the stock JSON behaviour.
+      post: (path: string, body: Record<string, unknown> | Blob, options?: { headers?: Record<string, string> }) =>
+        callApi('http.post', [path, body, options], NETWORK_API_TIMEOUT_MS),
+      fetch: (url: string, init?: unknown) => callApi('http.fetch', [url, init], NETWORK_API_TIMEOUT_MS),
+    },
+    // Safe keyword methods are available to untrusted plugins with the
+    // matching email permission. Raw blob/submission methods remain restricted
+    // to the privileged tier for crypto plugins.
+    jmap: {
+      /**
+       * Enumerate keywords in the active account. JMAP servers supporting
+       * Keyword/get supply exact counts and provider-label metadata; other
+       * servers fall back to scanning message keywords.
+       */
+      getKeywords: (options?: { limit?: number }) =>
+        callApi('jmap.getKeywords', [options]) as Promise<{
+          keywords: Record<string, number>;
+          scanned: number;
+          total: number;
+          complete: boolean;
+          labels: Array<{
+            id: string;
+            name: string;
+            color: string | null;
+            total: number;
+            unread: number;
+            isProviderLabel: boolean;
+            source: 'provider' | 'message';
+          }>;
+        }>,
+      /**
+       * Replace an email's complete keyword map. Omitted keywords are removed;
+       * use api.email.setKeyword/removeKeyword for an incremental mutation.
+       */
+      setKeywords: (emailId: string, keywords: Record<string, true>, accountId?: string) =>
+        callApi('jmap.setKeywords', [emailId, keywords, accountId]) as Promise<void>,
+      /** Add one keyword without changing the message's other keywords. */
+      setKeyword: (emailId: string, keyword: string, accountId?: string) =>
+        callApi('jmap.setKeyword', [emailId, keyword, accountId]) as Promise<void>,
+      /** Remove one keyword without changing the message's other keywords. */
+      removeKeyword: (emailId: string, keyword: string, accountId?: string) =>
+        callApi('jmap.removeKeyword', [emailId, keyword, accountId]) as Promise<void>,
+      /** Fetch a blob's raw bytes by id. Resolves to a Uint8Array. */
+      fetchBlob: (blobId: string, opts?: { name?: string; type?: string, rangeHeader?: number }) =>
+        callApi('jmap.fetchBlob', [blobId, opts]) as Promise<Uint8Array>,
+      uploadBlob: (content: Uint8Array, name: string, type: string) =>
+        callApi('jmap.uploadBlob', [content, name, type]) as Promise<{ blobId: string; size: number; type: string; }>,
+      /** Submit a fully-formed raw RFC822 message (already signed/encrypted). */
+      sendRaw: (
+        rawBytes: ArrayBuffer | ArrayBufferView,
+        identityId: string,
+        opts?: { delayedUntil?: string; envelopeRecipients?: string[] },
+      ) => callApi('jmap.sendRaw', [rawBytes, identityId, opts]),
+      /** Submit without putting in sent box a fully-formed raw RFC822 message (already signed/encrypted). */
+      submitRaw: (
+        rawBytes: ArrayBuffer | ArrayBufferView,
+        identityId: string,
+        opts?: { delayedUntil?: string; envelopeRecipients?: string[] },
+      ) => callApi('jmap.submitRaw', [rawBytes, identityId, opts]),
+      /** Import a fully-formed raw RFC822 message into the user's mailbox. */
+      importRaw: (
+        rawBytes: ArrayBuffer | ArrayBufferView,
+        mailboxRoles: string[],
+        opts?:  { keywords?: Record<string, boolean>; accountId?: string },
+      ) => callApi('jmap.importRaw', [rawBytes, mailboxRoles, opts]),
+    },
+    contacts: {
+      get: (contactId: string) => callApi('contact.get', [contactId]) as Promise<ContactCard>,
+      update: (contactId: string, updates: Partial<ContactCard>) => callApi('contact.update', [contactId, updates]),
+      create: (contact: ContactCard) => callApi('contact.create', [contact]) as Promise<string>,
+      search: (query: string) => callApi('contact.search', [query]) as Promise<ContactCard[]>,
+    },
+    /**
+     * Used to alterate files before they are uploaded to server.
+     * Edited files are saved on indexedDB and remove once the upload to server begins.
+     * `get` needs the email:blob-read permission. `save` needs
+     * email:blob-write AND the privileged tier - replacing the bytes of a file
+     * the user is about to send is not something an untrusted plugin may do.
+     */
+    upfiles: {
+      save: (formerFileId:string, file:File) =>
+        callApi('upfiles.save', [formerFileId, file]) as Promise<string>,
+      get: (fileId:string) =>
+        callApi('upfiles.get', [fileId]) as Promise<File>,
     },
     toast: {
       success: (m: string) => { void callApi('toast.success', [m]); },
@@ -151,15 +302,103 @@ function buildPluginApi(manifest: PluginManifest) {
       warning: (m: string) => { void callApi('toast.warning', [m]); },
     },
     ui: {
-      /** Opens a host-rendered confirm dialog. Resolves to true on confirm, false otherwise. */
+      /** Opens a host-rendered confirm dialog. Resolves to true on confirm, false otherwise.
+       *  No timeout - it waits for the user's choice. */
       confirm: (opts: { title?: string; message?: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean }) =>
-        callApi('ui.confirm', [opts]) as Promise<boolean>,
-      /** Opens a host-rendered alert (one button). Resolves once dismissed. */
+        callApi('ui.confirm', [opts], 0) as Promise<boolean>,
+      /** Opens a host-rendered alert (one button). Resolves once dismissed. No timeout. */
       alert: (opts: { title?: string; message?: string; confirmLabel?: string }) =>
-        callApi('ui.alert', [opts]) as Promise<void>,
+        callApi('ui.alert', [opts], 0) as Promise<void>,
+      /** Opens a host-rendered prompt collecting one or more (optionally masked)
+       *  fields. Resolves to a name→value map on submit, or null if cancelled.
+       *  No timeout. */
+      prompt: (opts: {
+        title?: string;
+        message?: string;
+        confirmLabel?: string;
+        cancelLabel?: string;
+        fields?: Array<{ name: string; label: string; type?: 'text' | 'password'; placeholder?: string; required?: boolean }>;
+      }) => callApi('ui.prompt', [opts], 0) as Promise<Record<string, string> | null>,
+      /** Re-runs the onRenderEmailBody hook for the open message (e.g. after a
+       *  crypto plugin unlocks a key) so its body re-renders without a reload. */
+      rerenderEmail: () => callApi('ui.rerenderEmail', []) as Promise<void>,
+      rerenderFetchedEmails: () => callApi('ui.rerenderFetchedEmails', []) as Promise<void>,
       /** Opens an http/https URL in a new tab via host `window.open`. */
       openExternalUrl: (url: string, target?: string) =>
         callApi('ui.openExternalUrl', [url, target]) as Promise<void>,
+      /** Downloads a file generated by the plugin. Not a user's file or attachment. */
+      downloadFile: (opts: { content: string; filename: string; contentType?: string }) =>
+        callApi('ui.downloadFile', [opts]) as Promise<void>,
+    },
+    // Email keyword mutations (permission: email:write). Keywords follow JMAP
+    // syntax, e.g. '$category-promotions' or '$label:<tagId>'.
+    email: {
+      setKeyword: (emailId: string, keyword: string, accountId?: string) =>
+        callApi('email.setKeyword', [emailId, keyword, accountId]) as Promise<void>,
+      removeKeyword: (emailId: string, keyword: string, accountId?: string) =>
+        callApi('email.removeKeyword', [emailId, keyword, accountId]) as Promise<void>,
+    },
+    // Native sidebar tag definitions. Definition reads/writes use the existing
+    // settings permissions; server discovery and message counts use email:read.
+    // add() is intentionally append-only. reorder() requires a complete
+    // permutation of existing ids. Neither method overwrites or removes tags.
+    keywords: {
+      list: () => callApi('keywords.list', []) as Promise<PluginKeywordDefinition[]>,
+      add: (definitions: PluginKeywordDefinitionInput[]) =>
+        callApi('keywords.add', [definitions]) as Promise<{
+          added: PluginKeywordDefinition[];
+          skipped: string[];
+        }>,
+      reorder: (ids: string[], options?: { caseSensitive?: boolean }) =>
+        callApi('keywords.reorder', [ids, options]) as Promise<PluginKeywordDefinition[]>,
+      discover: (options?: { limit?: number }) =>
+        callApi('keywords.discover', [options]) as Promise<{
+          keywords: Record<string, number>;
+          scanned: number;
+          total: number;
+          complete: boolean;
+        }>,
+      getCounts: (ids?: string[]) =>
+        callApi('keywords.getCounts', [ids]) as Promise<Record<string, PluginKeywordCounts>>,
+      refreshCounts: () =>
+        callApi('keywords.refreshCounts', []) as Promise<Record<string, PluginKeywordCounts>>,
+    },
+    // Message-list category tabs (permission: ui:message-list-tabs; categorize
+    // additionally needs email:write). The host renders the strip natively and
+    // ANDs the active tab's JMAP search filter (`query`) or keyword into the
+    // mailbox Email/query - see MessageListTabsConfig in plugin-types. Tabs
+    // are cleared automatically when the plugin unloads.
+    tabs: {
+      /** Register (or replace) this plugin's tab set. */
+      set: (config: unknown) => callApi('tabs.set', [config]) as Promise<void>,
+      /** Remove this plugin's tabs from the strip. */
+      clear: () => callApi('tabs.clear', []) as Promise<void>,
+      /** Current merged tabs, active tab id and unread counts. */
+      getState: () => callApi('tabs.getState', []) as Promise<{
+        tabs: unknown[]; activeTabId: string | null; tabCounts: Record<string, number>;
+      }>,
+      /** Re-query per-tab unread counts for the current mailbox. */
+      refreshCounts: () => callApi('tabs.refreshCounts', []) as Promise<Record<string, number>>,
+      /**
+       * Move messages to a tab (patches the category keywords via Email/set).
+       * Fires onBeforeEmailCategorize (cancellable) and onEmailCategorize.
+       * Resolves false when cancelled.
+       */
+      categorize: (emailIds: string[], tabId: string) =>
+        callApi('tabs.categorize', [emailIds, tabId]) as Promise<boolean>,
+    },
+    // Sieve integration for delivery-time classification (permissions:
+    // filters:read / filters:write). Plugins never write scripts directly -
+    // they register an onSieveScriptGenerate transform hook and call
+    // regenerate(), so user filter rules and plugin sections coexist in the
+    // single active script.
+    sieve: {
+      isSupported: () => callApi('sieve.isSupported', []) as Promise<boolean>,
+      getActiveScript: () => callApi('sieve.getActiveScript', []) as Promise<{ id: string; name: string; content: string } | null>,
+      validateScript: (content: string) =>
+        callApi('sieve.validateScript', [content]) as Promise<{ isValid: boolean; errors?: string[] }>,
+      /** Rebuild + re-upload the active script, running onSieveScriptGenerate. */
+      regenerate: () => callApi('sieve.regenerate', []) as Promise<void>,
     },
     admin: {
       getConfig: (key: string) => callApi('admin.getConfig', [key]),
@@ -172,6 +411,26 @@ function buildPluginApi(manifest: PluginManifest) {
       info:  (...a: unknown[]) => console.info(`[plugin:${manifest.id}]`, ...a),
       warn:  (...a: unknown[]) => console.warn(`[plugin:${manifest.id}]`, ...a),
       error: (...a: unknown[]) => console.error(`[plugin:${manifest.id}]`, ...a),
+    },
+    // Localization for plugins. The host pushes the active locale (init +
+    // 'locale-change'); `t` resolves a key against the plugin's declared
+    // `locales` map (manifest.locales), falling back to English then the key
+    // itself, with optional {placeholder} interpolation.
+    i18n: {
+      get locale(): string {
+        return (globalThis as unknown as { __PLUGIN_LOCALE__?: string }).__PLUGIN_LOCALE__ || 'en';
+      },
+      t(key: string, vars?: Record<string, string | number>): string {
+        const loc = (globalThis as unknown as { __PLUGIN_LOCALE__?: string }).__PLUGIN_LOCALE__ || 'en';
+        const tables = manifest.locales || {};
+        let out = tables[loc]?.[key] ?? tables['en']?.[key] ?? key;
+        if (vars) {
+          for (const [k, v] of Object.entries(vars)) {
+            out = out.split('{' + k + '}').join(String(v));
+          }
+        }
+        return out;
+      },
     },
   };
 }
@@ -281,6 +540,10 @@ async function bootBackground(payload: BackgroundInit): Promise<void> {
 }
 
 function bootSlot(payload: SlotInit): void {
+  // Replay the host theme before first paint so the slot never flashes the UA
+  // default serif font or a light-on-light/dark mismatch.
+  applyHostTheme(payload.theme);
+
   const api = buildPluginApi(payload.manifest);
   const exports = evaluateBundle(payload.code, api);
   pluginExports = exports;
@@ -344,6 +607,9 @@ async function handleInit(payload: InitPayload): Promise<void> {
   if (bootDone) return;
   bootDone = true;
   mode = payload.mode;
+  // Make the active locale available to plugin code (api.i18n) right away -
+  // not only after the first 'locale-change' push.
+  (globalThis as unknown as { __PLUGIN_LOCALE__?: string }).__PLUGIN_LOCALE__ = payload.locale;
   try {
     if (payload.mode === 'background') {
       await bootBackground(payload);
@@ -428,6 +694,10 @@ function handleHostMessage(ev: MessageEvent): void {
 
     case 'locale-change':
       (globalThis as unknown as { __PLUGIN_LOCALE__?: string }).__PLUGIN_LOCALE__ = msg.locale;
+      break;
+
+    case 'theme-change':
+      applyHostTheme(msg.theme);
       break;
 
     case 'props-update':

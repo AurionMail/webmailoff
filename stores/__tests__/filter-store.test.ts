@@ -3,6 +3,13 @@ import { useFilterStore } from '../filter-store';
 import type { FilterRule } from '@/lib/jmap/sieve-types';
 import type { IJMAPClient } from '@/lib/jmap/client-interface';
 
+// Minimal account plumbing every fetchFilters mock needs now that the store
+// resolves a target Sieve account before fetching scripts.
+const sieveAccountMock = {
+  getSieveAccountId: () => 'primary',
+  getSieveAccounts: () => [{ id: 'primary', name: 'Me', isPrimary: true }],
+};
+
 const makeRule = (overrides: Partial<FilterRule> = {}): FilterRule => ({
   id: 'rule-1',
   name: 'Test Rule',
@@ -153,6 +160,7 @@ describe('filter-store', () => {
   describe('fetchFilters', () => {
     it('parses external rules from scripts without metadata', async () => {
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [{ id: 's1', name: 'main', blobId: 'b1', isActive: true }],
         getSieveScriptContent: async () => 'require ["fileinto"];\nif header :contains "From" "x" { fileinto "Y"; }',
@@ -165,6 +173,7 @@ describe('filter-store', () => {
 
     it('sets isOpaque for truly unparseable content', async () => {
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [{ id: 's1', name: 'main', blobId: 'b1', isActive: true }],
         getSieveScriptContent: async () => '/* @metadata:begin\n{corrupt\n@metadata:end */',
@@ -178,6 +187,7 @@ describe('filter-store', () => {
       const { generateScript } = await import('@/lib/sieve/generator');
       const script = generateScript(rules);
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [{ id: 's1', name: 'main', blobId: 'b1', isActive: true }],
         getSieveScriptContent: async () => script,
@@ -189,6 +199,7 @@ describe('filter-store', () => {
 
     it('should handle empty script list', async () => {
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [],
         getSieveScriptContent: async () => '',
@@ -200,6 +211,7 @@ describe('filter-store', () => {
 
     it('should set error on failure', async () => {
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => { throw new Error('Network error'); },
       };
@@ -313,6 +325,7 @@ describe('filter-store', () => {
       const inactiveRules = [makeRule({ name: 'Inactive' })];
 
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [
           { id: 's1', name: 'old', blobId: 'b1', isActive: false },
@@ -331,6 +344,7 @@ describe('filter-store', () => {
     it('should set sieveCapabilities from client', async () => {
       const caps = { implementation: 'test', maxSizeScript: 10000, sieveExtensions: ['fileinto'], notificationMethods: [], externalLists: [] };
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => caps,
         getSieveScripts: async () => [],
       };
@@ -343,6 +357,7 @@ describe('filter-store', () => {
       const rules = [makeRule()];
       const script = generateScript(rules);
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [{ id: 's1', name: 'main', blobId: 'b1', isActive: true }],
         getSieveScriptContent: async () => script,
@@ -357,6 +372,7 @@ describe('filter-store', () => {
       const script = generateScript(rules);
 
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [
           { id: 'vac-1', name: 'vacation', blobId: 'bv', isActive: true },
@@ -375,6 +391,7 @@ describe('filter-store', () => {
 
     it('should handle only vacation script present (no filter scripts)', async () => {
       const mockClient = {
+        ...sieveAccountMock,
         getSieveCapabilities: () => null,
         getSieveScripts: async () => [
           { id: 'vac-1', name: 'vacation', blobId: 'bv', isActive: true },
@@ -383,6 +400,73 @@ describe('filter-store', () => {
       await useFilterStore.getState().fetchFilters(mockClient as unknown as IJMAPClient);
       expect(useFilterStore.getState().activeScriptId).toBeNull();
       expect(useFilterStore.getState().rules).toEqual([]);
+    });
+
+    it('populates availableAccounts and defaults to the primary account', async () => {
+      const mockClient = {
+        getSieveAccountId: () => 'primary',
+        getSieveAccounts: () => [
+          { id: 'primary', name: 'Me', isPrimary: true },
+          { id: 'group', name: 'Sales', isPrimary: false },
+        ],
+        getSieveCapabilities: () => null,
+        getSieveScripts: async () => [],
+      };
+      await useFilterStore.getState().fetchFilters(mockClient as unknown as IJMAPClient);
+      expect(useFilterStore.getState().availableAccounts).toHaveLength(2);
+      expect(useFilterStore.getState().selectedAccountId).toBe('primary');
+    });
+  });
+
+  describe('selectAccount', () => {
+    it('re-fetches scripts for the chosen account id', async () => {
+      const fetchedFor: (string | undefined)[] = [];
+      const mockClient = {
+        getSieveAccountId: () => 'primary',
+        getSieveAccounts: () => [
+          { id: 'primary', name: 'Me', isPrimary: true },
+          { id: 'group', name: 'Sales', isPrimary: false },
+        ],
+        getSieveCapabilities: () => null,
+        getSieveScripts: async (accountId?: string) => {
+          fetchedFor.push(accountId);
+          return [];
+        },
+      };
+      // Seed some primary-account state to confirm it gets cleared on switch.
+      useFilterStore.setState({ rules: [makeRule()], activeScriptId: 'old', isOpaque: true });
+
+      await useFilterStore.getState().selectAccount(mockClient as unknown as IJMAPClient, 'group');
+
+      expect(useFilterStore.getState().selectedAccountId).toBe('group');
+      expect(fetchedFor).toContain('group');
+      expect(useFilterStore.getState().rules).toEqual([]);
+      expect(useFilterStore.getState().isOpaque).toBe(false);
+    });
+  });
+
+  describe('account threading', () => {
+    it('passes the selected account id to update and validate', async () => {
+      const calls: Array<{ method: string; args: unknown[] }> = [];
+      const mockClient = {
+        updateSieveScript: async (...args: unknown[]) => { calls.push({ method: 'updateSieveScript', args }); },
+        createSieveScript: async (...args: unknown[]) => { calls.push({ method: 'createSieveScript', args }); return { id: 'x' }; },
+        validateSieveScript: async (...args: unknown[]) => { calls.push({ method: 'validateSieveScript', args }); return { isValid: true }; },
+      };
+      useFilterStore.setState({
+        activeScriptId: 'existing-id',
+        rules: [makeRule()],
+        isOpaque: false,
+        selectedAccountId: 'group',
+      });
+
+      await useFilterStore.getState().saveFilters(mockClient as unknown as IJMAPClient);
+      await useFilterStore.getState().validateScript(mockClient as unknown as IJMAPClient, 'require "fileinto";');
+
+      const update = calls.find(c => c.method === 'updateSieveScript');
+      const validate = calls.find(c => c.method === 'validateSieveScript');
+      expect(update?.args[3]).toBe('group');
+      expect(validate?.args[1]).toBe('group');
     });
   });
 });
