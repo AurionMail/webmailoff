@@ -6753,11 +6753,7 @@ export class JMAPClient implements IJMAPClient {
   /** Fetch blob content as an ArrayBuffer (for S/MIME byte processing). */
   async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string, accountId?: string, rangeHeader?: number): Promise<ArrayBuffer> {
     const url = this.getBlobDownloadUrl(blobId, name, type, accountId);
-    const headers: Record<string, string> = {};
-    if (rangeHeader) {
-      headers['Range'] = `bytes=0-${rangeHeader - 1}`;
-    }
-    const response = await this.authenticatedFetch(url, { headers }, { timeoutMs: JMAPClient.TRANSFER_TIMEOUT_MS });
+    const response = await this.authenticatedFetch(url, { }, { timeoutMs: JMAPClient.TRANSFER_TIMEOUT_MS });
     if (!response.ok) {
       throw new Error(`Failed to fetch blob: ${response.status}`);
     }
