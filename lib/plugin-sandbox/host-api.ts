@@ -421,11 +421,11 @@ async function doHttpFetch(plugin: InstalledPlugin, rawUrl: string, init?: Plugi
  * exposes the byte-fetch primitive. Returns a Uint8Array (structured-cloneable
  * across the postMessage boundary).
  */
-async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: string }): Promise<Uint8Array> {
+async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: string, rangeHeader?: string }): Promise<Uint8Array> {
   if (typeof blobId !== 'string' || !blobId) throw new Error('jmap.fetchBlob: blobId required');
   const { client } = useAuthStore.getState();
   if (!client) throw new Error('jmap.fetchBlob: no active session');
-  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type);
+  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type, undefined, opts?.rangeHeader);
   return new Uint8Array(buf);
 }
 
@@ -1159,7 +1159,7 @@ export async function dispatchApiCall(
     case 'http.post':  return doHttpPost(plugin, args[0] as string, args[1], args[2] as PluginHttpPostOptions | undefined);
     case 'http.fetch': return doHttpFetch(plugin, args[0] as string, args[1] as PluginFetchInit | undefined);
 
-    case 'jmap.fetchBlob': return doJmapFetchBlob(args[0] as string, args[1] as { name?: string; type?: string } | undefined);
+    case 'jmap.fetchBlob': return doJmapFetchBlob(args[0] as string, args[1] as { name?: string; type?: string, rangeHeader?: string } | undefined);
     case 'jmap.uploadBlob': return doJmapUploadBlob(args[0] as Uint8Array, args[1] as string, args[2] as string);
     case 'jmap.sendRaw':   return doJmapSendRaw(
       args[0] as ArrayBuffer | ArrayBufferView,
