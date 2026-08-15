@@ -253,7 +253,7 @@ function buildPluginApi(manifest: PluginManifest) {
       removeKeyword: (emailId: string, keyword: string, accountId?: string) =>
         callApi('jmap.removeKeyword', [emailId, keyword, accountId]) as Promise<void>,
       /** Fetch a blob's raw bytes by id. Resolves to a Uint8Array. */
-      fetchBlob: (blobId: string, opts?: { name?: string; type?: string }) =>
+      fetchBlob: (blobId: string, opts?: { name?: string; type?: string, rangeHeader?: string }) =>
         callApi('jmap.fetchBlob', [blobId, opts]) as Promise<Uint8Array>,
       uploadBlob: (content: Uint8Array, name: string, type: string) =>
         callApi('jmap.uploadBlob', [content, name, type]) as Promise<{ blobId: string; size: number; type: string; }>,
