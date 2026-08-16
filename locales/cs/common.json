@@ -1111,7 +1111,23 @@
         "status_busy": "Pracuji…",
         "status_inactive": "Není povoleno na tomto zařízení",
         "status_unsupported": "Tento prohlížeč nepodporuje Web Push",
-        "title": "Oznámení na pozadí"
+        "title": "Oznámení na pozadí",
+        "devices_title": "Registrovaná zařízení",
+        "devices_desc": "Všechna zařízení registrovaná pro příjem oznamení na pozadí u tohoto účtu. Odvolání okamžitě zastaví jejich příjem.",
+        "devices_loading": "Načítání registrovaných zařízení…",
+        "devices_empty": "Pro oznámení na pozadí není registrováno žádné zařízení.",
+        "devices_error": "Registrovaná zařízení se nepodařilo načíst.",
+        "devices_refresh": "Obnovit",
+        "device_this": "Toto zařízení",
+        "device_other": "Jiné zařízení",
+        "device_status_active": "Doručuje oznámení",
+        "device_status_inactive": "Nikdy nedoručilo oznámení",
+        "device_status_unknown": "Tomuto relay není známo",
+        "device_expires": "Vyprší {date}",
+        "revoke": "Odvolat",
+        "confirm_revoke_title": "Odvolat toto zařízení?",
+        "confirm_revoke_message": "Okamžitě přestane přijímat oznámení na pozadí. Opětovné zapnutí push na tom zařízení jej zaregistruje znovu.",
+        "confirm_revoke_message_this": "Toto zařízení okamžitě přestane přijímat oznámení na pozadí."
       }
     },
     "language_region": {

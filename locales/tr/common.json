@@ -1111,7 +1111,23 @@
         "status_busy": "Çalışıyor…",
         "status_inactive": "Bu cihazda etkinleştirilmedi",
         "status_unsupported": "Bu tarayıcı Web Push'u desteklemiyor",
-        "title": "Arka plan bildirimleri"
+        "title": "Arka plan bildirimleri",
+        "devices_title": "Kayıtlı cihazlar",
+        "devices_desc": "Bu hesap için arka plan bildirimleri almak üzere kayıtlı tüm cihazlar. Birini iptal ettiğinizde o cihaz bildirimleri hemen almayı bırakır.",
+        "devices_loading": "Kayıtlı cihazlar yükleniyor…",
+        "devices_empty": "Arka plan bildirimleri için kayıtlı cihaz yok.",
+        "devices_error": "Kayıtlı cihazlar yüklenemedi.",
+        "devices_refresh": "Yenile",
+        "device_this": "Bu cihaz",
+        "device_other": "Diğer cihaz",
+        "device_status_active": "Bildirim iletiyor",
+        "device_status_inactive": "Hiç bildirim iletmedi",
+        "device_status_unknown": "Bu aktarıcı tanımıyor",
+        "device_expires": "Bitiş: {date}",
+        "revoke": "İptal et",
+        "confirm_revoke_title": "Bu cihaz iptal edilsin mi?",
+        "confirm_revoke_message": "Arka plan bildirimlerini almayı hemen bırakacak. O cihazda push’u yeniden açarsanız yeniden kaydedilir.",
+        "confirm_revoke_message_this": "Bu cihaz arka plan bildirimlerini almayı hemen bırakacak."
       }
     },
     "language_region": {

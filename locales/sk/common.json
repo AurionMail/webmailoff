@@ -1114,7 +1114,23 @@
         "confirm_disable_title": "Zakázať oznámenia na pozadí?",
         "confirm_disable_message": "Toto zariadenie prestane prijímať upozornenia, keď je stránka zatvorená.",
         "dismiss_aria": "Zavrieť výzvu na oznámenia",
-        "ios_hint": "Na iOS najprv nainštalujte stránku na domovskú obrazovku – Safari doručuje Web Push iba nainštalovaným PWA."
+        "ios_hint": "Na iOS najprv nainštalujte stránku na domovskú obrazovku – Safari doručuje Web Push iba nainštalovaným PWA.",
+        "devices_title": "Registrované zariadenia",
+        "devices_desc": "Všetky zariadenia registrované na príjem oznámení na pozadí pre tento účet. Odvolanie okamžite zastaví ich príjem.",
+        "devices_loading": "Načítavajú sa registrované zariadenia…",
+        "devices_empty": "Pre oznámenia na pozadí nie je registrované žiadne zariadenie.",
+        "devices_error": "Registrované zariadenia sa nepodarilo načítať.",
+        "devices_refresh": "Obnoviť",
+        "device_this": "Toto zariadenie",
+        "device_other": "Iné zariadenie",
+        "device_status_active": "Doručuje oznámenia",
+        "device_status_inactive": "Nikdy nedoručilo oznámenie",
+        "device_status_unknown": "Tomuto relay nie je známe",
+        "device_expires": "Vyprší {date}",
+        "revoke": "Odvolať",
+        "confirm_revoke_title": "Odvolať toto zariadenie?",
+        "confirm_revoke_message": "Okamžite prestane prijímať oznámenia na pozadí. Opätovné zapnutie push na tom zariadení ho zaregistruje nanovo.",
+        "confirm_revoke_message_this": "Toto zariadenie okamžite prestane prijímať oznámenia na pozadí."
       }
     },
     "language_region": {

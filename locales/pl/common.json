@@ -1111,7 +1111,23 @@
         "status_busy": "Przetwarzanie…",
         "status_inactive": "Niewłączone na tym urządzeniu",
         "status_unsupported": "Ta przeglądarka nie obsługuje Web Push",
-        "title": "Powiadomienia w tle"
+        "title": "Powiadomienia w tle",
+        "devices_title": "Zarejestrowane urządzenia",
+        "devices_desc": "Wszystkie urządzenia zarejestrowane do odbioru powiadomień w tle dla tego konta. Unieważnienie natychmiast wstrzymuje ich odbiór.",
+        "devices_loading": "Wczytywanie zarejestrowanych urządzeń…",
+        "devices_empty": "Żadne urządzenie nie jest zarejestrowane do powiadomień w tle.",
+        "devices_error": "Nie udało się wczytać zarejestrowanych urządzeń.",
+        "devices_refresh": "Odśwież",
+        "device_this": "To urządzenie",
+        "device_other": "Inne urządzenie",
+        "device_status_active": "Dostarcza powiadomienia",
+        "device_status_inactive": "Nigdy nie dostarczyło powiadomienia",
+        "device_status_unknown": "Nieznane temu przekaźnikowi",
+        "device_expires": "Wygasa {date}",
+        "revoke": "Unieważnij",
+        "confirm_revoke_title": "Unieważnić to urządzenie?",
+        "confirm_revoke_message": "Natychmiast przestanie odbierać powiadomienia w tle. Ponowne włączenie push na tym urządzeniu zarejestruje je od nowa.",
+        "confirm_revoke_message_this": "To urządzenie natychmiast przestanie odbierać powiadomienia w tle."
       }
     },
     "language_region": {

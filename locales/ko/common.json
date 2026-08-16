@@ -1111,7 +1111,23 @@
         "status_busy": "처리 중…",
         "status_inactive": "이 기기에서 활성화되지 않음",
         "status_unsupported": "이 브라우저는 Web Push를 지원하지 않습니다",
-        "title": "백그라운드 알림"
+        "title": "백그라운드 알림",
+        "devices_title": "등록된 기기",
+        "devices_desc": "이 계정의 백그라운드 알림을 받도록 등록된 모든 기기입니다. 해지하면 해당 기기는 즉시 수신을 멈추니다.",
+        "devices_loading": "등록된 기기를 불러오는 중…",
+        "devices_empty": "백그라운드 알림에 등록된 기기가 없습니다.",
+        "devices_error": "등록된 기기를 불러오지 못했습니다.",
+        "devices_refresh": "새로 고침",
+        "device_this": "이 기기",
+        "device_other": "다른 기기",
+        "device_status_active": "알림 전달 중",
+        "device_status_inactive": "알림을 전달한 적 없음",
+        "device_status_unknown": "이 릴레이에서 알 수 없음",
+        "device_expires": "{date} 만료",
+        "revoke": "해지",
+        "confirm_revoke_title": "이 기기를 해지할까요?",
+        "confirm_revoke_message": "즉시 백그라운드 알림 수신을 멈추게 됩니다. 해당 기기에서 푸시를 다시 켜면 새로 등록됩니다.",
+        "confirm_revoke_message_this": "이 기기는 즉시 백그라운드 알림 수신을 멈추게 됩니다."
       }
     },
     "language_region": {

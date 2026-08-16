@@ -1111,7 +1111,23 @@
         "status_busy": "Bezig…",
         "status_inactive": "Niet ingeschakeld op dit apparaat",
         "status_unsupported": "Deze browser ondersteunt geen Web Push",
-        "title": "Achtergrondmeldingen"
+        "title": "Achtergrondmeldingen",
+        "devices_title": "Geregistreerde apparaten",
+        "devices_desc": "Alle apparaten die achtergrondmeldingen voor dit account ontvangen. Trek je er een in, dan stopt de ontvangst meteen.",
+        "devices_loading": "Geregistreerde apparaten laden…",
+        "devices_empty": "Er zijn geen apparaten geregistreerd voor achtergrondmeldingen.",
+        "devices_error": "Kan de geregistreerde apparaten niet laden.",
+        "devices_refresh": "Vernieuwen",
+        "device_this": "Dit apparaat",
+        "device_other": "Ander apparaat",
+        "device_status_active": "Levert meldingen af",
+        "device_status_inactive": "Heeft nooit een melding afgeleverd",
+        "device_status_unknown": "Niet bekend bij deze relay",
+        "device_expires": "Verloopt op {date}",
+        "revoke": "Intrekken",
+        "confirm_revoke_title": "Dit apparaat intrekken?",
+        "confirm_revoke_message": "Het ontvangt meteen geen achtergrondmeldingen meer. Push opnieuw inschakelen op dat apparaat registreert het opnieuw.",
+        "confirm_revoke_message_this": "Dit apparaat ontvangt meteen geen achtergrondmeldingen meer."
       }
     },
     "language_region": {

@@ -1111,7 +1111,23 @@
         "status_busy": "In elaborazione…",
         "status_inactive": "Non abilitato su questo dispositivo",
         "status_unsupported": "Questo browser non supporta Web Push",
-        "title": "Notifiche in background"
+        "title": "Notifiche in background",
+        "devices_title": "Dispositivi registrati",
+        "devices_desc": "Tutti i dispositivi registrati per ricevere le notifiche in background di questo account. Revocandone uno, smette subito di riceverle.",
+        "devices_loading": "Caricamento dei dispositivi registrati…",
+        "devices_empty": "Nessun dispositivo è registrato per le notifiche in background.",
+        "devices_error": "Impossibile caricare i dispositivi registrati.",
+        "devices_refresh": "Aggiorna",
+        "device_this": "Questo dispositivo",
+        "device_other": "Altro dispositivo",
+        "device_status_active": "Consegna le notifiche",
+        "device_status_inactive": "Non ha mai consegnato una notifica",
+        "device_status_unknown": "Sconosciuto a questo relay",
+        "device_expires": "Scade il {date}",
+        "revoke": "Revoca",
+        "confirm_revoke_title": "Revocare questo dispositivo?",
+        "confirm_revoke_message": "Smetterà subito di ricevere le notifiche in background. Riattivando il push su quel dispositivo verrà registrato di nuovo.",
+        "confirm_revoke_message_this": "Questo dispositivo smetterà subito di ricevere le notifiche in background."
       }
     },
     "language_region": {

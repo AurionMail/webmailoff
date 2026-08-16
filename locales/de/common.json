@@ -1111,7 +1111,23 @@
         "status_busy": "Wird verarbeitet…",
         "status_inactive": "Auf diesem Gerät nicht aktiviert",
         "status_unsupported": "Dieser Browser unterstützt Web Push nicht",
-        "title": "Hintergrundbenachrichtigungen"
+        "title": "Hintergrundbenachrichtigungen",
+        "devices_title": "Registrierte Geräte",
+        "devices_desc": "Alle Geräte, die Hintergrundbenachrichtigungen für dieses Konto erhalten. Wird eines widerrufen, empfängt es sofort keine mehr.",
+        "devices_loading": "Registrierte Geräte werden geladen…",
+        "devices_empty": "Für Hintergrundbenachrichtigungen ist kein Gerät registriert.",
+        "devices_error": "Registrierte Geräte konnten nicht geladen werden.",
+        "devices_refresh": "Aktualisieren",
+        "device_this": "Dieses Gerät",
+        "device_other": "Anderes Gerät",
+        "device_status_active": "Stellt Benachrichtigungen zu",
+        "device_status_inactive": "Hat nie eine Benachrichtigung zugestellt",
+        "device_status_unknown": "Diesem Relay nicht bekannt",
+        "device_expires": "Läuft am {date} ab",
+        "revoke": "Widerrufen",
+        "confirm_revoke_title": "Dieses Gerät widerrufen?",
+        "confirm_revoke_message": "Es empfängt sofort keine Hintergrundbenachrichtigungen mehr. Wird Push auf diesem Gerät erneut aktiviert, wird es neu registriert.",
+        "confirm_revoke_message_this": "Dieses Gerät empfängt sofort keine Hintergrundbenachrichtigungen mehr."
       }
     },
     "language_region": {

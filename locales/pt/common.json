@@ -1111,7 +1111,23 @@
         "status_busy": "Processando…",
         "status_inactive": "Não ativado neste dispositivo",
         "status_unsupported": "Este navegador não oferece suporte a Web Push",
-        "title": "Notificações em segundo plano"
+        "title": "Notificações em segundo plano",
+        "devices_title": "Dispositivos registrados",
+        "devices_desc": "Todos os dispositivos registrados para receber notificações em segundo plano desta conta. Revogar um deles interrompe o recebimento imediatamente.",
+        "devices_loading": "Carregando dispositivos registrados…",
+        "devices_empty": "Nenhum dispositivo está registrado para notificações em segundo plano.",
+        "devices_error": "Não foi possível carregar os dispositivos registrados.",
+        "devices_refresh": "Atualizar",
+        "device_this": "Este dispositivo",
+        "device_other": "Outro dispositivo",
+        "device_status_active": "Entregando notificações",
+        "device_status_inactive": "Nunca entregou uma notificação",
+        "device_status_unknown": "Desconhecido para este relay",
+        "device_expires": "Expira em {date}",
+        "revoke": "Revogar",
+        "confirm_revoke_title": "Revogar este dispositivo?",
+        "confirm_revoke_message": "Ele deixará de receber notificações em segundo plano imediatamente. Ativar o push novamente nesse dispositivo o registrará de novo.",
+        "confirm_revoke_message_this": "Este dispositivo deixará de receber notificações em segundo plano imediatamente."
       }
     },
     "language_region": {
