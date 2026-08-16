@@ -1104,7 +1104,6 @@
         "relay_desc": "Predvolený je hostovaný relay Bulwark. Zmeňte iba ak používate vlastný hosting.",
         "relay_locked": "Nastavené administrátorom",
         "relay_locked_desc": "URL push relay bola nastavená administrátorom a nedá sa zmeniť.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Aktívne na tomto zariadení",
         "status_inactive": "Nie je povolené na tomto zariadení",
         "status_unsupported": "Tento prehliadač nepodporuje Web Push",

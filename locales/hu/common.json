@@ -1080,7 +1080,6 @@
         "relay_desc": "Alapértelmezés szerint a tárolt Bulwark relay. Csak akkor módosítsd, ha sajátot üzemeltetsz.",
         "relay_locked": "Rendszergazda által beállítva",
         "relay_locked_desc": "A push relay URL-t a rendszergazda állította be, és nem módosítható.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Aktív ezen az eszközön",
         "status_inactive": "Nincs engedélyezve ezen az eszközön",
         "status_unsupported": "Ez a böngésző nem támogatja a Web Push-t",

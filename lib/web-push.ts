@@ -5,6 +5,7 @@
 // register endpoint we hit on the relay.
 
 import type { IJMAPClient } from '@/lib/jmap/client-interface';
+import { DEFAULT_RELAY_BASE_URL } from '@/lib/push-relays';
 
 // Per-account keys: a single browser may be signed in to multiple accounts,
 // each with its own JMAP PushSubscription and its own relay record. Scoping
@@ -26,11 +27,9 @@ const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/+$/, '');
 const SW_SCOPE = `${BASE_PATH}/`;
 const SW_URL = `${BASE_PATH}/sw.js`;
 
-// Hosted relay so self-hosters don't need their own VAPID + Firebase setup.
-// Override at build time via NEXT_PUBLIC_PUSH_RELAY_URL or at runtime by
-// calling enableWebPush({ relayBaseUrl }) from the settings UI.
-export const DEFAULT_RELAY_BASE_URL =
-  process.env.NEXT_PUBLIC_PUSH_RELAY_URL || 'https://notifications.relay.bulwarkmail.org';
+// Re-exported for callers that already import the relay default from here.
+// The relay list itself lives in lib/push-relays.ts.
+export { DEFAULT_RELAY_BASE_URL };
 
 // Match the mobile app's lifetime hint. The JMAP server may clamp this down.
 const SUBSCRIPTION_EXPIRES_DAYS = 90;

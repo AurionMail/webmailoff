@@ -1107,7 +1107,6 @@
         "relay_label": "Push-relay",
         "relay_locked": "Ingesteld door beheerder",
         "relay_locked_desc": "De push-relay-URL is ingesteld door je beheerder en kan niet worden gewijzigd.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Actief op dit apparaat",
         "status_busy": "Bezig…",
         "status_inactive": "Niet ingeschakeld op dit apparaat",

@@ -13,13 +13,16 @@ import { useAuthStore } from '@/stores/auth-store';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import {
-  DEFAULT_RELAY_BASE_URL,
   WebPushUnsupportedError,
   disableWebPush,
   enableWebPush,
   isWebPushEnabled,
   isWebPushSupported,
 } from '@/lib/web-push';
+import {
+  resolveActiveRelayUrl,
+  resolvePushRelayOptions,
+} from '@/lib/push-relays';
 
 type PushStatus =
   | { kind: 'idle' }
@@ -37,32 +40,28 @@ export function NotificationSettings() {
     calendarNotificationsEnabled,
     calendarNotificationSound,
     calendarInvitationParsingEnabled,
+    pushRelayUrl,
     updateSetting,
   } = useSettingsStore();
   const { isSettingLocked, isSettingHidden } = usePolicyStore();
-  const adminPushRelayUrl = usePolicyStore((s) => s.policy.pushRelayUrl);
-  const pushRelayLocked = usePolicyStore((s) => s.policy.pushRelayUrlLocked) === true;
+  const policy = usePolicyStore((s) => s.policy);
+  const pushRelayLocked = policy.pushRelayUrlLocked === true;
   const client = useAuthStore((s) => s.client);
   const username = useAuthStore((s) => s.username);
   const { dialogProps: confirmDialogProps, confirm: confirmDialog } = useConfirmDialog();
 
   const supported = typeof window !== 'undefined' && isWebPushSupported();
-  const adminUrl = (adminPushRelayUrl ?? '').trim();
-  const [relayUrl, setRelayUrl] = useState(adminUrl || DEFAULT_RELAY_BASE_URL);
   const [pushStatus, setPushStatus] = useState<PushStatus>(
     supported ? { kind: 'idle' } : { kind: 'unsupported' },
   );
 
-  // Pull the admin-configured URL into local state when policy loads/changes.
-  // When locked, the admin value always wins; when only set (not locked), use
-  // it as the initial default but let the user override.
-  useEffect(() => {
-    if (pushRelayLocked && adminUrl) {
-      setRelayUrl(adminUrl);
-    } else if (adminUrl) {
-      setRelayUrl((current) => (current === DEFAULT_RELAY_BASE_URL ? adminUrl : current));
-    }
-  }, [adminUrl, pushRelayLocked]);
+  // Relay URLs come from admin policy only - users pick one of the offered
+  // relays, they never type a URL.
+  const relayOptions = resolvePushRelayOptions(policy);
+  const activeRelayUrl = resolveActiveRelayUrl(policy, pushRelayUrl);
+  const relayChoiceFixed = pushRelayLocked || relayOptions.length < 2;
+  const activeRelayLabel =
+    relayOptions.find((option) => option.url === activeRelayUrl)?.label ?? activeRelayUrl;
 
   useEffect(() => {
     if (!supported) return;
@@ -75,8 +74,6 @@ export function NotificationSettings() {
     })();
   }, [supported, client]);
 
-  const trimmedRelay = relayUrl.trim().replace(/\/+$/, '');
-  const isValidRelay = /^https?:\/\/.+/i.test(trimmedRelay);
   const busy = pushStatus.kind === 'busy';
 
   const handleEnablePush = async () => {
@@ -84,15 +81,11 @@ export function NotificationSettings() {
       setPushStatus({ kind: 'error', message: 'Sign in first' });
       return;
     }
-    if (!isValidRelay) {
-      setPushStatus({ kind: 'error', message: 'Enter a valid https:// URL' });
-      return;
-    }
     setPushStatus({ kind: 'busy' });
     try {
       await enableWebPush({
         client,
-        relayBaseUrl: trimmedRelay,
+        relayBaseUrl: activeRelayUrl,
         accountLabel: username ?? undefined,
       });
       setPushStatus({ kind: 'enabled' });
@@ -119,7 +112,7 @@ export function NotificationSettings() {
     if (!confirmed) return;
     setPushStatus({ kind: 'busy' });
     try {
-      await disableWebPush({ client, relayBaseUrl: trimmedRelay });
+      await disableWebPush({ client, relayBaseUrl: activeRelayUrl });
       setPushStatus({ kind: 'idle' });
     } catch (err) {
       setPushStatus({
@@ -139,34 +132,33 @@ export function NotificationSettings() {
       <SettingsSection title={t('push.title')} description={t('push.description')}>
         <div className="rounded-md border p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <label className="text-sm font-medium inline-flex items-center gap-1.5" htmlFor="push-relay-url">
+            <span className="text-sm font-medium inline-flex items-center gap-1.5">
               {t('push.relay_label')}
               {pushRelayLocked && (
                 <Lock className="w-3 h-3 text-muted-foreground" aria-label={t('push.relay_locked')} />
               )}
-            </label>
+            </span>
             <PushStatusBadge status={pushStatus} t={t} />
           </div>
           <p className="text-xs text-muted-foreground">
             {pushRelayLocked ? t('push.relay_locked_desc') : t('push.relay_desc')}
           </p>
-          <input
-            id="push-relay-url"
-            type="url"
-            inputMode="url"
-            autoComplete="off"
-            spellCheck={false}
-            value={relayUrl}
-            onChange={(e) => setRelayUrl(e.target.value)}
-            placeholder={t('push.relay_placeholder')}
-            disabled={busy || pushStatus.kind === 'unsupported' || pushRelayLocked}
-            readOnly={pushRelayLocked}
-            className="w-full rounded border bg-background px-3 py-2 text-sm disabled:opacity-50"
-          />
+          {relayChoiceFixed ? (
+            <p className="text-sm text-foreground">{activeRelayLabel}</p>
+          ) : (
+            <Select
+              value={activeRelayUrl}
+              onChange={(value) => updateSetting('pushRelayUrl', value)}
+              options={relayOptions.map((option) => ({ value: option.url, label: option.label }))}
+              disabled={busy || pushStatus.kind === 'unsupported'}
+              ariaLabel={t('push.relay_label')}
+              className="w-full"
+            />
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={handleEnablePush}
-              disabled={busy || pushStatus.kind === 'unsupported' || !isValidRelay || !client}
+              disabled={busy || pushStatus.kind === 'unsupported' || !client}
             >
               {pushStatus.kind === 'enabled' ? t('push.reenable') : t('push.enable')}
             </Button>

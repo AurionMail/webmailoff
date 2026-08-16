@@ -1107,7 +1107,6 @@
         "relay_label": "Push relejs",
         "relay_locked": "Iestatījis administrators",
         "relay_locked_desc": "Push releja URL ir iestatījis administrators, un to nevar mainīt.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Aktīvs šajā ierīcē",
         "status_busy": "Notiek darbs…",
         "status_inactive": "Nav iespējots šajā ierīcē",

@@ -376,6 +376,8 @@ interface SettingsState {
   emailNotificationsEnabled: boolean;
   emailNotificationSound: boolean;
   notificationSoundChoice: NotificationSoundChoice;
+  /** Chosen Web Push relay URL. Empty = the admin-configured default. */
+  pushRelayUrl: string;
 
   // Protocol Handlers
   protocolOpenMode: ProtocolOpenMode;
@@ -598,6 +600,7 @@ const DEFAULT_SETTINGS = {
   emailNotificationsEnabled: true,
   emailNotificationSound: true,
   notificationSoundChoice: 'default' as NotificationSoundChoice,
+  pushRelayUrl: '',
 
   // Protocol Handlers
   protocolOpenMode: 'new-tab' as ProtocolOpenMode,
@@ -789,6 +792,7 @@ export const useSettingsStore = create<SettingsState>()(
           emailNotificationsEnabled: state.emailNotificationsEnabled,
           emailNotificationSound: state.emailNotificationSound,
           notificationSoundChoice: state.notificationSoundChoice,
+          pushRelayUrl: state.pushRelayUrl,
           protocolOpenMode: state.protocolOpenMode,
           calendarNotificationsEnabled: state.calendarNotificationsEnabled,
           calendarNotificationSound: state.calendarNotificationSound,

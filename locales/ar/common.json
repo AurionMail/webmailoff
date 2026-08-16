@@ -1080,7 +1080,6 @@
         "relay_desc": "يستخدم افتراضيًا خادم ترحيل Bulwark المستضاف. غيّره فقط إذا كنت تستضيف بنفسك.",
         "relay_locked": "تم تعيينه بواسطة المسؤول",
         "relay_locked_desc": "تم تعيين رابط خادم الترحيل بواسطة المسؤول ولا يمكن تغييره.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "نشط على هذا الجهاز",
         "status_inactive": "غير مفعّل على هذا الجهاز",
         "status_unsupported": "هذا المتصفح لا يدعم Web Push",

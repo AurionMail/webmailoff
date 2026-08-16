@@ -1107,7 +1107,6 @@
         "relay_label": "Push-Relay",
         "relay_locked": "Vom Administrator festgelegt",
         "relay_locked_desc": "Die Push-Relay-URL wurde von Ihrem Administrator festgelegt und kann nicht geändert werden.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Auf diesem Gerät aktiv",
         "status_busy": "Wird verarbeitet…",
         "status_inactive": "Auf diesem Gerät nicht aktiviert",

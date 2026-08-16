@@ -1107,7 +1107,6 @@
         "relay_label": "プッシュリレー",
         "relay_locked": "管理者が設定",
         "relay_locked_desc": "プッシュリレーの URL は管理者によって設定されており、変更できません。",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "このデバイスで有効",
         "status_busy": "処理中…",
         "status_inactive": "このデバイスでは有効になっていません",

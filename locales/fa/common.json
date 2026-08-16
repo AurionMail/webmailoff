@@ -1080,7 +1080,6 @@
         "relay_desc": "پیش‌فرض رله میزبانی شده Bulwark",
         "relay_locked": "تنظیم شده توسط مدیر",
         "relay_locked_desc": "قابل تغییر نیست",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "فعال روی این دستگاه",
         "status_inactive": "فعال نشده",
         "status_unsupported": "مرورگر پشتیبانی نمی‌کند",

@@ -1107,7 +1107,6 @@
         "relay_label": "Push röle",
         "relay_locked": "Yönetici tarafından ayarlandı",
         "relay_locked_desc": "Push röle URL'si yöneticiniz tarafından ayarlandı ve değiştirilemez.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Bu cihazda etkin",
         "status_busy": "Çalışıyor…",
         "status_inactive": "Bu cihazda etkinleştirilmedi",

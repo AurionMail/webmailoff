@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Save, Loader2, Lock } from 'lucide-react';
-import type { SettingsPolicy, FeatureGates } from '@/lib/admin/types';
+import { Save, Loader2, Lock, Plus, Trash2 } from 'lucide-react';
+import type { SettingsPolicy, FeatureGates, PushRelayOption } from '@/lib/admin/types';
 import { DEFAULT_FEATURE_GATES, DEFAULT_POLICY } from '@/lib/admin/types';
 import { apiFetch } from '@/lib/browser-navigation';
+import { normalizeRelayUrl, resolvePushRelayOptions, resolveDefaultRelayUrl } from '@/lib/push-relays';
 
 // `allMailViewEnabled` is deprecated (folded into `crossAllViewEnabled`, normalized
 // forward on policy load), so it is hidden from the admin UI.
@@ -83,6 +84,34 @@ export function PolicyTab() {
 
   function setPushRelayUrl(value: string) {
     setPolicy(prev => ({ ...prev, pushRelayUrl: value }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function updatePushRelay(index: number, patch: Partial<PushRelayOption>) {
+    setPolicy(prev => ({
+      ...prev,
+      pushRelays: (prev.pushRelays ?? []).map((relay, i) => (i === index ? { ...relay, ...patch } : relay)),
+    }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function addPushRelay() {
+    setPolicy(prev => ({ ...prev, pushRelays: [...(prev.pushRelays ?? []), { label: '', url: '' }] }));
+    setDirty(true);
+    setMessage(null);
+  }
+
+  function removePushRelay(index: number) {
+    setPolicy(prev => {
+      const remaining = (prev.pushRelays ?? []).filter((_, i) => i !== index);
+      const removedUrl = normalizeRelayUrl((prev.pushRelays ?? [])[index]?.url);
+      // Dropping the relay users are defaulted to would leave a dangling
+      // default, so fall back to the built-in one.
+      const pushRelayUrl = normalizeRelayUrl(prev.pushRelayUrl) === removedUrl ? '' : prev.pushRelayUrl;
+      return { ...prev, pushRelays: remaining, pushRelayUrl };
+    });
     setDirty(true);
     setMessage(null);
   }
@@ -205,29 +234,84 @@ export function PolicyTab() {
 
       <div className="border border-border rounded-lg">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
-          <h2 className="text-sm font-medium text-foreground">Push Relay</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Override the Web Push relay URL shown in user notification settings. Leave empty to use the built-in default.</p>
+          <h2 className="text-sm font-medium text-foreground">Push Relays</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Relays users can pick from in notification settings. The built-in Bulwark relay is always
+            offered; add your own here. Users choose from this list - they cannot enter a URL.
+          </p>
         </div>
-        <div className="px-4 py-3 space-y-3">
-          <input
-            type="url"
-            inputMode="url"
-            autoComplete="off"
-            spellCheck={false}
-            value={policy.pushRelayUrl ?? ''}
-            onChange={(e) => setPushRelayUrl(e.target.value)}
-            placeholder="https://notifications.relay.example.com"
-            className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-          />
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={!!policy.pushRelayUrlLocked}
-              onChange={togglePushRelayLocked}
-              className="rounded border-input"
-            />
-            <Lock className="w-3 h-3" /> Lock - users cannot change this URL
-          </label>
+        <div className="px-4 py-3 space-y-4">
+          <div className="space-y-2">
+            {(policy.pushRelays ?? []).map((relay, index) => (
+              <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={relay.label}
+                  onChange={(e) => updatePushRelay(index, { label: e.target.value })}
+                  placeholder="Name (e.g. Company relay)"
+                  className="rounded border border-input bg-background px-3 py-2 text-sm sm:w-56"
+                />
+                <input
+                  type="url"
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={relay.url}
+                  onChange={(e) => updatePushRelay(index, { url: e.target.value })}
+                  placeholder="https://notifications.relay.example.com"
+                  className="flex-1 rounded border border-input bg-background px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePushRelay(index)}
+                  aria-label="Remove relay"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-input text-muted-foreground hover:text-destructive shrink-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addPushRelay}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-input text-xs text-foreground hover:bg-muted"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add relay
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-foreground" htmlFor="default-push-relay">
+              Default relay
+            </label>
+            <select
+              id="default-push-relay"
+              value={resolveDefaultRelayUrl(policy)}
+              onChange={(e) => setPushRelayUrl(e.target.value)}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+            >
+              {resolvePushRelayOptions(policy).map(option => (
+                <option key={option.url} value={option.url}>
+                  {option.label} - {option.url}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Preselected for users who have not chosen a relay. Relays with an empty or invalid URL
+              are not offered.
+            </p>
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!policy.pushRelayUrlLocked}
+                onChange={togglePushRelayLocked}
+                className="rounded border-input"
+              />
+              <Lock className="w-3 h-3" /> Lock - users are pinned to the default relay
+            </label>
+          </div>
         </div>
       </div>
 

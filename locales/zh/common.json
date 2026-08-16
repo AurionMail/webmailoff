@@ -1107,7 +1107,6 @@
         "relay_label": "推送中继",
         "relay_locked": "由管理员设置",
         "relay_locked_desc": "推送中继 URL 已由您的管理员设置，无法更改。",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "在此设备上活动",
         "status_busy": "工作中…",
         "status_inactive": "在此设备上未启用",

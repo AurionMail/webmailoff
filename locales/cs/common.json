@@ -1107,7 +1107,6 @@
         "relay_label": "Push relay",
         "relay_locked": "Nastaveno administrátorem",
         "relay_locked_desc": "URL push relay byla nastavena administrátorem a nelze ji změnit.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Aktivní na tomto zařízení",
         "status_busy": "Pracuji…",
         "status_inactive": "Není povoleno na tomto zařízení",

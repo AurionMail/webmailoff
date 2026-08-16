@@ -1107,7 +1107,6 @@
         "relay_label": "Przekaźnik push",
         "relay_locked": "Ustawione przez administratora",
         "relay_locked_desc": "Adres URL przekaźnika push został ustawiony przez administratora i nie można go zmienić.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Aktywne na tym urządzeniu",
         "status_busy": "Przetwarzanie…",
         "status_inactive": "Niewłączone na tym urządzeniu",

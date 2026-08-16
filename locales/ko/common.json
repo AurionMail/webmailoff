@@ -1107,7 +1107,6 @@
         "relay_label": "푸시 릴레이",
         "relay_locked": "관리자에 의해 설정됨",
         "relay_locked_desc": "푸시 릴레이 URL은 관리자가 설정했으며 변경할 수 없어요.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "이 기기에서 활성",
         "status_busy": "처리 중…",
         "status_inactive": "이 기기에서 활성화되지 않음",

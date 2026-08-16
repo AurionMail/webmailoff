@@ -1066,7 +1066,6 @@
         "relay_desc": "ברירת מחדל של ממסר Bulwark המתורח. שנה רק אם אתה מארח בעצמך.",
         "relay_locked": "הוגדר על ידי מנהל",
         "relay_locked_desc": "כתובת ממסר הדחיפה הוגדרה על ידי מנהל שלך ולא ניתן לשנות אותה.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "פעיל בהתקן זה",
         "status_inactive": "לא מופעל בהתקן זה",
         "status_unsupported": "דפדפן זה אינו תומך בדחיפה ברשת",

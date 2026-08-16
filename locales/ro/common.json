@@ -1080,7 +1080,6 @@
         "relay_desc": "Implicit este setat serverul de retransmitere găzduit Bulwark. Modificați această setare numai dacă utilizați un server propriu.",
         "relay_locked": "Configurat de administrator",
         "relay_locked_desc": "Relay-ul push URL a fost configurat de administratorul dvs. și nu poate fi modificat.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Activ pe acest dispozitiv",
         "status_inactive": "Nu este activat pe acest dispozitiv",
         "status_unsupported": "Acest browser nu acceptă Web Push",

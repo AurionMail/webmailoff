@@ -1080,7 +1080,6 @@
         "relay_desc": "Som standard det hosted Bulwark-relæ. Ændr kun, hvis du selv-host'er.",
         "relay_locked": "Indstillet af administrator",
         "relay_locked_desc": "Push-relæ-URL'en er indstillet af din administrator og kan ikke ændres.",
-        "relay_placeholder": "https://notifikationer.relay.eksempel.dk",
         "status_active": "Aktiv på denne enhed",
         "status_inactive": "Ikke aktiveret på denne enhed",
         "status_unsupported": "Denne browser understøtter ikke Web Push",

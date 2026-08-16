@@ -1107,7 +1107,6 @@
         "relay_label": "Push-реле",
         "relay_locked": "Встановлено адміністратором",
         "relay_locked_desc": "URL push-реле встановлено вашим адміністратором і його не можна змінити.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Активно на цьому пристрої",
         "status_busy": "Виконується…",
         "status_inactive": "Не ввімкнено на цьому пристрої",

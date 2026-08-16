@@ -1080,7 +1080,6 @@
         "relay_desc": "Байршуулсан Bulwark буухиа өгөгдмөл. Зөвхөн өөрөө зохион байгуулж байгаа тохиолдолд л өөрчилнө үү.",
         "relay_locked": "Админ тохируулсан",
         "relay_locked_desc": "Түлхэх реле URL-г таны админ тохируулсан бөгөөд өөрчлөх боломжгүй.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Энэ төхөөрөмжид идэвхтэй байна",
         "status_inactive": "Энэ төхөөрөмж дээр идэвхжээгүй",
         "status_unsupported": "Энэ хөтөч Web Push-ийг дэмждэггүй",
