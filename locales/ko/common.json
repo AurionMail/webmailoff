@@ -1192,6 +1192,12 @@
         "always": "항상 여백 추가",
         "edge": "가장자리까지 채우기"
       },
+      "plain_text_font": {
+        "label": "일반 텍스트 글꼴",
+        "description": "일반 텍스트 이메일에 사용되는 글꼴",
+        "mono": "고정폭",
+        "sans": "기본(앱과 동일)"
+      },
       "archive_mode": {
         "label": "보관 방식",
         "description": "메일을 보관할 때 어떻게 분류할지 설정해요",

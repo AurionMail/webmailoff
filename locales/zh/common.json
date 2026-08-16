@@ -1192,6 +1192,12 @@
         "always": "始终添加边距",
         "edge": "无边距"
       },
+      "plain_text_font": {
+        "label": "纯文本字体",
+        "description": "用于纯文本邮件的字体",
+        "mono": "等宽",
+        "sans": "普通（与应用相同）"
+      },
       "archive_mode": {
         "label": "归档方式",
         "description": "归档时如何组织邮件",

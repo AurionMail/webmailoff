@@ -1192,6 +1192,12 @@
         "always": "Vždy přidat odsazení",
         "edge": "Od okraje k okraji"
       },
+      "plain_text_font": {
+        "label": "Písmo prostého textu",
+        "description": "Písmo použité pro e-maily v prostém textu",
+        "mono": "Neproporcionální",
+        "sans": "Normální (stejné jako aplikace)"
+      },
       "archive_mode": {
         "label": "Archivovat do",
         "description": "Jak organizovat e-maily při archivaci",

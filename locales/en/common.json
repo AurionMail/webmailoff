@@ -1195,6 +1195,12 @@
         "always": "Always add spacing",
         "edge": "Edge to edge"
       },
+      "plain_text_font": {
+        "label": "Plain Text Font",
+        "description": "Font used for plain text emails",
+        "mono": "Monospace",
+        "sans": "Normal (same as the app)"
+      },
       "archive_mode": {
         "label": "Archive in",
         "description": "How to organize emails when archiving",

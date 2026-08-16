@@ -1192,6 +1192,12 @@
         "always": "Her zaman boşluk ekle",
         "edge": "Kenardan kenara"
       },
+      "plain_text_font": {
+        "label": "Düz metin yazı tipi",
+        "description": "Düz metin e-postalar için kullanılan yazı tipi",
+        "mono": "Eş aralıklı",
+        "sans": "Normal (uygulamayla aynı)"
+      },
       "archive_mode": {
         "label": "Arşivle",
         "description": "Arşivlerken e-postaların nasıl düzenleneceği",

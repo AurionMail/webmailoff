@@ -1195,6 +1195,12 @@
         "always": "Adaugă întotdeauna spațiere",
         "edge": "Din margine în margine"
       },
+      "plain_text_font": {
+        "label": "Font pentru text simplu",
+        "description": "Fontul folosit pentru e-mailurile în text simplu",
+        "mono": "Monospațiat",
+        "sans": "Normal (la fel ca aplicația)"
+      },
       "archive_mode": {
         "label": "Arhivați în",
         "description": "Cum să organizați e-mailurile atunci când le arhivați",

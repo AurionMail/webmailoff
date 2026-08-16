@@ -1192,6 +1192,12 @@
         "always": "常に余白を追加",
         "edge": "余白なし"
       },
+      "plain_text_font": {
+        "label": "プレーンテキストのフォント",
+        "description": "プレーンテキストメールに使用するフォント",
+        "mono": "等幅",
+        "sans": "標準（アプリと同じ）"
+      },
       "archive_mode": {
         "label": "アーカイブ先",
         "description": "アーカイブ時のメール整理方法",

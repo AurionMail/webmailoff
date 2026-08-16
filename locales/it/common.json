@@ -1192,6 +1192,12 @@
         "always": "Aggiungi sempre spaziatura",
         "edge": "Da bordo a bordo"
       },
+      "plain_text_font": {
+        "label": "Carattere del testo semplice",
+        "description": "Carattere usato per le email in testo semplice",
+        "mono": "Monospazio",
+        "sans": "Normale (come l'app)"
+      },
       "archive_mode": {
         "label": "Archivia in",
         "description": "Come organizzare le email durante l'archiviazione",

@@ -207,6 +207,7 @@ const tabSearchPaths: Record<Tab, string[]> = {
     'settings.email_behavior.hide_inline_image_attachments',
     'settings.email_behavior.hover_actions',
     'settings.email_behavior.permanently_delete_junk',
+    'settings.email_behavior.plain_text_font',
     'settings.email_behavior.show_preview',
   ],
   composing: [
@@ -250,7 +251,7 @@ const tabKeywords: Record<Tab, string> = {
   notifications: 'sound alert push badge',
   appearance: 'theme dark light font size accent color animation density',
   layout: 'toolbar sidebar account switcher unified mailbox icons rail',
-  reading: 'mark read preview thread conversation archive delete attachment open',
+  reading: 'mark read preview thread conversation archive delete attachment open monospace mono font plain text',
   composing: 'editor signature plain text reply forward draft compose',
   downloads: 'download filename template eml attachment save export',
   identities: 'from address signature email',

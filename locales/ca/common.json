@@ -1195,6 +1195,12 @@
         "always": "Afegeix sempre espaiat",
         "edge": "De vora a vora"
       },
+      "plain_text_font": {
+        "label": "Tipus de lletra del text pla",
+        "description": "Tipus de lletra per als correus de text pla",
+        "mono": "Monoespaiada",
+        "sans": "Normal (igual que l'aplicació)"
+      },
       "archive_mode": {
         "label": "Arxiva a",
         "description": "Com organitzar els correus en arxivar-los",

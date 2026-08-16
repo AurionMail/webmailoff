@@ -1192,6 +1192,12 @@
         "always": "Toujours ajouter un espacement",
         "edge": "Bord à bord"
       },
+      "plain_text_font": {
+        "label": "Police du texte brut",
+        "description": "Police utilisée pour les e-mails en texte brut",
+        "mono": "À chasse fixe",
+        "sans": "Normale (comme l'application)"
+      },
       "archive_mode": {
         "label": "Archiver dans",
         "description": "Comment organiser les emails lors de l'archivage",

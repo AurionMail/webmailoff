@@ -1192,6 +1192,12 @@
         "always": "Sempre adicionar espaçamento",
         "edge": "De borda a borda"
       },
+      "plain_text_font": {
+        "label": "Fonte de texto simples",
+        "description": "Fonte usada para e-mails de texto simples",
+        "mono": "Monoespaçada",
+        "sans": "Normal (igual ao aplicativo)"
+      },
       "archive_mode": {
         "label": "Arquivar em",
         "description": "Como organizar os e-mails ao arquivar",

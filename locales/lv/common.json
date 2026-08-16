@@ -1192,6 +1192,12 @@
         "always": "Vienmēr pievienot atstarpi",
         "edge": "No malas līdz malai"
       },
+      "plain_text_font": {
+        "label": "Vienkārša teksta fonts",
+        "description": "Fonts vienkārša teksta e-pastiem",
+        "mono": "Vienplatuma",
+        "sans": "Parasts (tāpat kā lietotnē)"
+      },
       "archive_mode": {
         "label": "Arhivēt mapē",
         "description": "Kā organizēt vēstules arhivējot",

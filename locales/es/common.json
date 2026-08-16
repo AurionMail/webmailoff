@@ -1192,6 +1192,12 @@
         "always": "Añadir espaciado siempre",
         "edge": "De borde a borde"
       },
+      "plain_text_font": {
+        "label": "Fuente de texto sin formato",
+        "description": "Fuente utilizada para los correos de texto sin formato",
+        "mono": "Monoespaciada",
+        "sans": "Normal (igual que la aplicación)"
+      },
       "archive_mode": {
         "label": "Archivar en",
         "description": "Cómo organizar los correos al archivar",

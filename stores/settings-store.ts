@@ -128,6 +128,9 @@ export type MailLayout = 'split' | 'focus' | 'horizontal';
  * - 'edge'  : never add one (render edge-to-edge)
  */
 export type MessageSpacing = 'auto' | 'always' | 'edge';
+
+/** Font used to render text/plain email bodies. */
+export type PlainTextFont = 'mono' | 'sans';
 export type CalendarHoverPreview = 'off' | 'instant' | 'delay-500ms' | 'delay-1s' | 'delay-2s';
 export type SendDelaySeconds = 0 | 10 | 30 | 60;
 export type ProtocolOpenMode = 'active-session' | 'new-tab';
@@ -313,6 +316,7 @@ interface SettingsState {
   emailsPerPage: number;
   externalContentPolicy: ExternalContentPolicy;
   messageSpacing: MessageSpacing; // Gutter around the message body in the reader
+  plainTextFont: PlainTextFont; // Font for text/plain email bodies in the reader
   mailAttachmentAction: MailAttachmentAction;
   attachmentPosition: AttachmentPosition;
   emailAlwaysLightMode: boolean; // Always render email content in light mode
@@ -541,6 +545,7 @@ const DEFAULT_SETTINGS = {
   emailsPerPage: 50,
   externalContentPolicy: 'ask' as ExternalContentPolicy,
   messageSpacing: 'auto' as MessageSpacing,
+  plainTextFont: 'mono' as PlainTextFont,
   mailAttachmentAction: 'preview' as MailAttachmentAction,
   attachmentPosition: 'beside-sender' as AttachmentPosition,
   emailAlwaysLightMode: false,
@@ -759,6 +764,7 @@ export const useSettingsStore = create<SettingsState>()(
           emailsPerPage: state.emailsPerPage,
           externalContentPolicy: state.externalContentPolicy,
           messageSpacing: state.messageSpacing,
+          plainTextFont: state.plainTextFont,
           mailAttachmentAction: state.mailAttachmentAction,
           attachmentPosition: state.attachmentPosition,
           archiveMode: state.archiveMode,

@@ -1195,6 +1195,12 @@
         "always": "Mindig legyen térköz",
         "edge": "Széltől szélig"
       },
+      "plain_text_font": {
+        "label": "Egyszerű szöveg betűtípusa",
+        "description": "Az egyszerű szöveges e-mailekhez használt betűtípus",
+        "mono": "Rögzített szélességű",
+        "sans": "Normál (mint az alkalmazás)"
+      },
       "archive_mode": {
         "label": "Archiválás helye",
         "description": "Hogyan rendezze az e-maileket archiváláskor",

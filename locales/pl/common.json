@@ -1192,6 +1192,12 @@
         "always": "Zawsze dodawaj odstępy",
         "edge": "Od krawędzi do krawędzi"
       },
+      "plain_text_font": {
+        "label": "Czcionka zwykłego tekstu",
+        "description": "Czcionka używana dla wiadomości w zwykłym tekście",
+        "mono": "O stałej szerokości",
+        "sans": "Normalna (jak aplikacja)"
+      },
       "archive_mode": {
         "label": "Archiwizuj w",
         "description": "Jak organizować wiadomości e-mail podczas archiwizacji",

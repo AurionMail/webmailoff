@@ -1195,6 +1195,12 @@
         "always": "Tilføj altid afstand",
         "edge": "Kant til kant"
       },
+      "plain_text_font": {
+        "label": "Skrifttype til ren tekst",
+        "description": "Skrifttype til e-mails i ren tekst",
+        "mono": "Monospace",
+        "sans": "Normal (samme som appen)"
+      },
       "archive_mode": {
         "label": "Arkivér i",
         "description": "Hvordan e-mails organiseres ved arkivering",

@@ -1192,6 +1192,12 @@
         "always": "Immer Abstand hinzufügen",
         "edge": "Randlos"
       },
+      "plain_text_font": {
+        "label": "Schriftart für Nur-Text",
+        "description": "Schriftart für Nur-Text-E-Mails",
+        "mono": "Monospace",
+        "sans": "Normal (wie die App)"
+      },
       "archive_mode": {
         "label": "Nachrichten archivieren in",
         "description": "Wie E-Mails beim Archivieren organisiert werden",

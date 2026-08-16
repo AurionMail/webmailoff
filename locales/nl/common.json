@@ -1192,6 +1192,12 @@
         "always": "Altijd ruimte toevoegen",
         "edge": "Rand tot rand"
       },
+      "plain_text_font": {
+        "label": "Lettertype voor platte tekst",
+        "description": "Lettertype voor e-mails in platte tekst",
+        "mono": "Monospace",
+        "sans": "Normaal (zoals de app)"
+      },
       "archive_mode": {
         "label": "Archiveren in",
         "description": "Hoe e-mails bij archivering worden georganiseerd",
