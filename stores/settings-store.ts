@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useThemeStore } from './theme-store';
 import { useLocaleStore } from './locale-store';
+import type { EmailTemplate } from '@/lib/template-types';
 import type { NotificationSoundChoice } from '@/lib/notification-sound';
 import { apiFetch } from '@/lib/browser-navigation';
 import { generateAccountId } from '@/lib/account-utils';
@@ -35,6 +36,36 @@ interface SettingsSyncJob {
   username: string;
   serverUrl: string;
   settings: Record<string, unknown>;
+}
+
+// --- Template sync bridge ---------------------------------------------------
+// Templates ride along in the synced settings blob (#825), but template-store
+// cannot be imported statically from here: it reaches this module through
+// lib/utils -> lib/debug, and the resulting import cycle leaves one side's
+// bindings uninitialized depending on which module loads first. Instead,
+// template-store registers itself here during its own module init.
+interface TemplateSyncBridge {
+  getSyncedState: () => {
+    templates: EmailTemplate[];
+    deletedTemplateIds: Record<string, string>;
+  };
+  applySyncedState: (
+    templates: unknown,
+    deletedTemplateIds: unknown,
+    opts: { merge: boolean }
+  ) => void;
+}
+
+let templateSyncBridge: TemplateSyncBridge | null = null;
+// Wired up in the window-only init block below; null during SSR.
+let onTemplateStoreChange: (() => void) | null = null;
+
+export function registerTemplateSyncBridge(
+  bridge: TemplateSyncBridge,
+  subscribe: (listener: () => void) => void
+): void {
+  templateSyncBridge = bridge;
+  subscribe(() => onTemplateStoreChange?.());
 }
 
 async function syncSettingsJob(job: SettingsSyncJob, retries = 1): Promise<void> {
@@ -711,6 +742,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       exportSettings: () => {
         const state = get();
+        const templateSync = templateSyncBridge?.getSyncedState();
         const settings = {
           fontSize: state.fontSize,
           density: state.density,
@@ -803,6 +835,14 @@ export const useSettingsStore = create<SettingsState>()(
           // Cross-store settings
           theme: useThemeStore.getState().theme,
           locale: useLocaleStore.getState().locale,
+          // Omitted entirely (rather than emitted empty) if the bridge has
+          // not registered, so an importing device leaves its templates alone.
+          ...(templateSync
+            ? {
+                templates: templateSync.templates,
+                deletedTemplateIds: templateSync.deletedTemplateIds,
+              }
+            : {}),
         };
         return JSON.stringify(settings, null, 2);
       },
@@ -877,6 +917,17 @@ export const useSettingsStore = create<SettingsState>()(
           if (settings.locale) {
             useLocaleStore.getState().setLocale(settings.locale);
           }
+          // Templates live in their own store but ride along in the synced
+          // settings blob (#825). Server loads merge, because every account's
+          // blob carries the full (account-agnostic) template list and a stale
+          // blob must not clobber it; file imports replace wholesale like the
+          // rest of the settings. Blobs from builds that predate template sync
+          // have no `templates` key and leave the local store untouched.
+          templateSyncBridge?.applySyncedState(
+            settings.templates,
+            settings.deletedTemplateIds,
+            { merge: Boolean(opts?.serverAccountId) }
+          );
 
           return true;
         } catch (error) {
@@ -1269,4 +1320,17 @@ if (typeof window !== 'undefined') {
   // Also sync when theme or locale changes
   useThemeStore.subscribe(triggerSync);
   useLocaleStore.subscribe(triggerSync);
+
+  // And when templates change (they ride along in the synced blob, #825).
+  // Unlike theme/locale this honors the user's sync opt-out toggle. The
+  // subscription itself is made by template-store when it registers the
+  // template sync bridge (see registerTemplateSyncBridge).
+  onTemplateStoreChange = () => {
+    if (useSettingsStore.getState().settingsSyncDisabled) return;
+    triggerSync();
+  };
+  // Ensure template-store is loaded (and the bridge registered) even before
+  // any UI component imports it, so the first sync push already carries the
+  // templates.
+  void import('./template-store');
 }
