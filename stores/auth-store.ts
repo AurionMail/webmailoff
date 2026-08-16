@@ -42,7 +42,14 @@ interface AuthState {
   loginWithOAuth: (serverUrl: string, code: string, codeVerifier: string, redirectUri: string, serverId?: string) => Promise<boolean>;
   loginWithServerSso: (code: string, state: string) => Promise<boolean>;
   loginDemo: () => Promise<boolean>;
-  refreshAccessToken: () => Promise<string | null>;
+  /**
+   * Obtain a usable access token for the active account.
+   *
+   * Renews against the IdP by default. `allowCached` lets a session restore
+   * reuse the token the server still holds for this slot - IdPs that gate
+   * refresh tokens behind an `nbf` claim reject an early renewal outright.
+   */
+  refreshAccessToken: (options?: { allowCached?: boolean }) => Promise<string | null>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   removeAccount: (accountId: string) => void;
@@ -1126,7 +1133,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      refreshAccessToken: async () => {
+      refreshAccessToken: async (options) => {
         if (refreshPromise) return refreshPromise;
 
         const accountId = get().activeAccountId;
@@ -1139,7 +1146,12 @@ export const useAuthStore = create<AuthState>()(
 
         const promise = (async () => {
           try {
-            const res = await apiFetch(`/api/auth/token?slot=${slot}`, { method: 'PUT' });
+            // Default to forcing a genuine refresh: the usual caller was told
+            // the current token is unusable (rejected by JMAP, or due for
+            // scheduled renewal), so the server-side cache must be skipped.
+            // Session restore passes allowCached to reuse a still-valid token.
+            const force = options?.allowCached ? '' : '&force=true';
+            const res = await apiFetch(`/api/auth/token?slot=${slot}${force}`, { method: 'PUT' });
 
             if (!res.ok) {
               // Only a definitive 401 ends the session. Anything else (5xx
@@ -1835,7 +1847,9 @@ export const useAuthStore = create<AuthState>()(
           if (state.authMode === 'oauth' && state.serverUrl) {
             set({ isLoading: true, isRateLimited: false, rateLimitUntil: null });
             try {
-              const token = await get().refreshAccessToken();
+              // Restore, not renewal - let the server hand back the cached
+              // token if it is still valid rather than spending a refresh.
+              const token = await get().refreshAccessToken({ allowCached: true });
               if (token && state.serverUrl) {
                 const refreshFn = get().refreshAccessToken;
                 const client = JMAPClient.withBearer(state.serverUrl, token, state.username || '', () => refreshFn());
