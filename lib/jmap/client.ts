@@ -6244,6 +6244,11 @@ export class JMAPClient implements IJMAPClient {
   private sseReconnectTimeout: NodeJS.Timeout | null = null;
   private ssePingTimer: NodeJS.Timeout | null = null;
   private lastSSEActivity: number = 0;
+  // Guards a state-change poll from stacking: the 3s interval, the secondary
+  // poll, and the visibility/online handlers all call checkForStateChanges, so
+  // under socket pressure they would otherwise pile identical POSTs onto an
+  // already-saturated pool and amplify the queueing (#781).
+  private stateCheckInFlight: boolean = false;
   private visibilityHandler: (() => void) | null = null;
   private onlineHandler: (() => void) | null = null;
 
@@ -6305,6 +6310,25 @@ export class JMAPClient implements IJMAPClient {
       .replace('{types}', '*')
       .replace('{closeafter}', 'no')
       .replace('{ping}', '30');
+
+    // Already-active guard (#781): never stack a second SSE stream on a live
+    // one. readSSEStream only unwinds on abort or stream-end, so a previous
+    // connect left open would hold its HTTP/1.1 socket indefinitely; with
+    // several accounts each pinning a socket, routine JMAP POSTs then queue and
+    // time out. Abort any prior stream (and its ping monitor / pending
+    // reconnect) before opening the replacement. The old read loop unwinds via
+    // AbortError and, because we install a fresh controller below, its
+    // end-of-stream reconnect guard (`sseAbortController === controller`) no
+    // longer matches, so it does not spawn a competing connection.
+    if (this.sseAbortController) {
+      this.sseAbortController.abort();
+      this.sseAbortController = null;
+    }
+    this.stopSSEPingMonitor();
+    if (this.sseReconnectTimeout) {
+      clearTimeout(this.sseReconnectTimeout);
+      this.sseReconnectTimeout = null;
+    }
 
     // Each attempt tracks its own controller. When closePushNotifications
     // aborts a connect that is still in flight (every account switch tears
@@ -6428,6 +6452,9 @@ export class JMAPClient implements IJMAPClient {
     if (this.isRateLimited()) {
       return;
     }
+    // Idempotent: a repeat setup (or an SSE->poll fallback that races another)
+    // must not leak a second 3s interval alongside the first (#781).
+    if (this.pollingInterval) return;
     this.fetchCurrentStates();
     this.pollingInterval = setInterval(() => {
       this.checkForStateChanges();
@@ -6518,6 +6545,13 @@ export class JMAPClient implements IJMAPClient {
     if (this.isRateLimited()) {
       return;
     }
+    // Coalesce overlapping polls: if one is already awaiting a response, skip
+    // this call rather than issuing a duplicate POST (#781). The next tick
+    // picks up any change once the in-flight one settles.
+    if (this.stateCheckInFlight) {
+      return;
+    }
+    this.stateCheckInFlight = true;
     try {
       const { using, methodCalls } = this.buildStatePollingRequest();
       const response = await this.authenticatedFetch(this.apiUrl, {
@@ -6550,6 +6584,8 @@ export class JMAPClient implements IJMAPClient {
       }
     } catch {
       // Silently fail - polling will retry
+    } finally {
+      this.stateCheckInFlight = false;
     }
   }
 
