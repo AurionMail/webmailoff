@@ -6,9 +6,22 @@ import { useTranslations } from "next-intl";
 import { Sidebar } from "@/components/layout/sidebar";
 import { EmailList } from "@/components/email/email-list";
 import { MessageListTabs } from "@/components/email/message-list-tabs";
-import { EmailViewer } from "@/components/email/email-viewer";
-import { EmailComposer } from "@/components/email/email-composer";
+import dynamic from "next/dynamic";
 import type { ComposerDraftData } from "@/components/email/email-composer";
+
+// Neither the viewer (5k+ lines, postal-mime/dompurify) nor the composer (the
+// entire TipTap/ProseMirror stack) is needed to paint the mail list, and both
+// only ever render after client-side auth resolves — keep them out of the
+// route's critical chunk. They are preloaded on idle once the list is up, so
+// the first open/compose click doesn't wait on a chunk fetch.
+const EmailViewer = dynamic(
+  () => import("@/components/email/email-viewer").then((m) => m.EmailViewer),
+  { ssr: false }
+);
+const EmailComposer = dynamic(
+  () => import("@/components/email/email-composer").then((m) => m.EmailComposer),
+  { ssr: false }
+);
 import { ProtocolAccountPicker } from "@/components/protocol/protocol-account-picker";
 import { ThreadConversationView } from "@/components/email/thread-conversation-view";
 import { MobileHeader } from "@/components/layout/mobile-header";
@@ -435,6 +448,9 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     () => accounts.filter((a) => a.isConnected).map((a) => a.id).sort().join(","),
     [accounts],
   );
+  // Bumped when checkAuth finishes connecting background accounts after the UI
+  // already unblocked - the push-binding effect below must re-run over them.
+  const connectedAccountsRevision = useAuthStore((s) => s.connectedAccountsRevision);
   // Cross-account is "active" when the user opted in, the admin allows it, and
   // more than one account is connected. Drives the sidebar header label: the
   // old "All accounts" when spanning accounts, else "Unified Mailbox".
@@ -1088,10 +1104,16 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     const loadData = async (attempt = 1) => {
       try {
         const needsMailboxes = useEmailStore.getState().mailboxes.length === 0;
-        await Promise.all([
-          needsMailboxes ? fetchMailboxes(client) : Promise.resolve(),
-          fetchQuota(client)
-        ]);
+        // Quota only feeds the sidebar meter - never gate the list on it.
+        void fetchQuota(client);
+        if (needsMailboxes) {
+          await fetchMailboxes(client);
+        } else {
+          // Mailboxes came from the boot snapshot (or a settings page
+          // prefill): refresh names/counts in the background instead of
+          // gating first paint on the round trip.
+          void fetchMailboxes(client);
+        }
 
         const state = useEmailStore.getState();
         const selectedMailboxId = state.selectedMailbox;
@@ -1103,10 +1125,13 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
           return;
         }
 
-        await refreshScheduledMetadata(client);
+        // Scheduled-send metadata only annotates rows and re-annotates the
+        // live list when it lands, so it must not gate the first mail fetch
+        // with its own serial round trips.
+        void refreshScheduledMetadata(client);
 
-        // Fetch emails for the selected mailbox after scheduled metadata is
-        // available. If the list is already populated (an account switch
+        // Fetch emails for the selected mailbox. If the list is already
+        // populated (an account switch
         // restored a cached snapshot, or login prefetched it), refresh in the
         // background so the visible mail doesn't flash a loading overlay; only
         // a genuine empty first load shows the skeleton.
@@ -1138,6 +1163,21 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, [isAuthenticated, client, fetchMailboxes, fetchEmails, fetchQuota, fetchTagCounts, refreshScheduledMetadata]);
+
+  // Warm the code-split viewer/composer chunks once the browser is idle so the
+  // first message open or compose click doesn't wait on a chunk fetch.
+  useEffect(() => {
+    const warm = () => {
+      void import("@/components/email/email-viewer");
+      void import("@/components/email/email-composer");
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm);
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(warm, 1500);
+    return () => clearTimeout(id);
+  }, []);
 
   // Push notifications: set up once per CONNECTED client and tear down when the
   // clients go away (logout or account switch). Kept separate from the fetch
@@ -1184,7 +1224,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     return () => {
       cleanups.forEach((fn) => fn());
     };
-  }, [isAuthenticated, client, activeAccountId, connectedAccountsSignature, handleStateChange, setPushConnected, buildPopulatedUnifiedAccounts, refreshCrossCounts, refreshUnifiedCounts]);
+  }, [isAuthenticated, client, activeAccountId, connectedAccountsSignature, connectedAccountsRevision, handleStateChange, setPushConnected, buildPopulatedUnifiedAccounts, refreshCrossCounts, refreshUnifiedCounts]);
 
   // Keep unified mailbox counts in sync when the feature is enabled and more
   // than one account is connected. Runs whenever the set of connected accounts

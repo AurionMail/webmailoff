@@ -37,6 +37,12 @@ interface AuthState {
   connectionLost: boolean;
   activeAccountId: string | null;
   isDemoMode: boolean;
+  /**
+   * Bumped when background account restoration finishes connecting clients
+   * after the UI already unblocked, so effects that bind per-client handlers
+   * (push notifications) re-run over the now-complete client set.
+   */
+  connectedAccountsRevision: number;
 
   login: (serverUrl: string, username: string, password: string, totp?: string, rememberMe?: boolean) => Promise<boolean>;
   loginWithOAuth: (serverUrl: string, code: string, codeVerifier: string, redirectUri: string, serverId?: string) => Promise<boolean>;
@@ -585,6 +591,7 @@ export const useAuthStore = create<AuthState>()(
       connectionLost: false,
       activeAccountId: null,
       isDemoMode: false,
+      connectedAccountsRevision: 0,
 
       login: async (serverUrl, username, password, totp, rememberMe) => {
         set({ isLoading: true, error: null, isRateLimited: false, rateLimitUntil: null });
@@ -1672,9 +1679,12 @@ export const useAuthStore = create<AuthState>()(
           const activeId = get().activeAccountId;
           const targetId = activeId || defaultAccount?.id || accounts[0].id;
 
-          // Try to connect all accounts
-          for (const account of accounts) {
-            if (clients.has(account.id)) continue; // Already connected
+          // Restore one account: decrypt the stored credential/token, connect,
+          // and sync the passthrough auth context. The context write never
+          // throws and doesn't depend on the connect result, so its round trip
+          // overlaps the connect instead of running after it.
+          const restoreAccount = async (account: (typeof accounts)[number]) => {
+            if (clients.has(account.id)) return; // Already connected
 
             // Basic auth without rememberMe leaves nothing to restore - the
             // user logged in without persisting credentials. Evict silently
@@ -1682,7 +1692,7 @@ export const useAuthStore = create<AuthState>()(
             if (account.authMode === 'basic' && !account.rememberMe) {
               evictAccount(account.id);
               accountStore.removeAccount(account.id);
-              continue;
+              return;
             }
 
             try {
@@ -1693,10 +1703,11 @@ export const useAuthStore = create<AuthState>()(
                   const refreshFn = get().refreshAccessToken;
                   const client = JMAPClient.withBearer(account.serverUrl, access_token, account.username, () => refreshFn());
                   bindClientStatusHandlers(client, set, get, account.id);
+                  const contextSync = syncStalwartAuthContext(account.serverUrl, account.username, client.getAuthHeader(), account.cookieSlot);
                   await client.connect();
                   clients.set(account.id, client);
                   scheduleRefresh(expires_in, get().refreshAccessToken, account.id);
-                  await syncStalwartAuthContext(account.serverUrl, account.username, client.getAuthHeader(), account.cookieSlot);
+                  await contextSync;
                   accountStore.updateAccount(account.id, { isConnected: true, hasError: false });
                 } else if (res.status >= 500) {
                   throw new TransientAuthError('Token refresh failed', res.status);
@@ -1709,9 +1720,10 @@ export const useAuthStore = create<AuthState>()(
                   const { serverUrl, username, password } = await res.json();
                   const client = new JMAPClient(serverUrl, username, password);
                   bindClientStatusHandlers(client, set, get, account.id);
+                  const contextSync = syncStalwartAuthContext(serverUrl, username, client.getAuthHeader(), account.cookieSlot);
                   await client.connect();
                   clients.set(account.id, client);
-                  await syncStalwartAuthContext(serverUrl, username, client.getAuthHeader(), account.cookieSlot);
+                  await contextSync;
                   accountStore.updateAccount(account.id, { isConnected: true, hasError: false });
                 } else if (res.status >= 500) {
                   throw new TransientAuthError('Session restore failed', res.status);
@@ -1727,7 +1739,7 @@ export const useAuthStore = create<AuthState>()(
                   hasError: true,
                   errorMessage: 'Temporarily rate limited by server',
                 });
-                continue;
+                return;
               }
               // Outage or offline - keep the account (and its cookies) so the
               // session resumes once the server is reachable again. Same
@@ -1739,7 +1751,7 @@ export const useAuthStore = create<AuthState>()(
                   hasError: true,
                   errorMessage: 'Server unreachable',
                 });
-                continue;
+                return;
               }
               // Remove unrestorable accounts so the user is prompted to log in
               // again rather than seeing a stale error entry forever.
@@ -1747,6 +1759,32 @@ export const useAuthStore = create<AuthState>()(
               accountStore.removeAccount(account.id);
               apiFetch(`/api/auth/session?slot=${account.cookieSlot}`, { method: 'DELETE' }).catch(() => {});
             }
+          };
+
+          // Restore the account the UI will show first, so time-to-inbox pays
+          // for one account's round trips, not every registered account's. The
+          // rest connect in the background once the target is up; the revision
+          // bump re-runs per-client effects (push binding) over the full set.
+          const targetEntry = accounts.find((account) => account.id === targetId);
+          const otherAccounts = accounts.filter((account) => account.id !== targetId);
+          if (targetEntry) await restoreAccount(targetEntry);
+
+          const restoreRemaining = async () => {
+            for (const account of otherAccounts) {
+              await restoreAccount(account);
+            }
+          };
+
+          if (clients.has(targetId)) {
+            if (otherAccounts.length > 0) {
+              void restoreRemaining().then(() => {
+                set((state) => ({ connectedAccountsRevision: state.connectedAccountsRevision + 1 }));
+              });
+            }
+          } else {
+            // Target didn't restore - the fallback below needs the other
+            // accounts connected before it can pick one, so wait for them.
+            await restoreRemaining();
           }
 
           // Activate the target account
@@ -1754,8 +1792,17 @@ export const useAuthStore = create<AuthState>()(
           const targetAccount = accountStore.getAccountById(targetId);
           if (targetClient && targetAccount) {
             accountStore.setActiveAccount(targetId);
-            const { identities, primaryIdentity } = loadIdentities(await targetClient.getIdentities(), targetAccount.username);
             initializeFeatureStores(targetClient);
+
+            // Identities only feed the composer's From picker and the settings
+            // pages - not the mail list. Load them in the background instead of
+            // spending a serial round trip before the UI unblocks.
+            const identitiesLoaded = targetClient.getIdentities()
+              .then((raw) => {
+                const { identities, primaryIdentity } = loadIdentities(raw, targetAccount.username);
+                set({ identities, primaryIdentity });
+              })
+              .catch((err) => debug.error('Failed to load identities during restore:', err));
 
             set({
               isAuthenticated: true,
@@ -1764,8 +1811,6 @@ export const useAuthStore = create<AuthState>()(
               username: targetAccount.username,
               client: targetClient,
               ...getClientRateLimitState(targetClient),
-              identities,
-              primaryIdentity,
               authMode: targetAccount.authMode,
               rememberMe: targetAccount.rememberMe,
               connectionLost: false,
@@ -1777,7 +1822,9 @@ export const useAuthStore = create<AuthState>()(
               if (!config.settingsSyncEnabled) return;
               useSettingsStore.getState().loadFromServer(targetAccount.username, targetAccount.serverUrl).finally(() => {
                 useSettingsStore.getState().enableSync(targetAccount.username, targetAccount.serverUrl);
-                applyPreferredIdentity(targetAccount.id);
+                // The preferred identity can only be applied once identities
+                // are known; both loads run concurrently, so join here.
+                identitiesLoaded.then(() => applyPreferredIdentity(targetAccount.id));
               });
             }).catch(() => {});
             return;

@@ -667,7 +667,10 @@ export default function LoginPage() {
   };
 
   const handleDevLogin = async () => {
-    const success = await login(serverUrl, "dev@localhost", "dev");
+    // Remember the session when the server supports it so dev reloads restore
+    // through the same cookie path production remember-me/OAuth users take,
+    // instead of bouncing to the login page.
+    const success = await login(serverUrl, "dev@localhost", "dev", undefined, rememberMeEnabled);
     if (success) {
       let redirectTo = '/';
       try {

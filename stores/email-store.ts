@@ -4019,15 +4019,20 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         position = page.nextPosition;
       }
       const pendingUndoSend = get().pendingUndoSend;
+      const scheduledSubmissionByEmailId = new Map(allEmails.map(email => [email.id, {
+        submissionId: email.emailSubmissionId,
+        sendAt: email.scheduledSendAt,
+        identityId: email.scheduledIdentityId,
+        undoStatus: email.scheduledUndoStatus,
+      }]));
       set({
         scheduledEmails: get().isScheduledView ? allEmails : get().scheduledEmails,
         scheduledEmailIds: new Set(allEmails.map(email => email.id)),
-        scheduledSubmissionByEmailId: new Map(allEmails.map(email => [email.id, {
-          submissionId: email.emailSubmissionId,
-          sendAt: email.scheduledSendAt,
-          identityId: email.scheduledIdentityId,
-          undoStatus: email.scheduledUndoStatus,
-        }])),
+        scheduledSubmissionByEmailId,
+        // Re-annotate the visible list: this refresh runs concurrently with
+        // the initial fetchEmails, so rows fetched before the metadata landed
+        // still get their scheduled badges.
+        emails: annotateScheduledEmails(get().emails, scheduledSubmissionByEmailId),
         scheduledTotal: total,
         scheduledHasMore: false,
         scheduledNextPosition: position,
@@ -4334,3 +4339,81 @@ useEmailStore.subscribe((state, prev) => {
   if (sameCross && sameUnified) return;
   useEmailStore.setState(projected);
 });
+
+// ---------------------------------------------------------------------------
+// Boot snapshot: persist the mailbox list and the first page of the current
+// list so a returning visit paints rows the moment auth resolves, instead of
+// waiting on the Mailbox/get + Email/query round trips. The live fetch still
+// runs and replaces the snapshot in the background (mail-app passes
+// { background: true } when the list is already populated).
+// ---------------------------------------------------------------------------
+const EMAIL_SNAPSHOT_KEY = 'email-snapshot';
+const EMAIL_SNAPSHOT_VERSION = 1;
+const EMAIL_SNAPSHOT_MAX_EMAILS = 50;
+
+if (typeof window !== 'undefined') {
+  // Restore at module load, before the first render reads the store - and only
+  // when the last session ended authenticated, so a logged-out visitor never
+  // sees cached mail.
+  try {
+    const authRaw = window.localStorage.getItem('auth-storage');
+    const authed = authRaw ? JSON.parse(authRaw)?.state?.isAuthenticated === true : false;
+    const raw = authed ? window.localStorage.getItem(EMAIL_SNAPSHOT_KEY) : null;
+    if (raw) {
+      const snap = JSON.parse(raw);
+      if (snap?.v === EMAIL_SNAPSHOT_VERSION && Array.isArray(snap.mailboxes) && snap.mailboxes.length > 0) {
+        useEmailStore.setState({
+          mailboxes: snap.mailboxes,
+          selectedMailbox: typeof snap.selectedMailbox === 'string' ? snap.selectedMailbox : '',
+          ...(Array.isArray(snap.emails) && snap.emails.length > 0
+            ? {
+                emails: snap.emails,
+                totalEmails: typeof snap.totalEmails === 'number' ? snap.totalEmails : snap.emails.length,
+                hasMoreEmails: !!snap.hasMoreEmails,
+              }
+            : {}),
+        });
+      }
+    }
+  } catch { /* corrupt snapshot - start empty */ }
+
+  let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+  useEmailStore.subscribe((state, prev) => {
+    if (
+      state.emails === prev.emails &&
+      state.mailboxes === prev.mailboxes &&
+      state.selectedMailbox === prev.selectedMailbox
+    ) {
+      return;
+    }
+    // A reset (logout / store wipe) must drop the snapshot immediately - mail
+    // data may not outlive the session in localStorage.
+    if (state.mailboxes.length === 0 && state.emails.length === 0) {
+      if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
+      try { window.localStorage.removeItem(EMAIL_SNAPSHOT_KEY); } catch { /* ignore */ }
+      return;
+    }
+    if (snapshotTimer) clearTimeout(snapshotTimer);
+    // Debounced trailing write: the store updates far too often to serialize
+    // the list on every set().
+    snapshotTimer = setTimeout(() => {
+      snapshotTimer = null;
+      const s = useEmailStore.getState();
+      if (s.mailboxes.length === 0) return;
+      // Don't snapshot search results, keyword filters, the scheduled view or
+      // a secondary account's view - the previous plain listing stays in
+      // place for the next boot.
+      if (s.searchQuery || s.selectedKeyword || s.isScheduledView || s.viewingAccountId) return;
+      try {
+        window.localStorage.setItem(EMAIL_SNAPSHOT_KEY, JSON.stringify({
+          v: EMAIL_SNAPSHOT_VERSION,
+          mailboxes: s.mailboxes,
+          selectedMailbox: s.selectedMailbox,
+          emails: s.emails.slice(0, EMAIL_SNAPSHOT_MAX_EMAILS),
+          totalEmails: s.totalEmails,
+          hasMoreEmails: s.hasMoreEmails || s.emails.length > EMAIL_SNAPSHOT_MAX_EMAILS,
+        }));
+      } catch { /* storage quota - skip */ }
+    }, 1000);
+  });
+}
