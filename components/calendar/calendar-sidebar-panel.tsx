@@ -132,9 +132,13 @@ export function CalendarSidebarPanel({
   const localAccounts = useAccountStore((s) => s.accounts);
   const activeLocalAccountId = useAccountStore((s) => s.activeAccountId);
 
-  const personalCalendars = useMemo(() => calendars.filter(c => !c.isShared), [calendars]);
+  // Tasks-only calendars (VTODO, no events) are kept in the store for the tasks
+  // view but hidden from the event calendar list here.
+  const eventCalendars = useMemo(() => calendars.filter(c => !c.isTasksOnly), [calendars]);
+
+  const personalCalendars = useMemo(() => eventCalendars.filter(c => !c.isShared), [eventCalendars]);
   const sharedAccountGroups = useMemo(() => {
-    const shared = calendars.filter(c => c.isShared);
+    const shared = eventCalendars.filter(c => c.isShared);
     const groups = new Map<string, { accountName: string; calendars: Calendar[] }>();
     for (const cal of shared) {
       const key = cal.accountId || cal.accountName || cal.id;
@@ -144,7 +148,7 @@ export function CalendarSidebarPanel({
       groups.get(key)!.calendars.push(cal);
     }
     return Array.from(groups.values());
-  }, [calendars]);
+  }, [eventCalendars]);
 
   /**
    * Pro / multi-account grouping: every calendar bucketed by its owning
@@ -156,7 +160,7 @@ export function CalendarSidebarPanel({
   const localAccountGroups = useMemo(() => {
     if (!multiAccountMode) return [];
     const byAccount = new Map<string, Calendar[]>();
-    for (const cal of calendars) {
+    for (const cal of eventCalendars) {
       const key = cal.localAccountId || '__other__';
       const list = byAccount.get(key) ?? [];
       list.push(cal);
@@ -191,7 +195,7 @@ export function CalendarSidebarPanel({
       ordered.push({ key, label: fallbackLabel, split: splitAccountCalendars(list) });
     }
     return ordered;
-  }, [multiAccountMode, calendars, localAccounts, activeLocalAccountId, t]);
+  }, [multiAccountMode, eventCalendars, localAccounts, activeLocalAccountId, t]);
 
   const getSubscriptionForCalendar = (calendarId: string) => {
     return icalSubscriptions.find(s => s.calendarId === calendarId);
