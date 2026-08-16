@@ -35,6 +35,7 @@ import { playNotificationSound } from "@/lib/notification-sound";
 import { cn } from "@/lib/utils";
 import { localizeMailboxName } from "@/lib/mailbox-label";
 import { KEYWORD_PREFIX, KEYWORD_PREFIX_LEGACY, groupEmailsByThread } from "@/lib/thread-utils";
+import { resolveThreadRoute } from "@/lib/thread-routing";
 import {
   ErrorBoundary,
   SidebarErrorFallback,
@@ -365,6 +366,14 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     setViewingAccount,
     refreshCurrentMailbox,
   } = useEmailStore();
+
+  // Mailboxes of the account currently being browsed. Mirrors the store's
+  // action-mailbox resolution so a lookup by `selectedMailbox` hits the same
+  // list the email fetch used.
+  const viewMailboxes = useMemo(
+    () => (viewingAccountId ? (accountMailboxes[viewingAccountId] ?? mailboxes) : mailboxes),
+    [viewingAccountId, accountMailboxes, mailboxes],
+  );
 
   // Load recent recipients (from the Sent folder) for compose autocomplete.
   // Runs once when the Sent mailbox is known; the store guards against reloads.
@@ -1493,14 +1502,20 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
           const repliedEmail = emailState.emails.find(e => e.id === originalEmailId);
           if (repliedEmail?.threadId && emailState.expandedThreadIds.has(repliedEmail.threadId)) {
             // Route to the email's own account so shared/group threads refresh
-            // from the right server, not the active one. (#281)
-            const threadClient = emailState.isUnifiedView && repliedEmail.sourceClientAccountId
-              ? (useAuthStore.getState().getClientForAccount(repliedEmail.sourceClientAccountId) ?? client)
+            // from the right server, not the active one. (#281, #814)
+            const route = resolveThreadRoute({
+              isUnifiedView: emailState.isUnifiedView,
+              ref: repliedEmail,
+              mailboxes: viewMailboxes,
+              selectedMailbox: emailState.selectedMailbox,
+            });
+            const threadClient = route.clientAccountId
+              ? (useAuthStore.getState().getClientForAccount(route.clientAccountId) ?? client)
               : client;
-            const accountId = emailState.isUnifiedView && repliedEmail.sourceAccountId
-              ? repliedEmail.sourceAccountId
-              : client.getAccountId();
-            const fullEmails = await threadClient.getThreadEmails(repliedEmail.threadId, accountId);
+            const fullEmails = await threadClient.getThreadEmails(
+              repliedEmail.threadId,
+              route.accountId ?? client.getAccountId(),
+            );
             if (fullEmails.length > 0) {
               useEmailStore.setState((state) => {
                 const c = new Map(state.threadEmailsCache);
@@ -2858,14 +2873,20 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     const repliedEmail = emailState.emails.find(e => e.id === originalEmailId);
     if (repliedEmail?.threadId && emailState.expandedThreadIds.has(repliedEmail.threadId)) {
       // Route to the email's own account so shared/group threads refresh from
-      // the right server, not the active one. (#281)
-      const threadClient = emailState.isUnifiedView && repliedEmail.sourceClientAccountId
-        ? (useAuthStore.getState().getClientForAccount(repliedEmail.sourceClientAccountId) ?? client)
+      // the right server, not the active one. (#281, #814)
+      const route = resolveThreadRoute({
+        isUnifiedView: emailState.isUnifiedView,
+        ref: repliedEmail,
+        mailboxes: viewMailboxes,
+        selectedMailbox: emailState.selectedMailbox,
+      });
+      const threadClient = route.clientAccountId
+        ? (useAuthStore.getState().getClientForAccount(route.clientAccountId) ?? client)
         : client;
-      const accountId = emailState.isUnifiedView && repliedEmail.sourceAccountId
-        ? repliedEmail.sourceAccountId
-        : client.getAccountId();
-      const fullEmails = await threadClient.getThreadEmails(repliedEmail.threadId, accountId);
+      const fullEmails = await threadClient.getThreadEmails(
+        repliedEmail.threadId,
+        route.accountId ?? client.getAccountId(),
+      );
       if (fullEmails.length > 0) {
         useEmailStore.setState((state) => {
           const c = new Map(state.threadEmailsCache);
@@ -3017,17 +3038,17 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     setActiveView("viewer");
 
     try {
-      // In unified/aggregate views the thread may belong to another (possibly
-      // shared/group) account. Route the fetch to the login it's reachable
-      // through (`sourceClientAccountId`) and pass its owning JMAP account
-      // (`sourceAccountId`) so the thread loads from the right server instead of
-      // the active one (which doesn't have it → empty/body-less). (#281)
+      // The thread may belong to another account: in unified/aggregate views via
+      // the email's own source stamp (#281), and in a directly-browsed shared
+      // folder via the selected mailbox's owner (#814). Either way the fetch has
+      // to name that account - thread ids are per-account, so an unscoped fetch
+      // resolves to an unrelated thread in the active one.
       const ref = thread.emails?.[0];
-      const threadClient = isUnifiedView && ref?.sourceClientAccountId
-        ? (useAuthStore.getState().getClientForAccount(ref.sourceClientAccountId) ?? client)
+      const route = resolveThreadRoute({ isUnifiedView, ref, mailboxes: viewMailboxes, selectedMailbox });
+      const threadClient = route.clientAccountId
+        ? (useAuthStore.getState().getClientForAccount(route.clientAccountId) ?? client)
         : client;
-      const threadAccountId = isUnifiedView ? ref?.sourceAccountId : undefined;
-      const emails = await threadClient.getThreadEmails(thread.threadId, threadAccountId);
+      const emails = await threadClient.getThreadEmails(thread.threadId, route.accountId);
       // Re-stamp the source reference so conversation actions (reply/move/…)
       // resolve to the right account; the fetched objects don't carry it.
       if (isUnifiedView && ref) {

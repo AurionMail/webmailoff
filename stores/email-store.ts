@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useCalendarStore } from "@/stores/calendar-store";
 import { SearchFilters, DEFAULT_SEARCH_FILTERS, buildJMAPFilter, isFilterEmpty } from "@/lib/jmap/search-utils";
 import { emailHooks } from "@/lib/plugin-hooks";
+import { resolveThreadRoute } from "@/lib/thread-routing";
 import type { ExternalSearchResult } from "@/lib/plugin-types";
 import { fetchUnifiedEmails, fetchUnifiedMailboxCounts, searchUnifiedEmails, advancedSearchUnifiedEmails, fetchCrossViewEmails, searchCrossViewEmails, advancedSearchCrossViewEmails, getCrossUnreadTotal, type UnifiedAccountClient, type UnifiedMailboxCounts } from "@/lib/unified-mailbox";
 import { useAuthStore } from "@/stores/auth-store";
@@ -3338,18 +3339,19 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // thread (handles shared/group accounts); otherwise fall back to the
       // selected-mailbox shared-folder logic. (#281)
       const threadEmail = get().emails.find(e => e.threadId === threadId);
+      const route = resolveThreadRoute({
+        isUnifiedView: get().isUnifiedView,
+        ref: threadEmail,
+        mailboxes,
+        selectedMailbox,
+      });
       let actionClient = resolveActionClient(client);
-      let accountId: string | undefined;
-      if (get().isUnifiedView && threadEmail?.sourceClientAccountId && threadEmail?.sourceAccountId) {
-        actionClient = useAuthStore.getState().getClientForAccount(threadEmail.sourceClientAccountId) ?? actionClient;
-        accountId = threadEmail.sourceAccountId;
-      } else {
-        const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
-        accountId = mailbox?.isShared ? mailbox.accountId : undefined;
+      if (route.clientAccountId) {
+        actionClient = useAuthStore.getState().getClientForAccount(route.clientAccountId) ?? actionClient;
       }
 
       // Fetch all emails in the thread
-      const emails = await actionClient.getThreadEmails(threadId, accountId);
+      const emails = await actionClient.getThreadEmails(threadId, route.accountId);
 
       // Re-stamp the source reference so actions on thread emails resolve to the
       // right account (the fetched objects don't carry it).
