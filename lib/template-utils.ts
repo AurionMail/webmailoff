@@ -80,6 +80,9 @@ export function filterTemplates(templates: EmailTemplate[], query: string): Emai
   );
 }
 
+const SIGNATURE_START_SELECTOR = '[data-signature-block="separator"], [data-signature-block="start"]';
+const SIGNATURE_END_SELECTOR = '[data-signature-block="end"]';
+
 // Compose bodies carry the embedded signature bracketed by
 // data-signature-block markers (see email-composer's
 // buildEmbeddedSignatureHtml). Applying a template must replace only the
@@ -87,9 +90,9 @@ export function filterTemplates(templates: EmailTemplate[], query: string): Emai
 // of overwriting the whole body.
 export function spliceTemplateAboveSignature(prevHtml: string, templateHtml: string): string {
   const doc = new DOMParser().parseFromString(prevHtml, 'text/html');
-  const startEl = doc.querySelector('[data-signature-block="separator"], [data-signature-block="start"]');
+  const startEl = doc.querySelector(SIGNATURE_START_SELECTOR);
   if (!startEl) return templateHtml;
-  const endEl = doc.querySelector('[data-signature-block="end"]');
+  const endEl = doc.querySelector(SIGNATURE_END_SELECTOR);
   const host = doc.createElement('div');
   let cursor: Node | null = startEl;
   while (cursor) {
@@ -98,6 +101,37 @@ export function spliceTemplateAboveSignature(prevHtml: string, templateHtml: str
     cursor = cursor.nextSibling;
   }
   return templateHtml + host.innerHTML;
+}
+
+/**
+ * Whether a compose body holds anything the user wrote above the embedded
+ * signature. A fresh compose body is just an empty paragraph plus the
+ * signature range, so this stays false until the user types something -
+ * the composer then inserts the template at the caret rather than splicing
+ * it over the draft (#540).
+ */
+export function composeBodyHasUserContent(prevHtml: string): boolean {
+  if (!prevHtml.trim()) return false;
+
+  const doc = new DOMParser().parseFromString(prevHtml, 'text/html');
+  const startEl = doc.querySelector(SIGNATURE_START_SELECTOR);
+  if (startEl) {
+    // Drop the signature range [start … end] inclusive, mirroring the
+    // traversal spliceTemplateAboveSignature uses to keep it.
+    const endEl = doc.querySelector(SIGNATURE_END_SELECTOR);
+    let cursor: Node | null = startEl;
+    while (cursor) {
+      const next: Node | null = cursor.nextSibling;
+      const isEnd = cursor === endEl;
+      cursor.parentNode?.removeChild(cursor);
+      if (isEnd) break;
+      cursor = next;
+    }
+  }
+
+  if (doc.body.textContent?.trim()) return true;
+  // Text-free content still counts as a draft worth keeping.
+  return doc.body.querySelector('img, table, hr, [data-quoted-html]') !== null;
 }
 
 function sanitizeText(value: unknown): string {

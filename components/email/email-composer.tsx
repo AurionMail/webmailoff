@@ -31,11 +31,11 @@ import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "
 import { useTemplateStore } from "@/stores/template-store";
 import { SubAddressHelper } from "@/components/identity/sub-address-helper";
 import { generateSubAddress } from "@/lib/sub-addressing";
-import { substitutePlaceholders, spliceTemplateAboveSignature } from "@/lib/template-utils";
+import { substitutePlaceholders, spliceTemplateAboveSignature, composeBodyHasUserContent } from "@/lib/template-utils";
 import { TemplatePicker } from "@/components/templates/template-picker";
 import { TemplateForm } from "@/components/templates/template-form";
 import type { EmailTemplate } from "@/lib/template-types";
-import { appendPlainTextSignature, getPlainTextSignature, plainTextBodyHasSignature } from "@/lib/signature-utils";
+import { appendPlainTextSignature, getPlainTextSignature, plainTextBodyHasSignature, plainTextBodyWithoutSignature } from "@/lib/signature-utils";
 import { findComposeIdentityId, findDraftIdentityId, resolveReplyFrom } from "@/lib/reply-identity";
 import { buildReplyRecipients, isSelfSent } from "@/lib/reply-recipients";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
@@ -1199,18 +1199,44 @@ export function EmailComposer({
       : `<p>${filledBody.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`;
 
     if (mode === 'compose') {
-      setSubject(filledSubject);
+      // An empty template subject must not wipe one the user typed (#540).
+      if (filledSubject) {
+        setSubject(filledSubject);
+      }
       // Compose bodies carry the embedded signature (see
       // shouldEmbedSignatureInNewMail) and the send path assumes it stays
       // there, so replace only the message content, not the signature block.
       // Keyed on the previous body rather than the mode: a re-opened draft is
       // in compose mode too but carries its own signature (#823).
+      // Once the user has written something, the template is inserted at the
+      // caret instead of replacing that text, as in reply/forward mode (#540).
       if (plainTextMode) {
-        setBody((prev) => plainTextBodyHasSignature(prev, signatureIdentity)
-          ? appendPlainTextSignature(bodyContent, signatureIdentity, { separator: signatureSeparatorEnabled })
-          : bodyContent);
+        const textarea = bodyRef.current;
+        const hasUserText = !!textarea
+          && plainTextBodyWithoutSignature(textarea.value, signatureIdentity).trim().length > 0;
+        if (hasUserText && textarea) {
+          const start = textarea.selectionStart ?? textarea.value.length;
+          const end = textarea.selectionEnd ?? start;
+          setBody((prev) => prev.slice(0, start) + bodyContent + prev.slice(end));
+          requestAnimationFrame(() => {
+            const caret = start + bodyContent.length;
+            textarea.focus();
+            textarea.setSelectionRange(caret, caret);
+          });
+        } else {
+          setBody((prev) => plainTextBodyHasSignature(prev, signatureIdentity)
+            ? appendPlainTextSignature(bodyContent, signatureIdentity, { separator: signatureSeparatorEnabled })
+            : bodyContent);
+        }
       } else {
-        setBody((prev) => spliceTemplateAboveSignature(prev, bodyContent));
+        const editor = editorRef.current;
+        // serializeEditorContent (not getHTML) so the check sees the same
+        // markup the body state holds.
+        if (editor && composeBodyHasUserContent(serializeEditorContent(editor))) {
+          editor.chain().focus().insertContent(bodyContent).run();
+        } else {
+          setBody((prev) => spliceTemplateAboveSignature(prev, bodyContent));
+        }
       }
       if (template.defaultRecipients?.to?.length) {
         setTo(template.defaultRecipients.to.map(parseRecipient));

@@ -6,6 +6,7 @@ import {
   getPlainTextSignature,
   hasMeaningfulHtmlBody,
   plainTextBodyHasSignature,
+  plainTextBodyWithoutSignature,
 } from '../signature-utils';
 
 describe('signature-utils', () => {
@@ -52,6 +53,36 @@ describe('signature-utils', () => {
 
     it('returns false when the identity has no signature', () => {
       expect(plainTextBodyHasSignature('Hello there', {})).toBe(false);
+    });
+  });
+
+  describe('plainTextBodyWithoutSignature', () => {
+    const identity = { textSignature: 'Regards,\nAlice' };
+
+    it('returns nothing for a body that is only the signature (#540)', () => {
+      expect(plainTextBodyWithoutSignature(appendPlainTextSignature('', identity), identity)).toBe('');
+    });
+
+    it('returns the text the user typed above the signature', () => {
+      expect(plainTextBodyWithoutSignature(appendPlainTextSignature('Hello Mr.', identity), identity)).toBe('Hello Mr.');
+    });
+
+    it('strips the signature after a CRLF round-trip', () => {
+      const saved = appendPlainTextSignature('Hello Mr.', identity).replace(/\n/g, '\r\n');
+      expect(plainTextBodyWithoutSignature(saved, identity)).toBe('Hello Mr.');
+    });
+
+    it('handles a body written without the "-- " separator', () => {
+      const saved = appendPlainTextSignature('Hello Mr.', identity, { separator: false });
+      expect(plainTextBodyWithoutSignature(saved, identity)).toBe('Hello Mr.');
+    });
+
+    it('leaves a body that does not end with the signature untouched', () => {
+      expect(plainTextBodyWithoutSignature('Hello Mr.', identity)).toBe('Hello Mr.');
+    });
+
+    it('leaves the body untouched when the identity has no signature', () => {
+      expect(plainTextBodyWithoutSignature('Hello Mr.', {})).toBe('Hello Mr.');
     });
   });
 
