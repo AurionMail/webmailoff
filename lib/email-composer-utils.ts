@@ -243,15 +243,23 @@ export async function enrichChipsWithColorsAndIcons(chips: Recipient[]): Promise
 };
 
 /**
- * True when the angle run open at `from` closes before the next one opens. A
- * `<` with no `>` of its own (or whose `>` sits past a later `<`) can never be
- * an address delimiter, so separators after it must stay separators.
+ * True when the angle run that is open at `from` closes before the next one
+ * opens. `from` is the index of the character under test (a separator, or the
+ * opening `<` itself); the scan starts after it either way. A `>` inside a
+ * quoted display name does not close anything, and a `<` with no `>` of its own
+ * (or whose `>` sits past a later `<`) can never be an address delimiter, so
+ * separators after it must stay separators.
  */
 function angleRunCloses(value: string, from: number): boolean {
-  const close = value.indexOf('>', from);
-  if (close === -1) return false;
-  const nextOpen = value.indexOf('<', from);
-  return nextOpen === -1 || close < nextOpen;
+  let inQuotes = false;
+  for (let i = from + 1; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === '"') inQuotes = !inQuotes;
+    else if (inQuotes) continue;
+    else if (ch === '>') return true;
+    else if (ch === '<') return false;
+  }
+  return false;
 }
 
 /**
@@ -281,9 +289,10 @@ export function splitRecipients(value: string, separators = ','): string[] {
     } else if (ch === '>' && !inQuotes) {
       inAngle = false;
       current += ch;
-    } else if (separators.includes(ch) && inAngle && !inQuotes && !angleRunCloses(value, i)) {
+    } else if (separators.includes(ch) && inAngle && !inQuotes && !inGroup && !angleRunCloses(value, i)) {
       // An unclosed `<` would otherwise swallow every later separator, folding
-      // the whole list into one entry that is not an address at all.
+      // the whole list into one entry that is not an address at all. Inside a
+      // group the separators belong to the group, so `inGroup` still wins.
       inAngle = false;
       const trimmed = current.trim();
       if (trimmed) result.push(trimmed);
@@ -437,6 +446,11 @@ function splitPasteEntries(value: string): string[] {
   return splitRecipients(value, ',;\n\r');
 }
 
+/** True when a whitespace/semicolon token of `value` is an address in its own right. */
+function carriesAddress(value: string): boolean {
+  return value.split(/[\s;]+/).some((t) => isValidEmail(t.trim().replace(/^<|>$/g, '')));
+}
+
 /**
  * Splits pasted text into recipient candidates and partitions them: valid email
  * addresses become `Recipient`s (deduped case-insensitively against
@@ -484,8 +498,16 @@ export function splitPastedRecipients(
     if (unwrapped !== entry && tryAdd(parseRecipient(unwrapped))) continue;
 
     // 2. `Name <email` with the closing bracket lost - splitMailbox tolerates
-    //    the missing `>`, so the display name survives the paste.
-    if (tryAdd(splitMailbox(entry))) continue;
+    //    the missing `>`, so the display name survives the paste. It keeps the
+    //    last angle run only, so everything ahead of it would become display
+    //    name: skip this step when that prefix carries an address of its own
+    //    (`a@x.com <b@y.com`) rather than silently swallowing it.
+    const lastOpenAngle = entry.lastIndexOf('<');
+    if (
+      lastOpenAngle !== -1 &&
+      !carriesAddress(entry.slice(0, lastOpenAngle)) &&
+      tryAdd(splitMailbox(entry))
+    ) continue;
 
     // 3. Fallback: a bare-address run (`a@x.com b@y.com`) or a
     //    `John Doe <j@x.com>` fragment where only the <addr> is valid.

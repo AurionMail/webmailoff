@@ -306,6 +306,19 @@ describe("splitRecipients", () => {
     ]);
   });
 
+  it("does not count a `>` inside a quoted display name as closing the run", () => {
+    expect(splitRecipients('Ap <ap@x.com, "b>c" <b@y.com>')).toEqual([
+      "Ap <ap@x.com",
+      '"b>c" <b@y.com>',
+    ]);
+  });
+
+  it("keeps a group intact even when a member's angle run never closes", () => {
+    expect(splitRecipients("Team: Ann <a@x.com, Bob <b@y.com;")).toEqual([
+      "Team: Ann <a@x.com, Bob <b@y.com;",
+    ]);
+  });
+
   it("only splits on the given separators (default comma keeps semicolons/newlines literal)", () => {
     expect(splitRecipients("a@x.com; b@y.com")).toEqual(["a@x.com; b@y.com"]);
   });
@@ -444,6 +457,14 @@ describe("splitPastedRecipients", () => {
     const { valid, invalid } = splitPastedRecipients("John Doe <j@x.com");
     expect(valid).toEqual([{ name: "John Doe", email: "j@x.com" }]);
     expect(invalid).toEqual([]);
+  });
+
+  it("keeps both addresses when one entry carries two unclosed mailboxes", () => {
+    // The name-preserving path keeps the last angle run only, so it must not
+    // claim an entry whose prefix is an address itself - that would drop it.
+    const { valid, invalid } = splitPastedRecipients("Ann <a@x.com Bob <b@y.com");
+    expect(valid).toEqual([{ email: "a@x.com" }, { email: "b@y.com" }]);
+    expect(invalid).toEqual(["Ann", "Bob"]);
   });
 });
 
