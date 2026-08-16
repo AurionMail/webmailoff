@@ -215,7 +215,7 @@ export function ContactsApp({ linkSegments }: ContactsAppProps = {}) {
 
   // Intercept browser refresh gestures (F5, Ctrl/Cmd+R, pull-to-refresh)
   // and refresh contacts via JMAP instead of reloading the page.
-  useRefreshGesture({
+  const { indicator: refreshIndicator } = useRefreshGesture({
     enabled: isAuthenticated && !!client && supportsSync,
     onRefresh: async () => {
       if (!client) return;
@@ -859,6 +859,7 @@ export function ContactsApp({ linkSegments }: ContactsAppProps = {}) {
   return (
     <div className={cn("flex flex-col bg-background overflow-hidden pt-[env(safe-area-inset-top)]", isEmbedded ? "h-full" : "h-dvh")}>
       <AppTopBannerSlot />
+      {refreshIndicator}
       <div className={cn("flex flex-1 min-h-0 overflow-hidden", isMobile && "flex-col")}>
       {/* Navigation Rail - desktop only (hidden when embedded in Pro shell) */}
       {!isMobile && !isEmbedded && (
