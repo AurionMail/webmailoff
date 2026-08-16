@@ -337,8 +337,10 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     markAsSpam,
     undoSpam,
     searchFilters,
+    searchMailboxId,
     isAdvancedSearchOpen,
     setSearchFilters,
+    setSearchMailboxId,
     clearSearchFilters,
     toggleAdvancedSearch,
     advancedSearch,
@@ -3490,22 +3492,33 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                         />
                       </div>
 
-                      {/* Folder selector */}
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{t("advanced_search.folder")}</label>
-                        <select
-                          value={selectedMailbox || ""}
-                          onChange={(e) => { handleMailboxSelect(e.target.value); }}
-                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                        >
-                          <option value="">{t("advanced_search.all_folders")}</option>
-                          {mailboxes.map((mb) => (
-                            <option key={mb.id} value={mb.id}>
-                              {mb.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {/* Folder selector. Scopes the search only - it does not
+                          navigate the mail list, so it defaults to "All folders"
+                          regardless of which folder is open and keeps whatever
+                          the user picked. The unified views already search
+                          across every account's folders, so it is hidden there. */}
+                      {!isUnifiedView && (
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">{t("advanced_search.folder")}</label>
+                          <select
+                            value={searchMailboxId}
+                            onChange={(e) => {
+                              setSearchMailboxId(e.target.value);
+                              // Only re-query when a search is actually running;
+                              // otherwise just remember the scope for the next one.
+                              if (searchQuery.trim() || !isFilterEmpty(searchFilters)) handleAdvancedSearch();
+                            }}
+                            className="w-full h-8 text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                          >
+                            <option value="">{t("advanced_search.all_folders")}</option>
+                            {mailboxes.map((mb) => (
+                              <option key={mb.id} value={mb.id}>
+                                {mb.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>

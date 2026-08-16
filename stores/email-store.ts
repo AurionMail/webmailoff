@@ -84,6 +84,11 @@ interface EmailStore {
 
   // Advanced search state
   searchFilters: SearchFilters;
+  // Folder the search is scoped to; "" means all folders. Deliberately kept
+  // separate from selectedMailbox so that opening the search panel inside a
+  // folder does not silently narrow the search to it, and so an explicit
+  // choice survives navigating the mail list (#788).
+  searchMailboxId: string;
   isAdvancedSearchOpen: boolean;
   searchAbortController: AbortController | null;
   /** Plugin-contributed search results (CRM hits, Slack messages, etc.) populated by emailHooks.onProvideSearchResults. */
@@ -212,6 +217,7 @@ interface EmailStore {
   searchEmails: (client: IJMAPClient, query: string) => Promise<void>;
   advancedSearch: (client: IJMAPClient) => Promise<void>;
   setSearchFilters: (filters: Partial<SearchFilters>) => void;
+  setSearchMailboxId: (mailboxId: string) => void;
   clearSearchFilters: () => void;
   toggleAdvancedSearch: () => void;
   toggleStar: (client: IJMAPClient, emailId: string) => Promise<void>;
@@ -936,6 +942,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
   // Advanced search state
   searchFilters: { ...DEFAULT_SEARCH_FILTERS },
+  searchMailboxId: "",
   isAdvancedSearchOpen: false,
   searchAbortController: null,
   externalSearchResults: [],
@@ -1402,9 +1409,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       const hasFilters = !isFilterEmpty(searchFilters);
 
       if (searchQuery || hasFilters) {
+        // Paginate with the same scope the search itself ran under, not the
+        // folder that happens to be open in the list.
+        const { searchMailboxId } = get();
         const mailboxes = resolveActionMailboxes();
-        const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
-        const jmapMailboxId = mailbox?.originalId || selectedMailbox;
+        const mailbox = mailboxes.find(mb => mb.id === searchMailboxId);
+        const jmapMailboxId = mailbox?.originalId || searchMailboxId;
         const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
 
         if (hasFilters) {
@@ -2164,7 +2174,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   searchEmails: async (client, query) => {
     set({ isLoading: true, error: null, searchQuery: query, emails: [], hasMoreEmails: false, totalEmails: 0 }); // Clear emails for loading state
     try {
-      const { isUnifiedView, unifiedRole, crossView, selectedMailbox, searchFilters } = get();
+      const { isUnifiedView, unifiedRole, crossView, searchMailboxId, searchFilters } = get();
       const emailsPerPage = useSettingsStore.getState().emailsPerPage;
 
       let result;
@@ -2184,11 +2194,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         unifiedErrors = result.errors;
 
       } else {
-        // Get the current mailbox to scope the search.
+        // Scope the search to the folder picked in the search panel; "" (the
+        // default) searches across all folders.
         const mailboxes = resolveActionMailboxes();
-        const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
+        const mailbox = mailboxes.find(mb => mb.id === searchMailboxId);
         // Use originalId for shared mailboxes
-        const jmapMailboxId = mailbox?.originalId || selectedMailbox;
+        const jmapMailboxId = mailbox?.originalId || searchMailboxId;
         // Only pass accountId for shared mailboxes, not for primary account
         accountId = mailbox?.isShared ? mailbox.accountId : undefined;
 
@@ -2236,7 +2247,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   },
 
   advancedSearch: async (client) => {
-    const { searchQuery, searchFilters, selectedMailbox, searchAbortController, isUnifiedView, unifiedRole, crossView } = get();
+    const { searchQuery, searchFilters, searchMailboxId, searchAbortController, isUnifiedView, unifiedRole, crossView } = get();
     const mailboxes = resolveActionMailboxes();
 
     if (searchAbortController) {
@@ -2282,8 +2293,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         unifiedErrors = result.errors;
 
       } else {
-        const mailbox = mailboxes.find(mb => mb.id === selectedMailbox);
-        const jmapMailboxId = mailbox?.originalId || selectedMailbox;
+        const mailbox = mailboxes.find(mb => mb.id === searchMailboxId);
+        const jmapMailboxId = mailbox?.originalId || searchMailboxId;
         accountId = mailbox?.isShared ? mailbox.accountId : undefined;
 
         const filter = buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId);
@@ -2345,8 +2356,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     }));
   },
 
+  setSearchMailboxId: (mailboxId) => {
+    set({ searchMailboxId: mailboxId });
+  },
+
   clearSearchFilters: () => {
-    set({ searchFilters: { ...DEFAULT_SEARCH_FILTERS } });
+    set({ searchFilters: { ...DEFAULT_SEARCH_FILTERS }, searchMailboxId: "" });
   },
 
   toggleAdvancedSearch: () => {
@@ -3186,8 +3201,13 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         const accountId = mailbox?.isShared ? mailbox.accountId : undefined;
         const jmapMailboxId = mailbox?.originalId || selectedMailbox;
         if (hasFilters || searchQuery) {
-          const filter = buildJMAPFilter(searchQuery, searchFilters, jmapMailboxId);
-          result = await effectiveClient.advancedSearchEmails(filter, accountId, emailsPerPage, 0);
+          // A refresh while a search is active must re-run it under the
+          // search's own folder scope, which is independent of selectedMailbox.
+          const { searchMailboxId } = get();
+          const scopeMailbox = mailboxes.find(mb => mb.id === searchMailboxId);
+          const filter = buildJMAPFilter(searchQuery, searchFilters, scopeMailbox?.originalId || searchMailboxId);
+          const scopeAccountId = scopeMailbox?.isShared ? scopeMailbox.accountId : undefined;
+          result = await effectiveClient.advancedSearchEmails(filter, scopeAccountId, emailsPerPage, 0);
         } else {
           result = await effectiveClient.getEmails(jmapMailboxId, accountId, emailsPerPage, 0, undefined, true);
         }
@@ -3910,6 +3930,7 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       // re-run when the user leaves again.
       searchQuery: isScheduledView ? "" : state.searchQuery,
       searchFilters: isScheduledView ? { ...DEFAULT_SEARCH_FILTERS } : state.searchFilters,
+      searchMailboxId: isScheduledView ? "" : state.searchMailboxId,
     };
   }),
   clearPendingUndoSend: () => set({ pendingUndoSend: null }),

@@ -2365,10 +2365,14 @@ export class JMAPClient implements IJMAPClient {
     try {
       const targetAccountId = accountId || this.accountId;
 
+      // Searching all folders with no criteria yields an empty FilterCondition,
+      // which servers reject; omit the key entirely to mean "no filter".
+      const hasFilter = Object.keys(filter).length > 0;
+
       const response = await this.request([
         ["Email/query", {
           accountId: targetAccountId,
-          filter,
+          ...(hasFilter ? { filter } : {}),
           sort: [{ property: "receivedAt", isAscending: false }],
           limit,
           position,
