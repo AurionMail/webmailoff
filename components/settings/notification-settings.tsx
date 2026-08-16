@@ -7,7 +7,7 @@ import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-s
 import { playNotificationSound, NOTIFICATION_SOUNDS } from '@/lib/notification-sound';
 import type { NotificationSoundChoice } from '@/lib/notification-sound';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Lock, Volume2, XCircle } from 'lucide-react';
+import { Volume2, XCircle } from 'lucide-react';
 import { usePolicyStore } from '@/stores/policy-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -75,6 +75,14 @@ export function NotificationSettings() {
   }, [supported, client]);
 
   const busy = pushStatus.kind === 'busy';
+  const pushEnabled = pushStatus.kind === 'enabled';
+  const statusDescription = pushStatus.kind === 'unsupported'
+    ? `${t('push.status_unsupported')} ${t('push.ios_hint')}`
+    : busy
+      ? t('push.status_busy')
+      : pushEnabled
+        ? t('push.status_active')
+        : t('push.status_inactive');
 
   const handleEnablePush = async () => {
     if (!client) {
@@ -130,48 +138,44 @@ export function NotificationSettings() {
   return (
     <div className="space-y-8">
       <SettingsSection title={t('push.title')} description={t('push.description')}>
-        <div className="rounded-md border p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium inline-flex items-center gap-1.5">
-              {t('push.relay_label')}
-              {pushRelayLocked && (
-                <Lock className="w-3 h-3 text-muted-foreground" aria-label={t('push.relay_locked')} />
-              )}
-            </span>
-            <PushStatusBadge status={pushStatus} t={t} />
+        <SettingItem label={t('push.enable')} description={statusDescription}>
+          <div className="flex items-center gap-2">
+            {pushEnabled && (
+              <Button variant="ghost" size="sm" onClick={handleEnablePush} disabled={busy}>
+                {t('push.reenable')}
+              </Button>
+            )}
+            <ToggleSwitch
+              checked={pushEnabled}
+              onChange={(checked) => void (checked ? handleEnablePush() : handleDisablePush())}
+              disabled={busy || pushStatus.kind === 'unsupported' || !client}
+            />
           </div>
-          <p className="text-xs text-muted-foreground">
-            {pushRelayLocked ? t('push.relay_locked_desc') : t('push.relay_desc')}
-          </p>
+        </SettingItem>
+
+        <SettingItem
+          label={t('push.relay_label')}
+          description={pushRelayLocked ? t('push.relay_locked_desc') : t('push.relay_desc')}
+          locked={pushRelayLocked}
+        >
           {relayChoiceFixed ? (
-            <p className="text-sm text-foreground">{activeRelayLabel}</p>
+            <span className="text-sm text-muted-foreground">{activeRelayLabel}</span>
           ) : (
             <Select
               value={activeRelayUrl}
               onChange={(value) => updateSetting('pushRelayUrl', value)}
               options={relayOptions.map((option) => ({ value: option.url, label: option.label }))}
               disabled={busy || pushStatus.kind === 'unsupported'}
-              ariaLabel={t('push.relay_label')}
-              className="w-full"
             />
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={handleEnablePush}
-              disabled={busy || pushStatus.kind === 'unsupported' || !client}
-            >
-              {pushStatus.kind === 'enabled' ? t('push.reenable') : t('push.enable')}
-            </Button>
-            {pushStatus.kind === 'enabled' && (
-              <Button variant="outline" onClick={handleDisablePush} disabled={busy}>
-                {t('push.disable')}
-              </Button>
-            )}
-          </div>
-          {pushStatus.kind === 'unsupported' && (
-            <p className="text-xs text-muted-foreground">{t('push.ios_hint')}</p>
-          )}
-        </div>
+        </SettingItem>
+
+        {pushStatus.kind === 'error' && (
+          <p role="alert" className="flex items-start gap-1.5 text-xs text-destructive">
+            <XCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+            {pushStatus.message}
+          </p>
+        )}
       </SettingsSection>
 
       <SettingsSection title={t('sound_selection.title')} description={t('sound_selection.description')}>
@@ -267,41 +271,4 @@ export function NotificationSettings() {
       <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
-}
-
-function PushStatusBadge({
-  status,
-  t,
-}: {
-  status: PushStatus;
-  t: ReturnType<typeof useTranslations>;
-}) {
-  if (status.kind === 'enabled') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-        <CheckCircle2 className="w-3.5 h-3.5" />
-        {t('push.status_active')}
-      </span>
-    );
-  }
-  if (status.kind === 'busy') {
-    return <span className="text-xs text-muted-foreground">{t('push.status_busy')}</span>;
-  }
-  if (status.kind === 'unsupported') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <XCircle className="w-3.5 h-3.5" />
-        {t('push.status_unsupported')}
-      </span>
-    );
-  }
-  if (status.kind === 'error') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-destructive" title={status.message}>
-        <XCircle className="w-3.5 h-3.5" />
-        {status.message}
-      </span>
-    );
-  }
-  return <span className="text-xs text-muted-foreground">{t('push.status_inactive')}</span>;
 }
