@@ -25,6 +25,8 @@ import { useContactStore } from "@/stores/contact-store";
 import { useIdentityStore } from "@/stores/identity-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useDeviceDetection } from "@/hooks/use-media-query";
+import { usePaneSize } from "@/hooks/use-pane-size";
+import { usePaneId } from "@/hooks/use-pane-context";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useRefreshGesture } from "@/hooks/use-refresh-gesture";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
@@ -280,6 +282,19 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
   // Mobile/tablet responsive hooks
   const { isMobile, isTablet } = useDeviceDetection();
   const isEmbedded = useIsEmbedded();
+  // Pane hosting (Pro shell). When this app renders inside a Pro pane, the
+  // pane publishes its width and id; `isMobile` above is then pane-based,
+  // and layout that would use viewport-fixed positioning must scope itself
+  // to the pane instead (`paneMobile` below).
+  const paneWidth = usePaneSize();
+  const proPaneId = usePaneId();
+  const isPaneScoped = paneWidth !== null;
+  const paneMobile = isPaneScoped && isMobile;
+  // Persisted column widths are viewport-sized; inside a (possibly split)
+  // pane they must never exceed the pane, or the layout stays "squeezed"
+  // after a split closes and reopens at a different size.
+  const clampEmailListWidth = (width: number) =>
+    paneWidth !== null ? Math.min(width, Math.max(220, Math.floor(paneWidth * 0.55))) : width;
   const { activeView, sidebarOpen, setSidebarOpen, setActiveView, tabletListVisible, setTabletListVisible, sidebarWidth, emailListWidth, emailListHeight, setSidebarWidth, setEmailListWidth, setEmailListHeight, persistColumnWidths, sidebarCollapsed, resetSidebarWidth, resetEmailListWidth, resetEmailListHeight } = useUIStore();
   const {
     emails,
@@ -3265,7 +3280,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
 
         {/* Main Content Area */}
         <div className={cn("flex flex-col flex-1 min-w-0 h-full", inlineApp && "hidden")}>
-          <div className={cn("flex flex-1 min-h-0", isHorizontalMailLayout && "md:flex-col")}>
+          <div className={cn("relative flex flex-1 min-h-0", isHorizontalMailLayout && "md:flex-col")}>
           {/* Email List - full width on mobile, fixed width/height on tablet/desktop */}
           <div
             className={cn(
@@ -3276,6 +3291,11 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
               // Mobile: full width, hidden when viewing email
               "max-md:flex-1 max-md:border-e-0 max-md:border-b-0",
               isMobile && activeView !== "list" && "max-md:hidden",
+              // Pane-mobile (narrow Pro pane on a wide viewport): the
+              // `max-md:` viewport classes above never apply, so mirror
+              // them with pane-scoped equivalents.
+              paneMobile && "flex-1 border-e-0 border-b-0",
+              paneMobile && activeView !== "list" && "hidden",
               // Tablet/Desktop: fixed width with collapse animation
               !isHorizontalMailLayout && (shouldHideViewerPane ? "md:flex-1 md:border-e-0" : "md:flex-shrink-0"),
               isHorizontalMailLayout && (shouldHideHorizontalViewerPane ? "md:flex-1" : "md:flex-shrink-0"),
@@ -3289,7 +3309,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                 ? undefined
                 : isHorizontalMailLayout
                   ? (!shouldHideHorizontalViewerPane ? { height: emailListHeight } : undefined)
-                  : (!shouldCollapseListPane && !shouldHideViewerPane ? { width: emailListWidth } : undefined)
+                  : (!shouldCollapseListPane && !shouldHideViewerPane ? { width: clampEmailListWidth(emailListWidth) } : undefined)
             }
           >
             {/* Mobile Header for List View */}
@@ -3576,12 +3596,21 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                 }}
                 onEmailSelect={handleEmailSelect}
                 onEmailDoubleClick={isEmbedded ? ((email) => {
-                  useProTabStore.getState().openEmailTab({
+                  const store = useProTabStore.getState();
+                  const hasSplit = store.tabs.some((tab) => tab.paneId === 'split');
+                  // In a split, open on the *other* side so this list stays
+                  // visible; the shared reader tab keeps repeated
+                  // double-clicks driving a single tab instead of piling up.
+                  const sourcePane = proPaneId ?? 'main';
+                  const targetPane = hasSplit
+                    ? (sourcePane === 'main' ? 'split' : 'main')
+                    : sourcePane;
+                  store.openEmailTab({
                     accountId: email.accountId ?? '',
                     emailId: email.id,
                     mailboxId: selectedMailbox,
                     title: email.subject?.trim() || t('email_composer.new_message'),
-                  });
+                  }, { pane: targetPane, reuseReader: hasSplit });
                 }) : undefined}
                 onOpenConversation={handleOpenConversation}
                 // Context menu handlers
@@ -3690,8 +3719,12 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
               "max-md:fixed max-md:inset-0 max-md:z-30",
               "max-md:h-full max-md:pt-[env(safe-area-inset-top)]",
               isMobile && activeView !== "viewer" && "max-md:hidden",
-              // Tablet/Desktop: relative
-              "md:relative",
+              // Tablet/Desktop: relative. Pane-mobile instead overlays the
+              // pane (absolute within the relative content row above) - the
+              // viewport `max-md:` classes never fire there, and `fixed`
+              // would escape the pane.
+              !paneMobile && "md:relative",
+              paneMobile && (activeView === "viewer" ? "absolute inset-0 z-30 h-full" : "hidden"),
               shouldHideViewerPane && "md:hidden",
               shouldHideHorizontalViewerPane && "md:hidden"
             )}

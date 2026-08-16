@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, useId } from "react";
 import DOMPurify from "dompurify";
@@ -87,6 +87,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "@/stores/contact-store";
 import { toast } from "@/stores/toast-store";
 import { useDeviceDetection } from "@/hooks/use-media-query";
+import { useIsPaneScoped } from "@/hooks/use-pane-context";
 import { useAuthStore } from "@/stores/auth-store";
 import { useAccountStore } from "@/stores/account-store";
 import { useEmailStore } from "@/stores/email-store";
@@ -97,7 +98,6 @@ import { CalendarInvitationBanner } from "./calendar-invitation-banner";
 import { ReadReceiptBanner } from "./read-receipt-banner";
 import { stripCrossAccountIdentityPrefix } from "@/hooks/use-pro-multi-account-identities";
 import { useTour } from "@/components/tour/tour-provider";
-import { useIsEmbedded } from "@/hooks/use-is-embedded";
 import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { findCalendarAttachment, isCalendarMimeType } from "@/lib/calendar-invitation";
 import { RecipientPopover } from "./recipient-popover";
@@ -113,6 +113,12 @@ import { emailHooks, uiHooks, renderHooks } from "@/lib/plugin-hooks";
 import type { AttachmentInfo, AttachmentPreview } from "@/lib/plugin-types";
 import { useAttachmentDrag, isDragOutSupported, type AttachmentDragSource } from "@/hooks/use-attachment-drag";
 import type { IJMAPClient } from "@/lib/jmap/client-interface";
+
+/** The More menu's two drill-downs: a folder list and a tag list. */
+type MoreMenuSub = 'move' | 'tag';
+
+/** Whatever a sub-view offers to act on, in the order it is read out. */
+const SUB_MENU_ITEM_SELECTOR = '[role="menuitem"],[role="menuitemcheckbox"],[role="menuitemradio"]';
 
 interface EmailViewerProps {
   email: Email | null;
@@ -710,6 +716,12 @@ export function EmailViewer({
 
   // Tablet list visibility
   const { isTablet, isMobile } = useDeviceDetection();
+  // Inside a Pro pane, `isMobile` above is pane-width based: overlays that
+  // would go viewport-fixed must instead cover just the pane (via
+  // PaneOverlay + absolute positioning), and viewport CSS breakpoints like
+  // `sm:hidden` must not be trusted - the viewport may be desktop-sized
+  // while the pane is phone-sized.
+  const isPaneScoped = useIsPaneScoped();
   const { tabletListVisible } = useUIStore();
   const { identities, client, isDemoMode, activeAccountId } = useAuthStore();
   const activeAccount = useAccountStore((s) => s.accounts.find((a) => a.id === activeAccountId));
@@ -772,7 +784,6 @@ export function EmailViewer({
   }, [client, t, tComposer]);
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const { startTour } = useTour();
-  const isEmbedded = useIsEmbedded();
   const [showFullHeaders, setShowFullHeaders] = useState(false);
   const [showAllBesideAttachments, setShowAllBesideAttachments] = useState(false);
   const [showAllMobileAttachments, setShowAllMobileAttachments] = useState(false);
@@ -803,7 +814,7 @@ export function EmailViewer({
   };
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [moreMenuSub, setMoreMenuSub] = useState<'move' | 'tag' | null>(null);
+  const [moreMenuSub, setMoreMenuSub] = useState<MoreMenuSub | null>(null);
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -811,6 +822,12 @@ export function EmailViewer({
   const moveMenuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const moveButtonRef = useRef<HTMLButtonElement>(null);
+  // The rows that open a sub-view, and the pieces of the mobile panel a
+  // sub-view replaces. Desktop and mobile never render their More menu at the
+  // same time, so one map serves both.
+  const moreEntryRefs = useRef<Record<MoreMenuSub, HTMLButtonElement | null>>({ move: null, tag: null });
+  const mobileSubBackRef = useRef<HTMLButtonElement>(null);
+  const mobileSubListRef = useRef<HTMLDivElement>(null);
   // Pro can mount two reading panes side by side, so the menu id has to be
   // per-instance for aria-controls to point at the right one.
   const moreMenuId = useId();
@@ -834,6 +851,54 @@ export function EmailViewer({
     onClose: closeMoveMenu,
     triggerRef: moveButtonRef,
   });
+  // Leaving a sub-view unmounts the row that opened it, so focus has to be put
+  // back by hand or it falls to <body> and a screen reader is left with nothing
+  // to read (#779).
+  const leaveMoreMenuSub = useCallback(() => {
+    const sub = moreMenuSub;
+    setMoreMenuSub(null);
+    if (!sub) return;
+    // The mobile panel unmounts the entry while its sub-view is on screen, so
+    // the ref only points at a button again once the top level is back.
+    requestAnimationFrame(() => moreEntryRefs.current[sub]?.focus());
+  }, [moreMenuSub]);
+  // Escape inside a sub-view backs out of it; only an Escape on the top level
+  // dismisses the whole menu.
+  const withSubMenuEscape = useCallback(
+    (next: (e: React.KeyboardEvent) => void) => (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape' && moreMenuSub) {
+        e.preventDefault();
+        e.stopPropagation();
+        leaveMoreMenuSub();
+        return;
+      }
+      next(e);
+    },
+    [moreMenuSub, leaveMoreMenuSub],
+  );
+  const handleMoreMenuKeyDown = useMemo(
+    () => withSubMenuEscape(onMoreMenuKeyDown),
+    [withSubMenuEscape, onMoreMenuKeyDown],
+  );
+  const handleMobileMoreKeyDown = useMemo(
+    () => withSubMenuEscape(onMobileMoreKeyDown),
+    [withSubMenuEscape, onMobileMoreKeyDown],
+  );
+  // The mobile panel swaps its whole body for the sub-view, so entering one
+  // leaves the user nowhere unless focus follows it in. Desktop keeps the entry
+  // button mounted beside its flyout and needs no help.
+  const previousMoreMenuSub = useRef<MoreMenuSub | null>(null);
+  useEffect(() => {
+    const previous = previousMoreMenuSub.current;
+    previousMoreMenuSub.current = moreMenuSub;
+    if (!isMobile || !moreMenuOpen || !moreMenuSub || previous === moreMenuSub) return;
+    // A frame of slack lets the sub-view render before we look for its items.
+    const frame = requestAnimationFrame(() => {
+      const first = mobileSubListRef.current?.querySelector<HTMLElement>(SUB_MENU_ITEM_SELECTOR);
+      (first ?? mobileSubBackRef.current)?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [moreMenuSub, moreMenuOpen, isMobile]);
   const [hiddenPriorities, setHiddenPriorities] = useState<Set<number>>(new Set());
   const currentTagIds = getEmailTagIds(email?.keywords);
   const sortedTagIds = sortTagIds(currentTagIds);
@@ -940,7 +1005,13 @@ export function EmailViewer({
   useEffect(() => {
     if (!moreMenuOpen && !tagMenuOpen && !moveMenuOpen) return;
     function handleClickOutside(e: MouseEvent) {
-      if (moreMenuOpen && moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+      // On mobile the More menu is an off-canvas panel rendered as a sibling of
+      // the toolbar, so it is not inside `moreMenuRef`. Without counting it as
+      // part of the menu every tap on one of its rows read as a click away and
+      // tore the menu down before the row's own click could open its sub-view -
+      // "tag" and "move" just dropped the user back on the trigger (#779).
+      const moreRoots = [moreMenuRef.current, mobileMoreRef.current].filter((el): el is HTMLDivElement => el !== null);
+      if (moreMenuOpen && moreRoots.length > 0 && !moreRoots.some((root) => root.contains(e.target as Node))) {
         setMoreMenuOpen(false);
         setMoreMenuSub(null);
       }
@@ -953,7 +1024,7 @@ export function EmailViewer({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [moreMenuOpen, tagMenuOpen, moveMenuOpen]);
+  }, [moreMenuOpen, tagMenuOpen, moveMenuOpen, mobileMoreRef]);
 
   // Close dropdowns when email changes
   useEffect(() => {
@@ -2807,23 +2878,24 @@ export function EmailViewer({
         </div>
       );
     }
+    // Rendered in Pro (embedded) too: a silent void here read as "broken"
+    // in a split pane - the empty reading pane should always say what it is
+    // and offer a way forward.
     return (
       <div className={cn("flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-muted/30 to-muted/50", className)}>
-        {!isEmbedded && (
-          <div className="text-center p-8">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-background shadow-lg flex items-center justify-center">
-              <Mail className="w-10 h-10 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">{t('no_conversation_selected')}</h3>
-            <p className="text-muted-foreground">{t('no_conversation_description')}</p>
-            {onCompose && (
-              <Button onClick={onCompose} className="mt-6" title={t('compose_hint')}>
-                <PenSquare className="w-4 h-4 me-2" />
-                {t('compose')}
-              </Button>
-            )}
+        <div className="text-center p-8">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-background shadow-lg flex items-center justify-center">
+            <Mail className="w-10 h-10 text-muted-foreground" />
           </div>
-        )}
+          <h3 className="text-xl font-semibold text-foreground mb-2">{t('no_conversation_selected')}</h3>
+          <p className="text-muted-foreground">{t('no_conversation_description')}</p>
+          {onCompose && (
+            <Button onClick={onCompose} className="mt-6" title={t('compose_hint')}>
+              <PenSquare className="w-4 h-4 me-2" />
+              {t('compose')}
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -3148,7 +3220,7 @@ export function EmailViewer({
           {moreMenuOpen && !isMobile && (
             <div
               ref={moreMenuListRef}
-              onKeyDown={onMoreMenuKeyDown}
+              onKeyDown={handleMoreMenuKeyDown}
               id={moreMenuId}
               role="menu"
               aria-label={t('more_actions')}
@@ -3206,10 +3278,11 @@ export function EmailViewer({
                   onMouseLeave={() => setMoreMenuSub(null)}
                 >
                   <button
+                    ref={(el) => { moreEntryRefs.current.move = el; }}
                     role="menuitem"
                     aria-haspopup="menu"
                     aria-expanded={moreMenuSub === 'move'}
-                    onClick={() => setMoreMenuSub(moreMenuSub === 'move' ? null : 'move')}
+                    onClick={() => { if (moreMenuSub === 'move') leaveMoreMenuSub(); else setMoreMenuSub('move'); }}
                     className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
                   >
                     <FolderInput className="w-4 h-4" />
@@ -3217,7 +3290,11 @@ export function EmailViewer({
                     <ChevronRight className="w-3 h-3 text-muted-foreground" />
                   </button>
                   {moreMenuSub === 'move' && (
-                    <div className="absolute end-full top-0 me-1 py-1 w-48 max-h-72 overflow-y-auto bg-background rounded-md shadow-lg border border-border z-10">
+                    <div
+                      role="menu"
+                      aria-label={t('move_to')}
+                      className="absolute end-full top-0 me-1 py-1 w-48 max-h-72 overflow-y-auto bg-background rounded-md shadow-lg border border-border z-10"
+                    >
                       {(() => {
                         const renderMobileNodes = (nodes: MailboxNode[], depth = 0) => {
                           return nodes.map((node) => {
@@ -3262,10 +3339,11 @@ export function EmailViewer({
                   onMouseLeave={() => setMoreMenuSub(null)}
                 >
                   <button
+                    ref={(el) => { moreEntryRefs.current.tag = el; }}
                     role="menuitem"
                     aria-haspopup="menu"
                     aria-expanded={moreMenuSub === 'tag'}
-                    onClick={() => setMoreMenuSub(moreMenuSub === 'tag' ? null : 'tag')}
+                    onClick={() => { if (moreMenuSub === 'tag') leaveMoreMenuSub(); else setMoreMenuSub('tag'); }}
                     className="w-full px-3 py-1.5 text-sm text-start hover:bg-muted text-foreground flex items-center gap-2"
                   >
                     <Tag className="w-4 h-4" />
@@ -3273,7 +3351,11 @@ export function EmailViewer({
                     <ChevronRight className="w-3 h-3 text-muted-foreground" />
                   </button>
                   {moreMenuSub === 'tag' && (
-                    <div className="absolute end-full top-0 me-1 py-1 w-56 bg-background rounded-md shadow-lg border border-border z-10">
+                    <div
+                      role="menu"
+                      aria-label={t('tag')}
+                      className="absolute end-full top-0 me-1 py-1 w-56 bg-background rounded-md shadow-lg border border-border z-10"
+                    >
                       <TagPicker
                         selectedIds={currentTagIds}
                         onToggle={(tagId) => { if (email) onSetTag?.(email.id, tagId); }}
@@ -3403,26 +3485,37 @@ export function EmailViewer({
       data-tour="email-viewer"
       className={cn("flex-1 flex flex-row h-full bg-background overflow-hidden relative", className)}
     >
-    {/* Mobile More menu sidebar overlay */}
+    {/* Mobile More menu sidebar overlay. Inside a Pro pane both pieces
+        anchor to the viewer's relative root with absolute positioning: the
+        viewport is desktop-sized there even though the pane is phone-sized,
+        so neither viewport-fixed positioning nor the viewport-based
+        `sm:hidden` guard can be trusted (they used to leave the More button
+        opening an invisible panel in a split pane). */}
     {!isScheduled && isMobile && moreMenuOpen && (
       <div
-        className="fixed inset-0 bg-black/50 z-[60] sm:hidden"
+        className={cn(
+          "bg-black/50 z-[60]",
+          isPaneScoped ? "absolute inset-0" : "fixed inset-0 sm:hidden",
+        )}
         onClick={() => setMoreMenuOpen(false)}
       />
     )}
     {!isScheduled && isMobile && (
       <div
         ref={mobileMoreRef}
-        onKeyDown={onMobileMoreKeyDown}
+        onKeyDown={handleMobileMoreKeyDown}
         id={moreMenuId}
         role="menu"
-        aria-label={t('more_actions')}
+        /* A sub-view replaces the panel wholesale, so the panel takes its name
+           rather than pretending the top level is still on screen. */
+        aria-label={moreMenuSub === 'move' ? t('move_to') : moreMenuSub === 'tag' ? t('tag') : t('more_actions')}
         /* The panel is only slid off-screen, so without `inert` every action in
            it stays permanently exposed to screen readers - and lands near the
            top of the reading order, far from the toolbar it belongs to (#720). */
         inert={!moreMenuOpen}
         className={cn(
-        "fixed inset-y-0 right-0 w-72 bg-background border-s border-border z-[70] sm:hidden",
+        "bg-background border-s border-border z-[70]",
+        isPaneScoped ? "absolute inset-y-0 right-0 w-72" : "fixed inset-y-0 right-0 w-72 sm:hidden",
         "transform transition-transform duration-300 ease-in-out",
         "flex flex-col",
         moreMenuOpen ? "translate-x-0" : "translate-x-full"
@@ -3430,8 +3523,9 @@ export function EmailViewer({
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           {moreMenuSub ? (
             <button
+              ref={mobileSubBackRef}
               role="menuitem"
-              onClick={() => setMoreMenuSub(null)}
+              onClick={leaveMoreMenuSub}
               className="flex items-center gap-1 -ms-2 px-2 py-1 rounded hover:bg-muted text-sm font-semibold text-foreground"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -3451,7 +3545,7 @@ export function EmailViewer({
             <X className="w-5 h-5" />
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto py-2">
+        <div ref={mobileSubListRef} className="flex-1 overflow-y-auto py-2">
           {moreMenuSub === null && (
             <>
               {/* Star toggle */}
@@ -3463,12 +3557,29 @@ export function EmailViewer({
                 <Star className={cn("w-5 h-5", isStarred && "fill-yellow-400 text-yellow-400")} />
                 {isStarred ? t('tooltips.unstar') : t('tooltips.star')}
               </button>
+              {/* Move to folder (opens sub-view). The toolbar's own Move button
+                  is the first thing dropped when the toolbar runs out of room,
+                  and on mobile the overflow has nowhere else to go - without
+                  this row a narrow screen loses the action entirely (#779). */}
+              {moveTree.length > 0 && onMoveToMailbox && (
+                <button
+                  ref={(el) => { moreEntryRefs.current.move = el; }}
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  onClick={() => setMoreMenuSub('move')}
+                  className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
+                >
+                  <FolderInput className="w-5 h-5" />
+                  <span className="flex-1">{t('move_to')}</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </button>
+              )}
               {/* Tag (opens sub-view) */}
               {(emailKeywords.length > 0 || currentTagIds.length > 0) && (
                 <button
+                  ref={(el) => { moreEntryRefs.current.tag = el; }}
                   role="menuitem"
                   aria-haspopup="menu"
-                  aria-expanded={moreMenuSub === 'tag'}
                   onClick={() => setMoreMenuSub('tag')}
                   className="w-full px-4 py-3 min-h-[44px] text-sm text-start hover:bg-muted text-foreground flex items-center gap-3"
                 >
@@ -5018,10 +5129,14 @@ export function EmailViewer({
       </div>
       </div>
 
-      {/* Email Source Modal */}
+      {/* Email Source Modal - pane-scoped inside a Pro pane so it never
+          covers the neighbouring split pane. */}
       {showSourceModal && email && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className={cn(
+            "bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4",
+            isPaneScoped ? "absolute inset-0" : "fixed inset-0",
+          )}
           onClick={() => setShowSourceModal(false)}
         >
           <div
@@ -5066,9 +5181,14 @@ export function EmailViewer({
       )}
     </div>
 
-    {/* Mobile bottom action bar */}
+    {/* Mobile bottom action bar - pane-scoped inside a Pro pane (the
+        viewport `sm:hidden` guard would otherwise hide it there, and
+        `fixed` would span the whole app instead of the pane). */}
     {isMobile && (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border sm:hidden overflow-hidden pb-[calc(env(safe-area-inset-bottom)/2)]">
+      <nav className={cn(
+        "z-50 bg-background border-t border-border overflow-hidden pb-[calc(env(safe-area-inset-bottom)/2)]",
+        isPaneScoped ? "absolute bottom-0 left-0 right-0" : "fixed bottom-0 left-0 right-0 sm:hidden",
+      )}>
         <div className="flex items-center overflow-x-auto mobile-scroll-hidden">
           <button
             onClick={onNavigatePrev}
