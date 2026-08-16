@@ -16,7 +16,7 @@ vi.mock('@/lib/admin/config-manager', () => ({
 }));
 vi.mock('@/lib/admin/branding-asset', () => ({ fetchBrandingAsset: vi.fn() }));
 
-import { GET, OG_WIDTH, OG_HEIGHT } from '@/app/api/og-image/route';
+import { GET } from '@/app/api/og-image/route';
 import { configManager } from '@/lib/admin/config-manager';
 import { fetchBrandingAsset } from '@/lib/admin/branding-asset';
 import type { NextRequest } from 'next/server';
@@ -74,10 +74,9 @@ describe('/api/og-image', () => {
 
     const meta = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
     expect(meta.format).toBe('png');
-    expect(meta.width).toBe(OG_WIDTH);
-    expect(meta.height).toBe(OG_HEIGHT);
-    expect(OG_WIDTH).toBe(1200);
-    expect(OG_HEIGHT).toBe(630);
+    // 1200x630 is the size the sharing platforms crop to.
+    expect(meta.width).toBe(1200);
+    expect(meta.height).toBe(630);
   });
 
   it('serves the cached render when the branding has not changed', async () => {

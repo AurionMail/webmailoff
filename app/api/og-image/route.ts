@@ -22,8 +22,10 @@ import {
  * artwork.
  */
 
-export const OG_WIDTH = 1200;
-export const OG_HEIGHT = 630;
+// Not exported: Next.js only allows its own route fields (GET, dynamic, ...) as
+// exports from a route module and fails the build on anything else.
+const OG_WIDTH = 1200;
+const OG_HEIGHT = 630;
 
 // The logo never fills the whole canvas; platforms crop the edges of a preview
 // card at some aspect ratios, so keep the artwork well inside a safe area.
