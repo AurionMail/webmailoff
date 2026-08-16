@@ -1705,7 +1705,7 @@ export class JMAPClient implements IJMAPClient {
         accountId: targetAccountId,
         update: {
           [emailId]: {
-            "keywords/$seen": read,
+            "keywords/$seen": read ? true : null,
           },
         },
       }, "0"],
@@ -1716,7 +1716,7 @@ export class JMAPClient implements IJMAPClient {
     if (emailIds.length === 0) return;
 
     for (const batch of batched(emailIds, this.getMaxObjectsInSet())) {
-      const updates = Object.fromEntries(batch.map(id => [id, { "keywords/$seen": read }]));
+      const updates = Object.fromEntries(batch.map(id => [id, { "keywords/$seen": read ? true : null }]));
       await this.request([
         ["Email/set", { accountId: accountId || this.accountId, update: updates }, "0"],
       ]);
@@ -1729,7 +1729,7 @@ export class JMAPClient implements IJMAPClient {
         accountId: accountId || this.accountId,
         update: {
           [emailId]: {
-            "keywords/$flagged": starred,
+            "keywords/$flagged": starred ? true : null,
           },
         },
       }, "0"],
