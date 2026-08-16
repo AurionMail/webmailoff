@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Přepnout na perštinu"
+    "switch_to_farsi": "Přepnout na perštinu",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Přepnout na mongolštinu"
   },
   "settings": {
     "title": "Nastavení",

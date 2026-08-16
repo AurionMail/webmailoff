@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Cambiar a farsi"
+    "switch_to_farsi": "Cambiar a farsi",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Cambiar a mongol"
   },
   "settings": {
     "title": "Configuración",

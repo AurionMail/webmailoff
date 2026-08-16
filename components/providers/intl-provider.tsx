@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { useLocaleStore } from '@/stores/locale-store';
 import arMessages from '@/locales/ar/common.json';
+import caMessages from '@/locales/ca/common.json';
 import csMessages from '@/locales/cs/common.json';
 import daMessages from '@/locales/da/common.json';
 import deMessages from '@/locales/de/common.json';
@@ -20,6 +21,7 @@ import itMessages from '@/locales/it/common.json';
 import jaMessages from '@/locales/ja/common.json';
 import koMessages from '@/locales/ko/common.json';
 import lvMessages from '@/locales/lv/common.json';
+import mnMessages from '@/locales/mn/common.json';
 import nlMessages from '@/locales/nl/common.json';
 import plMessages from '@/locales/pl/common.json';
 import ptMessages from '@/locales/pt/common.json';
@@ -30,9 +32,12 @@ import trMessages from '@/locales/tr/common.json';
 import ukMessages from '@/locales/uk/common.json';
 import zhMessages from '@/locales/zh/common.json';
 
-// Pre-loaded translations (loaded at build time, not runtime)
-const ALL_MESSAGES = {
+// Pre-loaded translations (loaded at build time, not runtime). Exported so a
+// test can pin this map to SUPPORTED_LOCALES - a locale wired into routing but
+// missing here renders as English no matter what the picker says (#756).
+export const ALL_MESSAGES = {
   ar: arMessages,
+  ca: caMessages,
   cs: csMessages,
   da: daMessages,
   de: deMessages,
@@ -46,6 +51,7 @@ const ALL_MESSAGES = {
   ja: jaMessages,
   ko: koMessages,
   lv: lvMessages,
+  mn: mnMessages,
   nl: nlMessages,
   pl: plMessages,
   pt: ptMessages,
