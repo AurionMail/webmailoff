@@ -22,6 +22,7 @@ import {
   blockExternalResourcesOnNode,
   restrictDataUriResourcesOnNode,
   sanitizeEmailHtmlForIframe,
+  sanitizeEmailBodyForIframe,
   TRANSPARENT_BLOCKED_PIXEL,
 } from '../email-sanitization';
 
@@ -883,6 +884,86 @@ describe('email-sanitization', () => {
       restrictDataUriResourcesOnNode(node);
       expect(node.hasAttribute('data-blocked-srcset')).toBe(false);
       expect(node.hasAttribute('srcset')).toBe(false);
+    });
+  });
+
+  // The one sanitizer every rendered body goes through - including the HTML a
+  // decryption plugin hands back from onRenderEmailBody, which used to skip the
+  // external-content policy entirely (#797).
+  describe('sanitizeEmailBodyForIframe', () => {
+    it('blocks external images and reports it when blocking is on', () => {
+      const result = sanitizeEmailBodyForIframe(
+        '<p>hi</p><img src="https://tracker.example/pixel.gif">',
+        true,
+      );
+      expect(result.blockedExternalContent).toBe(true);
+      // The real URL survives only in the restore stash, behind the placeholder.
+      const img = parseHtmlSafely(result.html).querySelector('img')!;
+      expect(img.getAttribute('src')).toBe(TRANSPARENT_BLOCKED_PIXEL);
+      expect(img.getAttribute('data-blocked-src')).toBe('https://tracker.example/pixel.gif');
+    });
+
+    it('leaves external images alone when blocking is off', () => {
+      const result = sanitizeEmailBodyForIframe('<img src="https://cdn.example/a.png">', false);
+      expect(result.blockedExternalContent).toBe(false);
+      expect(result.html).toContain('src="https://cdn.example/a.png"');
+    });
+
+    it('covers the non-img vectors a decrypted newsletter can carry', () => {
+      const html = [
+        '<img srcset="https://t.example/a.png 1x">',
+        '<video poster="https://t.example/p.jpg"></video>',
+        '<table><tr><td background="https://t.example/bg.gif">x</td></tr></table>',
+        '<div style="background:url(https://t.example/bg.png)"></div>',
+        '<style>body{background:url(https://t.example/s.png)}</style>',
+      ].join('');
+      const result = sanitizeEmailBodyForIframe(html, true);
+      expect(result.blockedExternalContent).toBe(true);
+      // Live attributes gone; only the data-blocked-* restore stashes remain,
+      // so assert on the parsed DOM rather than on substrings of the markup.
+      const doc = parseHtmlSafely(result.html);
+      expect(doc.querySelector('img')!.hasAttribute('srcset')).toBe(false);
+      expect(doc.querySelector('video')!.hasAttribute('poster')).toBe(false);
+      expect(doc.querySelector('td')!.hasAttribute('background')).toBe(false);
+      expect(doc.querySelector('div')!.getAttribute('style')).not.toContain('t.example/bg.png');
+      expect(doc.querySelector('style')!.textContent).not.toContain('t.example/s.png');
+    });
+
+    it('drops <link> only in blocking mode (it is a remote-sheet vector)', () => {
+      const html = '<link rel="stylesheet" href="https://t.example/s.css"><p>x</p>';
+      expect(sanitizeEmailBodyForIframe(html, true).html).not.toContain('<link');
+      // Not blocking: <link> is still forbidden by the base iframe config.
+      expect(sanitizeEmailBodyForIframe(html, false).html).not.toContain('t.example/s.css');
+    });
+
+    it('keeps inline cid:/blob:/data: images while blocking', () => {
+      const result = sanitizeEmailBodyForIframe(
+        '<img src="blob:https://app.example/x"><img src="data:image/png;base64,iVBORw0KGgo=">',
+        true,
+      );
+      expect(result.blockedExternalContent).toBe(false);
+      expect(result.html).toContain('blob:https://app.example/x');
+      expect(result.html).toContain('data:image/png');
+    });
+
+    it('still strips scripts, keeps <style>, and opens http links in a new tab', () => {
+      const result = sanitizeEmailBodyForIframe(
+        '<script>alert(1)</script><style>p{color:red}</style>'
+          + '<a href="https://example.com">a</a><a href="mailto:x@y.z">b</a>',
+        true,
+      );
+      expect(result.html).not.toContain('<script');
+      expect(result.html).toContain('<style>');
+      expect(result.html).toContain('target="_blank"');
+      expect(result.html).toContain('rel="noopener noreferrer"');
+      expect(result.html).toContain('href="mailto:x@y.z"');
+    });
+
+    it('does not leave hooks behind for the next sanitizer call', () => {
+      sanitizeEmailBodyForIframe('<img src="https://t.example/p.gif">', true);
+      // A plain sanitize afterwards must not inherit the blocking hook.
+      expect(sanitizeEmailHtml('<img src="https://cdn.example/a.png">'))
+        .toContain('https://cdn.example/a.png');
     });
   });
 });

@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, useId } from "react";
-import DOMPurify from "dompurify";
 import { Email, ContactCard, Mailbox } from "@/lib/jmap/types";
 import { emailExportFilename, attachmentDownloadFilename, attachmentsBundleFilename, DEFAULT_EMAIL_TEMPLATE, DEFAULT_ATTACHMENT_TEMPLATE } from "@/lib/download-filename";
 import { EML_IMPORT_ACCEPT, expandImportableEmails } from "@/lib/eml-import";
-import { EMAIL_IFRAME_SANITIZE_CONFIG, applyNewTabToAnchor, blockExternalResourcesOnNode, collapseBlockedImageContainers, escapeHtml, plainTextToSafeHtml, restrictDataUriResourcesOnNode, sanitizeEmailHtml, sanitizeEmailHtmlForIframe, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
+import { applyNewTabToAnchor, escapeHtml, plainTextToSafeHtml, sanitizeEmailBodyForIframe, sanitizeEmailHtml, sanitizePlainTextRenderedHtml } from "@/lib/email-sanitization";
 import { hasMeaningfulHtmlBody } from "@/lib/signature-utils";
 import { collapsePlainTextQuotes, setupQuoteCollapse } from "@/lib/quote-collapse";
 import { withBasePath } from "@/lib/browser-navigation";
@@ -1681,6 +1680,28 @@ export function EmailViewer({
     }
   };
 
+  // Whether external resources must be blocked for the message on screen.
+  // Shared by every body path - the message's own HTML, TNEF, unwrapped
+  // message/rfc822, and plugin-rendered (decrypted) bodies - so the user's
+  // preference is enforced no matter which one produces the HTML (#797).
+  //   'allow' = never block, 'block' = always block (unless trusted),
+  //   'ask'   = block until the user allows this message or trusts the sender.
+  const shouldBlockExternal = useMemo(() => {
+    if (!email) return false;
+    const senderEmail = email.from?.[0]?.email?.toLowerCase();
+    const senderIsTrusted = senderEmail
+      ? isSenderTrusted(senderEmail) || (trustedSendersAddressBook && isTrustedAddressBookSender(senderEmail))
+      : false;
+    return !senderIsTrusted && (
+      externalContentPolicy === 'block' ||
+      (externalContentPolicy === 'ask' && !allowExternalContent)
+    );
+    // Trust selectors are read inside and re-read whenever the message or the
+    // permission changes, so they're deliberately omitted from deps (matches
+    // the srcDoc rebuild contract described on `emailContent`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, externalContentPolicy, allowExternalContent]);
+
   // Sanitize and prepare email HTML content
   const emailContent = useMemo(() => {
     if (!email) return { html: "", isHtml: false, hasStyleTag: false, externalBlocked: false };
@@ -1727,59 +1748,10 @@ export function EmailViewer({
           );
         }
 
-        // Create a custom DOMPurify hook to handle external content
-        let blockedExternalContent = false;
-
-        // Use shared sanitization config as base (more secure)
-        const sanitizeConfig = { ...EMAIL_IFRAME_SANITIZE_CONFIG };
-
-        // Check if sender is trusted (localStorage list or address book)
-        const senderEmail = email.from?.[0]?.email?.toLowerCase();
-        const senderIsTrusted = senderEmail
-          ? isSenderTrusted(senderEmail) || (trustedSendersAddressBook && isTrustedAddressBookSender(senderEmail))
-          : false;
-
-        // Block external content based on policy:
-        // 'allow' = never block, 'block' = always block (unless trusted), 'ask' = block until user allows or trusted
-        const shouldBlockExternal = !senderIsTrusted && (
-          externalContentPolicy === 'block' ||
-          (externalContentPolicy === 'ask' && !allowExternalContent)
-        );
-
-        if (shouldBlockExternal) {
-          sanitizeConfig.FORBID_TAGS = [...sanitizeConfig.FORBID_TAGS, 'link'];
-        }
-
-        DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-          if (shouldBlockExternal) {
-            // Blocks every external-resource vector (img src incl.
-            // whitespace/newline tricks, srcset, <source>, <video poster>,
-            // media src, background attr, inline style url() incl. CSS
-            // escapes). The strict iframe CSP below is the network backstop.
-            if (blockExternalResourcesOnNode(node)) {
-              blockedExternalContent = true;
-            }
-          }
-
-          // http(s) links open in a new tab; other schemes keep their default.
-          applyNewTabToAnchor(node);
-
-          // Re-apply the data:-URI allowlist DOMPurify skips on media tags.
-          restrictDataUriResourcesOnNode(node);
-
-          // No dark mode color transforms - emails render true-to-life in iframe
-        });
-
-        // Sanitize HTML to prevent XSS
-        let cleanHtml = DOMPurify.sanitize(htmlContent, sanitizeConfig);
-
-        // Remove the hook after sanitization
-        DOMPurify.removeAllHooks();
-
-        // Collapse empty containers left behind by blocked images
-        if (shouldBlockExternal && blockedExternalContent) {
-          cleanHtml = collapseBlockedImageContainers(cleanHtml);
-        }
+        // Sanitize (no dark mode color transforms - emails render true-to-life
+        // in the iframe) and enforce the external-content policy.
+        const { html: cleanHtml, blockedExternalContent } =
+          sanitizeEmailBodyForIframe(htmlContent, shouldBlockExternal);
 
         // Update blocked content state
         if (blockedExternalContent && !hasBlockedContent) {
@@ -1840,10 +1812,10 @@ export function EmailViewer({
     // unblocked content AND the permissive CSP. The strict blocking-mode CSP
     // can't be relaxed in place (a document's CSP is fixed at load), so the
     // "Load images" / "Trust sender" buttons (both flip allowExternalContent)
-    // intentionally trigger a fresh srcDoc. Trust selectors are read inside and
-    // re-read on that rebuild, so they're deliberately omitted from deps.
+    // intentionally trigger a fresh srcDoc - `shouldBlockExternal` carries that
+    // change in, and re-reads the trust selectors on the way.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, externalContentPolicy, allowExternalContent, cidBlobUrls, t]);
+  }, [email, shouldBlockExternal, cidBlobUrls, t]);
 
   // Override email content with S/MIME decrypted content when available
   const effectiveEmailContent = useMemo(() => {
@@ -1852,6 +1824,23 @@ export function EmailViewer({
         show: t('show_quoted_text'),
         hide: t('hide_quoted_text'),
       });
+    // Bodies that bypass `emailContent` (plugin-decrypted, TNEF, unwrapped
+    // message/rfc822) are still email content the user never asked to trust, so
+    // they get the same external-resource treatment - blocking walk, blocked
+    // banner, and the strict iframe CSP via `externalBlocked` (#797).
+    const renderHtml = (html: string) => {
+      const { html: cleanHtml, blockedExternalContent } =
+        sanitizeEmailBodyForIframe(html, shouldBlockExternal);
+      if (blockedExternalContent && !hasBlockedContent) {
+        setHasBlockedContent(true);
+      }
+      return {
+        html: cleanHtml,
+        isHtml: true,
+        hasStyleTag: /<style[\s>]/i.test(html),
+        externalBlocked: shouldBlockExternal,
+      };
+    };
     if (pluginRenderedHtml) {
       const htmlWithCidUrls = pluginRenderedHtml.replace(
         /\bcid:([^"'\s)]+)/gi,
@@ -1859,30 +1848,30 @@ export function EmailViewer({
           return cidBlobUrls[cidRef] || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
         }
       );
-      const cleanHtml = sanitizeEmailHtmlForIframe(htmlWithCidUrls);
-      return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(pluginRenderedHtml), externalBlocked: false };
+      return renderHtml(htmlWithCidUrls);
     }
     if (pluginRenderedText) {
       return { html: plainToHtml(pluginRenderedText), isHtml: false, hasStyleTag: false, externalBlocked: false };
     }
     // TNEF (winmail.dat) extracted content
     if (tnefHtml) {
-      const cleanHtml = sanitizeEmailHtmlForIframe(tnefHtml);
-      return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(tnefHtml), externalBlocked: false };
+      return renderHtml(tnefHtml);
     }
     if (tnefText) {
       return { html: plainToHtml(tnefText), isHtml: false, hasStyleTag: false, externalBlocked: false };
     }
     // Embedded message/rfc822 unwrapped content
     if (embeddedEmailHtml) {
-      const cleanHtml = sanitizeEmailHtmlForIframe(embeddedEmailHtml);
-      return { html: cleanHtml, isHtml: true, hasStyleTag: /<style[\s>]/i.test(embeddedEmailHtml), externalBlocked: false };
+      return renderHtml(embeddedEmailHtml);
     }
     if (embeddedEmailText) {
       return { html: plainToHtml(embeddedEmailText), isHtml: false, hasStyleTag: false, externalBlocked: false };
     }
     return emailContent;
-  }, [cidBlobUrls, emailContent, pluginRenderedHtml, pluginRenderedText, tnefHtml, tnefText, embeddedEmailHtml, embeddedEmailText, t]);
+    // `hasBlockedContent` is only read to avoid a redundant setState; including
+    // it would re-run the whole sanitize pass the moment the banner appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cidBlobUrls, emailContent, shouldBlockExternal, pluginRenderedHtml, pluginRenderedText, tnefHtml, tnefText, embeddedEmailHtml, embeddedEmailText, t]);
 
   const resolveAttachmentName = useCallback(
     (attachment: EffectiveAttachment) => {
