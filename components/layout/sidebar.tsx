@@ -84,7 +84,7 @@ interface SidebarProps {
   onMarkAllFoldersRead?: () => void;
   onEmptyFolder?: (mailboxId: string) => void;
   onCreateSubfolder?: (parentId: string) => void;
-  onCreateFolder?: () => void;
+  onCreateFolder?: (accountId?: string) => void;
   onRenameFolder?: (mailboxId: string) => void;
   onDeleteFolder?: (mailboxId: string) => void;
   onImportEmail?: (mailboxId: string) => void;
@@ -338,6 +338,7 @@ function SidebarRow({
                 e.stopPropagation();
                 onExpandToggle();
               }}
+              data-testid="folder-expand-toggle"
               className="flex items-center justify-center rounded hover:bg-muted active:bg-accent transition-colors"
               style={{ width: CHEVRON_SLOT, height: CHEVRON_SLOT }}
               title={isExpanded ? t('collapse_tooltip') : t('expand_tooltip')}
@@ -394,6 +395,7 @@ function SidebarSectionHeader({
   icon,
   sub,
   testId,
+  onContextMenu,
 }: {
   label: string;
   expanded: boolean;
@@ -405,6 +407,7 @@ function SidebarSectionHeader({
   icon?: ReactNode;
   sub?: boolean;
   testId?: string;
+  onContextMenu?: (event: React.MouseEvent) => void;
 }) {
   if (isCollapsed) {
     return first ? null : <div className="h-px bg-border/50 mx-2 my-2" aria-hidden />;
@@ -419,6 +422,7 @@ function SidebarSectionHeader({
   return (
     <button
       onClick={onToggle}
+      onContextMenu={onContextMenu}
       data-testid={testId}
       data-section-name={label}
       data-expanded={expanded ? 'true' : 'false'}
@@ -1118,6 +1122,17 @@ export function Sidebar({
     openMailboxContextMenu(e, { kind: "folders-section" });
   };
 
+  // `buildMailboxTree()` groups shared mailboxes that carry no accountId under
+  // the placeholder id "unknown" (lib/utils.ts). Such a node cannot be a valid
+  // JMAP mutation target, so it gets no folder-creation menu at all rather than
+  // a menu that would create the folder in a non-existent account.
+  const sharedAccountMenuId = (accountId?: string) =>
+    accountId && accountId !== "unknown" ? accountId : undefined;
+
+  const handleSharedAccountContextMenu = (e: React.MouseEvent, accountId: string) => {
+    openMailboxContextMenu(e, { kind: "folders-section", accountId });
+  };
+
   return (
     <div
       className={cn(
@@ -1332,6 +1347,7 @@ export function Sidebar({
               <>
                 {sharedAccounts.map((account) => {
                   const accountExpanded = expandedSharedAccounts.has(account.id);
+                  const menuAccountId = sharedAccountMenuId(account.accountId);
                   return (
                     <div key={account.id}>
                       <SidebarSectionHeader
@@ -1342,6 +1358,9 @@ export function Sidebar({
                         sub
                         icon={<User className="w-3.5 h-3.5 text-muted-foreground" />}
                         testId="section-shared-account"
+                        onContextMenu={menuAccountId
+                          ? (e) => handleSharedAccountContextMenu(e, menuAccountId)
+                          : undefined}
                       />
                       {accountExpanded && !isCollapsed && account.children.map((child) => (
                         <MailboxTreeItem

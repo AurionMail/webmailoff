@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
 import { isFilePreviewable } from "@/lib/file-preview";
 import { isEditableEventTarget } from "@/lib/keyboard";
 import { buildQuotedHtmlBlock, serializeEditorContent } from "@/components/email/quoted-html";
-import { buildSignatureBlock } from "@/components/email/signature-block";
+import { buildSignatureBlock, containsEmbeddedSignature, SIGNATURE_RANGE_MARKER } from "@/components/email/signature-block";
 import { emailHooks, contactHooks, isExternalAttachmentResult } from "@/lib/plugin-hooks";
 import type { AlmostSavedDraft, OutgoingEmail, RecipientSuggestion } from "@/lib/plugin-types";
 import { useAuthStore } from "@/stores/auth-store";
@@ -31,11 +31,11 @@ import { useContactStore, getContactDisplayName, getContactPrimaryEmail } from "
 import { useTemplateStore } from "@/stores/template-store";
 import { SubAddressHelper } from "@/components/identity/sub-address-helper";
 import { generateSubAddress } from "@/lib/sub-addressing";
-import { substitutePlaceholders, spliceTemplateAboveSignature } from "@/lib/template-utils";
+import { substitutePlaceholders, spliceTemplateAboveSignature, composeBodyHasUserContent } from "@/lib/template-utils";
 import { TemplatePicker } from "@/components/templates/template-picker";
 import { TemplateForm } from "@/components/templates/template-form";
 import type { EmailTemplate } from "@/lib/template-types";
-import { appendPlainTextSignature, getPlainTextSignature } from "@/lib/signature-utils";
+import { appendPlainTextSignature, getPlainTextSignature, plainTextBodyHasSignature, plainTextBodyWithoutSignature } from "@/lib/signature-utils";
 import { findComposeIdentityId, findDraftIdentityId, resolveReplyFrom } from "@/lib/reply-identity";
 import { buildReplyRecipients, isSelfSent } from "@/lib/reply-recipients";
 import { computeReplyThreadingHeaders } from "@/lib/email-threading";
@@ -155,8 +155,12 @@ interface EmailComposerProps {
    * handler shows the unsaved-changes dialog when the draft is dirty, so a
    * host (e.g. the Pro tab bar's close button) can route an external close
    * request through the same guard instead of discarding silently.
+   *
+   * A host replacing this session with another one (e.g. a mailto: click)
+   * can pass a follow-up that runs once the composer has actually closed.
+   * Cancelling the dialog drops it, so the draft simply stays put.
    */
-  requestCloseRef?: React.MutableRefObject<(() => void) | null>;
+  requestCloseRef?: React.MutableRefObject<((afterClose?: () => void) => void) | null>;
   onDiscardDraft?: (draftId: string) => void;
   onSaveState?: (data: ComposerDraftData) => void;
   className?: string;
@@ -229,9 +233,9 @@ function buildEmbeddedSignatureHtml(
 ): string {
   if (!options.embed) return '';
   const startMarker = options.separator
-    ? `<p data-signature-block="separator">-- </p>`
-    : `<p data-signature-block="start"></p>`;
-  const endMarker = `<p data-signature-block="end"></p>`;
+    ? `<p ${SIGNATURE_RANGE_MARKER}="separator">-- </p>`
+    : `<p ${SIGNATURE_RANGE_MARKER}="start"></p>`;
+  const endMarker = `<p ${SIGNATURE_RANGE_MARKER}="end"></p>`;
   if (identity?.htmlSignature) {
     return `${startMarker}${buildSignatureBlock(sanitizeSignatureHtml(identity.htmlSignature))}${endMarker}`;
   }
@@ -575,7 +579,7 @@ export function EmailComposer({
 
   const closeDialogRef = useFocusTrap({
     isActive: showCloseDialog,
-    onEscape: () => setShowCloseDialog(false),
+    onEscape: () => dismissCloseDialog(),
     restoreFocus: true,
   });
 
@@ -641,9 +645,11 @@ export function EmailComposer({
     // body isn't lost during the signature splice + setContent round-trip.
     const currentHtml = serializeEditorContent(editor);
     const doc = new DOMParser().parseFromString(currentHtml, 'text/html');
-    const startEl = doc.querySelector('[data-signature-block="separator"], [data-signature-block="start"]');
+    const startEl = doc.querySelector(
+      `[${SIGNATURE_RANGE_MARKER}="separator"], [${SIGNATURE_RANGE_MARKER}="start"]`
+    );
     if (!startEl) return;
-    const endEl = doc.querySelector('[data-signature-block="end"]');
+    const endEl = doc.querySelector(`[${SIGNATURE_RANGE_MARKER}="end"]`);
 
     const newSignature = buildEmbeddedSignatureHtml(signatureIdentity, {
       embed: true,
@@ -902,6 +908,31 @@ export function EmailComposer({
     : signatureIdentity?.textSignature
       ? `<div>${getPlainTextSignature(signatureIdentity).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
       : '';
+
+  // Whether the body the user is editing already carries the signature, so the
+  // send and draft-save paths must not append a second copy.
+  //
+  // Two ways it can be in there: the body was *built* with it embedded (compose
+  // mode, above-quote replies - see getInitialBody), or the body itself carries
+  // it. The latter is what a re-opened draft looks like: drafts are always
+  // re-opened in `compose` mode, so mode alone says nothing about whether this
+  // particular body has a signature (#823).
+  const bodyCarriesSignature = useMemo(
+    () => plainTextMode
+      ? plainTextBodyHasSignature(body, signatureIdentity)
+      : containsEmbeddedSignature(body),
+    // Keyed on the signature fields rather than the identity object so an
+    // unrelated identity edit doesn't recompute the (sanitizing) plain-text path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [body, plainTextMode, signatureIdentity?.htmlSignature, signatureIdentity?.textSignature],
+  );
+
+  const signatureAlreadyInBody =
+    shouldEmbedSignatureInNewMail ||
+    ((mode === 'reply' || mode === 'replyAll' || mode === 'forward') &&
+      signaturePosition === 'above_quote') ||
+    bodyCarriesSignature;
+
   const getAutocomplete = useContactStore((s) => s.getAutocomplete);
   const getGroupMembers = useContactStore((s) => s.getGroupMembers);
   const searchRecipients = useContactStore((s) => s.searchRecipients);
@@ -1168,16 +1199,44 @@ export function EmailComposer({
       : `<p>${filledBody.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`;
 
     if (mode === 'compose') {
-      setSubject(filledSubject);
+      // An empty template subject must not wipe one the user typed (#540).
+      if (filledSubject) {
+        setSubject(filledSubject);
+      }
       // Compose bodies carry the embedded signature (see
       // shouldEmbedSignatureInNewMail) and the send path assumes it stays
       // there, so replace only the message content, not the signature block.
+      // Keyed on the previous body rather than the mode: a re-opened draft is
+      // in compose mode too but carries its own signature (#823).
+      // Once the user has written something, the template is inserted at the
+      // caret instead of replacing that text, as in reply/forward mode (#540).
       if (plainTextMode) {
-        setBody(shouldEmbedSignatureInNewMail
-          ? appendPlainTextSignature(bodyContent, signatureIdentity, { separator: signatureSeparatorEnabled })
-          : bodyContent);
+        const textarea = bodyRef.current;
+        const hasUserText = !!textarea
+          && plainTextBodyWithoutSignature(textarea.value, signatureIdentity).trim().length > 0;
+        if (hasUserText && textarea) {
+          const start = textarea.selectionStart ?? textarea.value.length;
+          const end = textarea.selectionEnd ?? start;
+          setBody((prev) => prev.slice(0, start) + bodyContent + prev.slice(end));
+          requestAnimationFrame(() => {
+            const caret = start + bodyContent.length;
+            textarea.focus();
+            textarea.setSelectionRange(caret, caret);
+          });
+        } else {
+          setBody((prev) => plainTextBodyHasSignature(prev, signatureIdentity)
+            ? appendPlainTextSignature(bodyContent, signatureIdentity, { separator: signatureSeparatorEnabled })
+            : bodyContent);
+        }
       } else {
-        setBody((prev) => spliceTemplateAboveSignature(prev, bodyContent));
+        const editor = editorRef.current;
+        // serializeEditorContent (not getHTML) so the check sees the same
+        // markup the body state holds.
+        if (editor && composeBodyHasUserContent(serializeEditorContent(editor))) {
+          editor.chain().focus().insertContent(bodyContent).run();
+        } else {
+          setBody((prev) => spliceTemplateAboveSignature(prev, bodyContent));
+        }
       }
       if (template.defaultRecipients?.to?.length) {
         setTo(template.defaultRecipients.to.map(parseRecipient));
@@ -1222,7 +1281,7 @@ export function EmailComposer({
     }
 
     setShowTemplatePicker(false);
-  }, [mode, plainTextMode, shouldEmbedSignatureInNewMail, signatureIdentity, signatureSeparatorEnabled]);
+  }, [mode, plainTextMode, signatureIdentity, signatureSeparatorEnabled]);
 
   useEffect(() => {
     const handleTemplateKey = (e: KeyboardEvent) => {
@@ -1496,8 +1555,31 @@ export function EmailComposer({
         size: att.size,
       }));
 
-    // Create a hash of current data to compare with last saved
-    const currentData = JSON.stringify({ to: toAddresses, cc: ccAddresses, bcc: bccAddresses, subject, body, attachments: uploadedAttachments, identityId: selectedIdentityId, subAddressTag });
+    // A draft has to carry the signature just like a sent mail does. It is
+    // otherwise only appended at send time, so every body the signature was
+    // never embedded into - a reply/forward with the default "below quote"
+    // position, or an identity whose signature the composer only previewed
+    // below the editor - was saved without it (#823). Embed the *marked-up*
+    // form so re-opening the draft round-trips the signature as one block and
+    // signatureAlreadyInBody sees it instead of appending a second copy.
+    const draftSignatureHtml = signatureAlreadyInBody
+      ? ''
+      : buildEmbeddedSignatureHtml(signatureIdentity, {
+          embed: true,
+          separator: signatureSeparatorEnabled,
+        });
+    const draftHtmlBody = plainTextMode ? undefined : `${body}${draftSignatureHtml}`;
+    const draftTextBody = plainTextMode
+      ? (signatureAlreadyInBody
+          ? body
+          : appendPlainTextSignature(body, signatureIdentity, { separator: signatureSeparatorEnabled }))
+      : htmlToPlainText(draftHtmlBody!);
+
+    // Create a hash of current data to compare with last saved. Hashing the
+    // composed bodies (not the raw editor body) means a signature that changed
+    // under an unchanged body - switching identity, toggling the separator -
+    // still triggers a re-save.
+    const currentData = JSON.stringify({ to: toAddresses, cc: ccAddresses, bcc: bccAddresses, subject, body: draftHtmlBody ?? draftTextBody, attachments: uploadedAttachments, identityId: selectedIdentityId, subAddressTag });
 
     // Only save if data has changed
     if (currentData === lastSavedDataRef.current) {
@@ -1522,10 +1604,10 @@ export function EmailComposer({
 
     try {
       const previousDraftId = draftIdRef.current;
-      let savedDraft : AlmostSavedDraft = { 
+      let savedDraft : AlmostSavedDraft = {
        to: toAddresses,
         subject: subject || t('no_subject'),
-        body: plainTextMode ? body : htmlToPlainText(body),
+        body: draftTextBody,
         cc: ccAddresses,
         bcc: bccAddresses,
         identityId: currentIdentityRawId,
@@ -1533,7 +1615,7 @@ export function EmailComposer({
         draftId: previousDraftId || undefined,
         attachments: uploadedAttachments,
         fromName,
-        htmlBody: plainTextMode ? undefined : body
+        htmlBody: draftHtmlBody
       }
       savedDraft = await emailHooks.onBeforeDraftAutoSave.transform(savedDraft);
 
@@ -1885,15 +1967,10 @@ export function EmailComposer({
       : (currentIdentity?.name || undefined);
     const envelopeMailFrom = overrideActive ? identityFromEmail : undefined;
 
-    // Body is already HTML from the rich text editor (or plain text in plain text mode).
-    // The signature is embedded into the body during init for compose mode
-    // (when the initial identity had a signature) and for above-quote
-    // replies/forwards - skip the trailing append in those cases so we don't
-    // duplicate it.
-    const signatureAlreadyInBody =
-      shouldEmbedSignatureInNewMail ||
-      ((mode === 'reply' || mode === 'replyAll' || mode === 'forward') &&
-        signaturePosition === 'above_quote');
+    // Body is already HTML from the rich text editor (or plain text in plain
+    // text mode). Where the signature is already part of it (compose mode,
+    // above-quote replies, a re-opened draft) `signatureAlreadyInBody` is set
+    // and the trailing append below is skipped so we don't duplicate it.
 
     // Build HTML signature block (used only in rich text mode)
     const buildSignatureHtml = (): string => {
@@ -2100,6 +2177,29 @@ export function EmailComposer({
     handleSend({ delayedUntil: new Date(scheduleValue).toISOString() });
   };
 
+  // A host can hand a follow-up to requestCloseRef - "close this session, then
+  // do that". It runs only once the composer really closes, never when the
+  // guard dialog is cancelled, and never before onClose has had its say.
+  const afterCloseRef = useRef<(() => void) | null>(null);
+
+  const emitClose = () => {
+    onClose?.();
+    const afterClose = afterCloseRef.current;
+    afterCloseRef.current = null;
+    // A save that the server refused resets explicitCloseRef so the unmount
+    // stash hands the text back to the host's continue-draft slot (#702). The
+    // draft is still alive in that case, so a follow-up that would replace it
+    // must not run - the rescue outranks the request that triggered it.
+    if (explicitCloseRef.current) {
+      afterClose?.();
+    }
+  };
+
+  const dismissCloseDialog = () => {
+    afterCloseRef.current = null;
+    setShowCloseDialog(false);
+  };
+
   const cleanClose = () => {
     sendCancelledRef.current = true;
     explicitCloseRef.current = true;
@@ -2107,7 +2207,7 @@ export function EmailComposer({
       clearTimeout(saveTimeoutRef.current);
     }
     stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
-    onClose?.();
+    emitClose();
   };
 
   const handleSaveDraftAndClose = async () => {
@@ -2134,7 +2234,7 @@ export function EmailComposer({
         stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
       }
     } finally {
-      onClose?.();
+      emitClose();
     }
   };
 
@@ -2149,10 +2249,11 @@ export function EmailComposer({
       onDiscardDraft(draftId);
     }
     stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
-    onClose?.();
+    emitClose();
   };
 
-  const handleClose = () => {
+  const handleClose = (afterClose?: () => void) => {
+    afterCloseRef.current = afterClose ?? null;
     if (isDirtyRef.current) {
       setShowCloseDialog(true);
     } else {
@@ -2244,7 +2345,7 @@ export function EmailComposer({
       {/* Header - mobile: clean bar with close/send, desktop: title bar */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-background">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleClose} className="h-9 w-9 md:h-8 md:w-8">
+          <Button variant="ghost" size="icon" onClick={() => handleClose()} className="h-9 w-9 md:h-8 md:w-8">
             <X className="w-5 h-5 md:w-4 md:h-4" />
           </Button>
           <div className="flex items-center gap-2" data-testid="composer-save-status" data-status={saveStatus}>
@@ -2641,9 +2742,9 @@ export function EmailComposer({
         )}
 
         {/* Hide the visual signature preview when the signature has already been
-            embedded into the body (compose, or above-quote replies). */}
-        {(shouldEmbedSignatureInNewMail
-          || ((mode === 'reply' || mode === 'replyAll' || mode === 'forward') && signaturePosition === 'above_quote')) ? null
+            embedded into the body (compose, above-quote replies, re-opened
+            drafts) - it would otherwise read as a second signature. */}
+        {signatureAlreadyInBody ? null
           : plainTextMode ? (
           getPlainTextSignature(signatureIdentity) ? (
             <div className="px-4 pb-3 text-sm leading-6 text-muted-foreground break-words whitespace-pre-wrap font-mono">
@@ -2798,7 +2899,7 @@ export function EmailComposer({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleClose}
+              onClick={() => handleClose()}
               className="text-sm text-muted-foreground hover:text-red-500 transition-colors px-2 py-1"
             >
               {t('discard')}
@@ -3002,7 +3103,7 @@ export function EmailComposer({
       {showCloseDialog && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-[60] p-4 animate-in fade-in duration-150"
-          onClick={() => setShowCloseDialog(false)}
+          onClick={() => dismissCloseDialog()}
         >
           <div
             ref={closeDialogRef}
@@ -3016,7 +3117,7 @@ export function EmailComposer({
               <p className="mt-2 text-sm text-muted-foreground">{t('close_draft_message')}</p>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 pb-6">
-              <Button variant="outline" onClick={() => setShowCloseDialog(false)}>
+              <Button variant="outline" onClick={() => dismissCloseDialog()}>
                 {t('cancel')}
               </Button>
               <Button variant="destructive" onClick={handleDiscardAndClose}>

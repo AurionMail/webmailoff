@@ -240,6 +240,7 @@ function EmailCard({
   const mailAttachmentAction = useSettingsStore((state) => state.mailAttachmentAction);
   const hideInlineImageAttachments = useSettingsStore((state) => state.hideInlineImageAttachments);
   const emailAlwaysLightMode = useSettingsStore((state) => state.emailAlwaysLightMode);
+  const plainTextFont = useSettingsStore((state) => state.plainTextFont);
   const sender = email.from?.[0];
   const isUnread = !email.keywords?.$seen;
   const isStarred = email.keywords?.$flagged;
@@ -616,7 +617,7 @@ function EmailCard({
                   "[&_table]:border-collapse [&_td]:p-2 [&_th]:p-2",
                   "[&_img]:max-w-full [&_img]:h-auto"
                 )}
-                style={{ whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, "SF Mono", Consolas, monospace', fontSize: '13px' }}
+                style={{ whiteSpace: 'pre-wrap', ...(plainTextFont === 'mono' && { fontFamily: 'ui-monospace, "SF Mono", Consolas, monospace' }), fontSize: '13px' }}
                 dangerouslySetInnerHTML={{ __html: sanitizePlainTextRenderedHtml(emailContent.html) }}
               />
             )}

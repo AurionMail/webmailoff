@@ -139,12 +139,12 @@ export class DemoJMAPClient implements IJMAPClient {
     return mb;
   }
 
-  async updateMailbox(mailboxId: string, changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number }): Promise<void> {
+  async updateMailbox(mailboxId: string, changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number }, _accountId?: string): Promise<void> {
     const mb = this.data.mailboxes.find(m => m.id === mailboxId);
     if (mb) Object.assign(mb, changes);
   }
 
-  async deleteMailbox(mailboxId: string): Promise<void> {
+  async deleteMailbox(mailboxId: string, _accountId?: string): Promise<void> {
     this.data.mailboxes = this.data.mailboxes.filter(m => m.id !== mailboxId);
     // Also remove emails in this mailbox
     this.data.emails = this.data.emails.filter(e => !e.mailboxIds[mailboxId]);

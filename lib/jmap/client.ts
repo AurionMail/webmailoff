@@ -5,6 +5,7 @@ import { toWildcardQuery } from "./search-utils";
 import { batched, itemsPerRequest } from "./request-limits";
 import { debug } from "@/lib/debug";
 import { normalizeCalendarEventLike } from "@/lib/calendar-event-normalization";
+import { findTasksOnlyCalendarIds, isTaskLikeObject, type ScannedCalendarObject } from "@/lib/calendar-component-detection";
 import { sanitizeDisplayName, splitMailbox } from "@/lib/rfc5322-mailbox";
 
 /**
@@ -2217,6 +2218,7 @@ export class JMAPClient implements IJMAPClient {
   }
 
   async createMailbox(name: string, parentId?: string, accountId?: string): Promise<Mailbox> {
+    const targetAccountId = accountId || this.accountId;
     const createId = `new-${Date.now()}`;
     const createData: Record<string, unknown> = { name };
     if (parentId) {
@@ -2225,7 +2227,7 @@ export class JMAPClient implements IJMAPClient {
 
     const response = await this.request([
       ["Mailbox/set", {
-        accountId: accountId || this.accountId,
+        accountId: targetAccountId,
         create: { [createId]: createData },
       }, "0"],
     ]);
@@ -2257,16 +2259,17 @@ export class JMAPClient implements IJMAPClient {
       unreadThreads: 0,
       myRights: DEFAULT_MAILBOX_RIGHTS,
       isSubscribed: true,
-      accountId: this.accountId,
-      accountName: this.accounts[this.accountId]?.name || this.username,
-      isShared: false,
+      accountId: targetAccountId,
+      accountName: this.accounts[targetAccountId]?.name || (targetAccountId === this.accountId ? this.username : targetAccountId),
+      isShared: targetAccountId !== this.accountId,
     };
   }
 
-  async updateMailbox(mailboxId: string, changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number }): Promise<void> {
+  async updateMailbox(mailboxId: string, changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number }, accountId?: string): Promise<void> {
+    const targetAccountId = accountId || this.accountId;
     const response = await this.request([
       ["Mailbox/set", {
-        accountId: this.accountId,
+        accountId: targetAccountId,
         update: { [mailboxId]: changes },
       }, "0"],
     ]);
@@ -2277,10 +2280,11 @@ export class JMAPClient implements IJMAPClient {
     }
   }
 
-  async deleteMailbox(mailboxId: string): Promise<void> {
+  async deleteMailbox(mailboxId: string, accountId?: string): Promise<void> {
+    const targetAccountId = accountId || this.accountId;
     const response = await this.request([
       ["Mailbox/set", {
-        accountId: this.accountId,
+        accountId: targetAccountId,
         destroy: [mailboxId],
       }, "0"],
     ]);
@@ -2364,10 +2368,14 @@ export class JMAPClient implements IJMAPClient {
     try {
       const targetAccountId = accountId || this.accountId;
 
+      // Searching all folders with no criteria yields an empty FilterCondition,
+      // which servers reject; omit the key entirely to mean "no filter".
+      const hasFilter = Object.keys(filter).length > 0;
+
       const response = await this.request([
         ["Email/query", {
           accountId: targetAccountId,
-          filter,
+          ...(hasFilter ? { filter } : {}),
           sort: [{ property: "receivedAt", isAscending: false }],
           limit,
           position,
@@ -4882,12 +4890,69 @@ export class JMAPClient implements IJMAPClient {
       ], this.calendarUsing());
 
       if (response.methodResponses?.[0]?.[0] === "Calendar/get") {
-        return (response.methodResponses[0][1].list || []) as Calendar[];
+        const calendars = (response.methodResponses[0][1].list || []) as Calendar[];
+        const tasksOnly = await this.getTasksOnlyCalendarIds(accountId, calendars.map((c) => c.id));
+        return calendars.map((cal) => ({ ...cal, isTasksOnly: tasksOnly.has(cal.id) }));
       }
       return [];
     } catch (error) {
       console.error('Failed to get calendars:', error);
       return [];
+    }
+  }
+
+  /**
+   * Ids of the given calendars that hold only tasks and no events, so the event
+   * calendar UI can hide them. Stalwart's Calendar/get exposes no
+   * supported-component set, so this is derived by scanning the objects.
+   *
+   * Cheap in the common case and safe on the edges: each page is classified as
+   * it arrives and, as soon as EVERY calendar has been seen to contain an event,
+   * the scan stops (a normal event account exits after one page). It only marks
+   * a calendar tasks-only after scanning ALL of that account's objects; if the
+   * account has more than the scan cap, it fails OPEN (marks nothing) rather
+   * than risk hiding a calendar whose events sit past the cap. Any error also
+   * fails open. Empty calendars are never marked (they must stay visible).
+   */
+  private async getTasksOnlyCalendarIds(accountId: string, rawCalendarIds: string[]): Promise<Set<string>> {
+    if (rawCalendarIds.length === 0) return new Set();
+
+    const QUERY_PAGE = 500;
+    const MAX_SCAN = 5000; // safety bound; beyond this we fail open
+    const PROPERTIES = ['id', '@type', 'due', 'progress', 'percentComplete', 'calendarIds'];
+    const timeZone = getUserTimeZone();
+    const objects: ScannedCalendarObject[] = [];
+    const remaining = new Set(rawCalendarIds); // calendars not yet known to hold an event
+
+    try {
+      let exhausted = false;
+      for (let position = 0; position < MAX_SCAN;) {
+        const queryArgs: Record<string, unknown> = { accountId, limit: QUERY_PAGE, position };
+        if (timeZone) queryArgs.timeZone = timeZone;
+        const qResp = await this.request([["CalendarEvent/query", queryArgs, "0"]], this.calendarUsing());
+        if (qResp.methodResponses?.[0]?.[0] === "error") return new Set(); // fail open
+        const pageIds: string[] = qResp.methodResponses?.[0]?.[1]?.ids || [];
+        if (pageIds.length === 0) { exhausted = true; break; }
+
+        const getResp = await this.request([
+          ["CalendarEvent/get", { accountId, ids: pageIds, properties: PROPERTIES, ...(timeZone ? { timeZone } : {}) }, "0"]
+        ], this.calendarUsing());
+        const list = (getResp.methodResponses?.[0]?.[1]?.list || []) as ScannedCalendarObject[];
+        for (const obj of list) {
+          objects.push(obj);
+          if (!isTaskLikeObject(obj) && obj.calendarIds) {
+            for (const id of Object.keys(obj.calendarIds)) remaining.delete(id);
+          }
+        }
+        // Every calendar has at least one event -> none can be tasks-only.
+        if (remaining.size === 0) return new Set();
+        if (pageIds.length < QUERY_PAGE) { exhausted = true; break; }
+        position += pageIds.length;
+      }
+      if (!exhausted) return new Set(); // hit the cap without finishing -> hide nothing
+      return findTasksOnlyCalendarIds(objects, rawCalendarIds);
+    } catch {
+      return new Set(); // fail open
     }
   }
 
@@ -4909,6 +4974,7 @@ export class JMAPClient implements IJMAPClient {
 
           if (response.methodResponses?.[0]?.[0] === "Calendar/get") {
             const rawCalendars = (response.methodResponses[0][1].list || []) as Calendar[];
+            const tasksOnly = await this.getTasksOnlyCalendarIds(accountId, rawCalendars.map((c) => c.id));
             const calendars = rawCalendars.map((cal) => ({
               ...cal,
               id: isPrimary ? cal.id : `${accountId}:${cal.id}`,
@@ -4916,6 +4982,7 @@ export class JMAPClient implements IJMAPClient {
               accountId,
               accountName: account?.name || (isPrimary ? this.username : accountId),
               isShared: !isPrimary,
+              isTasksOnly: tasksOnly.has(cal.id),
             }));
             allCalendars.push(...calendars);
           }
@@ -6244,6 +6311,11 @@ export class JMAPClient implements IJMAPClient {
   private sseReconnectTimeout: NodeJS.Timeout | null = null;
   private ssePingTimer: NodeJS.Timeout | null = null;
   private lastSSEActivity: number = 0;
+  // Guards a state-change poll from stacking: the 3s interval, the secondary
+  // poll, and the visibility/online handlers all call checkForStateChanges, so
+  // under socket pressure they would otherwise pile identical POSTs onto an
+  // already-saturated pool and amplify the queueing (#781).
+  private stateCheckInFlight: boolean = false;
   private visibilityHandler: (() => void) | null = null;
   private onlineHandler: (() => void) | null = null;
 
@@ -6305,6 +6377,25 @@ export class JMAPClient implements IJMAPClient {
       .replace('{types}', '*')
       .replace('{closeafter}', 'no')
       .replace('{ping}', '30');
+
+    // Already-active guard (#781): never stack a second SSE stream on a live
+    // one. readSSEStream only unwinds on abort or stream-end, so a previous
+    // connect left open would hold its HTTP/1.1 socket indefinitely; with
+    // several accounts each pinning a socket, routine JMAP POSTs then queue and
+    // time out. Abort any prior stream (and its ping monitor / pending
+    // reconnect) before opening the replacement. The old read loop unwinds via
+    // AbortError and, because we install a fresh controller below, its
+    // end-of-stream reconnect guard (`sseAbortController === controller`) no
+    // longer matches, so it does not spawn a competing connection.
+    if (this.sseAbortController) {
+      this.sseAbortController.abort();
+      this.sseAbortController = null;
+    }
+    this.stopSSEPingMonitor();
+    if (this.sseReconnectTimeout) {
+      clearTimeout(this.sseReconnectTimeout);
+      this.sseReconnectTimeout = null;
+    }
 
     // Each attempt tracks its own controller. When closePushNotifications
     // aborts a connect that is still in flight (every account switch tears
@@ -6428,6 +6519,9 @@ export class JMAPClient implements IJMAPClient {
     if (this.isRateLimited()) {
       return;
     }
+    // Idempotent: a repeat setup (or an SSE->poll fallback that races another)
+    // must not leak a second 3s interval alongside the first (#781).
+    if (this.pollingInterval) return;
     this.fetchCurrentStates();
     this.pollingInterval = setInterval(() => {
       this.checkForStateChanges();
@@ -6518,6 +6612,13 @@ export class JMAPClient implements IJMAPClient {
     if (this.isRateLimited()) {
       return;
     }
+    // Coalesce overlapping polls: if one is already awaiting a response, skip
+    // this call rather than issuing a duplicate POST (#781). The next tick
+    // picks up any change once the in-flight one settles.
+    if (this.stateCheckInFlight) {
+      return;
+    }
+    this.stateCheckInFlight = true;
     try {
       const { using, methodCalls } = this.buildStatePollingRequest();
       const response = await this.authenticatedFetch(this.apiUrl, {
@@ -6550,6 +6651,8 @@ export class JMAPClient implements IJMAPClient {
       }
     } catch {
       // Silently fail - polling will retry
+    } finally {
+      this.stateCheckInFlight = false;
     }
   }
 

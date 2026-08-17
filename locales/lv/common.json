@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Pārslēgt uz persiešu valodu"
+    "switch_to_farsi": "Pārslēgt uz persiešu valodu",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Pārslēgt uz mongoļu valodu"
   },
   "settings": {
     "title": "Iestatījumi",
@@ -1104,12 +1107,27 @@
         "relay_label": "Push relejs",
         "relay_locked": "Iestatījis administrators",
         "relay_locked_desc": "Push releja URL ir iestatījis administrators, un to nevar mainīt.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Aktīvs šajā ierīcē",
         "status_busy": "Notiek darbs…",
         "status_inactive": "Nav iespējots šajā ierīcē",
         "status_unsupported": "Šī pārlūkprogramma neatbalsta Web Push",
-        "title": "Fona paziņojumi"
+        "title": "Fona paziņojumi",
+        "devices_title": "Reģistrētās ierīces",
+        "devices_desc": "Visas ierīces, kas reģistrētas šī konta fona paziņojumu saņemšanai. Atsaucot ierīci, tā nekavējoties pārstāj tās saņemt.",
+        "devices_loading": "Notiek reģistrēto ierīču ielāde…",
+        "devices_empty": "Fona paziņojumiem nav reģistrēta neviena ierīce.",
+        "devices_error": "Neizdevās ielādēt reģistrētās ierīces.",
+        "devices_refresh": "Atsvaidzināt",
+        "device_this": "Šī ierīce",
+        "device_other": "Cita ierīce",
+        "device_status_active": "Piegādā paziņojumus",
+        "device_status_inactive": "Nekad nav piegādājusi paziņojumu",
+        "device_status_unknown": "Šim retranslatoram nezināma",
+        "device_expires": "Beidzas {date}",
+        "revoke": "Atsaukt",
+        "confirm_revoke_title": "Atsaukt šo ierīci?",
+        "confirm_revoke_message": "Tā nekavējoties pārstās saņemt fona paziņojumus. Atkārtoti ieslēdzot push šajā ierīcē, tā tiks reģistrēta no jauna.",
+        "confirm_revoke_message_this": "Šī ierīce nekavējoties pārstās saņemt fona paziņojumus."
       }
     },
     "language_region": {
@@ -1188,6 +1206,12 @@
         "auto": "Automātiski (ieteicams)",
         "always": "Vienmēr pievienot atstarpi",
         "edge": "No malas līdz malai"
+      },
+      "plain_text_font": {
+        "label": "Vienkārša teksta fonts",
+        "description": "Fonts vienkārša teksta e-pastiem",
+        "mono": "Vienplatuma",
+        "sans": "Parasts (tāpat kā lietotnē)"
       },
       "archive_mode": {
         "label": "Arhivēt mapē",

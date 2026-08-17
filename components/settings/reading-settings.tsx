@@ -36,6 +36,7 @@ export function ReadingSettings() {
     hideInlineImageAttachments,
     attachmentImagePreviewsEnabled,
     messageSpacing,
+    plainTextFont,
     updateSetting,
   } = useSettingsStore();
 
@@ -125,6 +126,19 @@ export function ReadingSettings() {
             { value: 'auto', label: t('message_spacing.auto') },
             { value: 'always', label: t('message_spacing.always') },
             { value: 'edge', label: t('message_spacing.edge') },
+          ]}
+        />
+      </SettingItem>
+      )}
+
+      {!isSettingHidden('plainTextFont') && (
+      <SettingItem label={t('plain_text_font.label')} description={t('plain_text_font.description')} locked={isSettingLocked('plainTextFont')}>
+        <Select
+          value={plainTextFont}
+          onChange={(value) => updateSetting('plainTextFont', value as typeof plainTextFont)}
+          options={[
+            { value: 'mono', label: t('plain_text_font.mono') },
+            { value: 'sans', label: t('plain_text_font.sans') },
           ]}
         />
       </SettingItem>

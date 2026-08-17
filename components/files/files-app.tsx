@@ -179,7 +179,7 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
 
   // Intercept browser refresh gestures (F5, Ctrl/Cmd+R, pull-to-refresh)
   // and refresh files via JMAP instead of reloading the page.
-  useRefreshGesture({
+  const { indicator: refreshIndicator } = useRefreshGesture({
     enabled: isAuthenticated && !!client && supportsFiles === true,
     onRefresh: async () => {
       await refresh();
@@ -538,6 +538,7 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
   return (
     <div className={cn("flex flex-col bg-background overflow-hidden pt-[env(safe-area-inset-top)]", isEmbedded ? "h-full" : "h-dvh")}>
       <AppTopBannerSlot />
+      {refreshIndicator}
       <div className="flex flex-1 min-h-0 overflow-hidden">
       {!isMobile && !isEmbedded && (
         <div className="w-14 bg-secondary flex flex-col flex-shrink-0" style={{ borderRight: '1px solid rgba(128, 128, 128, 0.3)' }}>

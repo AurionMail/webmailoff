@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Farsçaya geç"
+    "switch_to_farsi": "Farsçaya geç",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Moğolcaya geç"
   },
   "settings": {
     "title": "Ayarlar",
@@ -1104,12 +1107,27 @@
         "relay_label": "Push röle",
         "relay_locked": "Yönetici tarafından ayarlandı",
         "relay_locked_desc": "Push röle URL'si yöneticiniz tarafından ayarlandı ve değiştirilemez.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Bu cihazda etkin",
         "status_busy": "Çalışıyor…",
         "status_inactive": "Bu cihazda etkinleştirilmedi",
         "status_unsupported": "Bu tarayıcı Web Push'u desteklemiyor",
-        "title": "Arka plan bildirimleri"
+        "title": "Arka plan bildirimleri",
+        "devices_title": "Kayıtlı cihazlar",
+        "devices_desc": "Bu hesap için arka plan bildirimleri almak üzere kayıtlı tüm cihazlar. Birini iptal ettiğinizde o cihaz bildirimleri hemen almayı bırakır.",
+        "devices_loading": "Kayıtlı cihazlar yükleniyor…",
+        "devices_empty": "Arka plan bildirimleri için kayıtlı cihaz yok.",
+        "devices_error": "Kayıtlı cihazlar yüklenemedi.",
+        "devices_refresh": "Yenile",
+        "device_this": "Bu cihaz",
+        "device_other": "Diğer cihaz",
+        "device_status_active": "Bildirim iletiyor",
+        "device_status_inactive": "Hiç bildirim iletmedi",
+        "device_status_unknown": "Bu aktarıcı tanımıyor",
+        "device_expires": "Bitiş: {date}",
+        "revoke": "İptal et",
+        "confirm_revoke_title": "Bu cihaz iptal edilsin mi?",
+        "confirm_revoke_message": "Arka plan bildirimlerini almayı hemen bırakacak. O cihazda push’u yeniden açarsanız yeniden kaydedilir.",
+        "confirm_revoke_message_this": "Bu cihaz arka plan bildirimlerini almayı hemen bırakacak."
       }
     },
     "language_region": {
@@ -1188,6 +1206,12 @@
         "auto": "Otomatik (önerilen)",
         "always": "Her zaman boşluk ekle",
         "edge": "Kenardan kenara"
+      },
+      "plain_text_font": {
+        "label": "Düz metin yazı tipi",
+        "description": "Düz metin e-postalar için kullanılan yazı tipi",
+        "mono": "Eş aralıklı",
+        "sans": "Normal (uygulamayla aynı)"
       },
       "archive_mode": {
         "label": "Arşivle",

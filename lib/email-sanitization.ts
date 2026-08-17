@@ -77,6 +77,78 @@ export function sanitizeEmailHtmlForIframe(html: string): string {
   return sanitizeWithDataUriGuard(html, EMAIL_IFRAME_SANITIZE_CONFIG);
 }
 
+/** Outcome of {@link sanitizeEmailBodyForIframe}. */
+export interface IframeBodySanitizeResult {
+  /** Sanitized HTML, ready for the iframe srcDoc. */
+  html: string;
+  /**
+   * True if at least one external resource was actually neutralised, i.e. the
+   * "external content blocked" banner has something to offer. Distinct from the
+   * caller's `blockExternal` input, which decides how strict the iframe CSP is.
+   */
+  blockedExternalContent: boolean;
+}
+
+/**
+ * The single entry point for turning an email body into iframe-ready HTML.
+ *
+ * Every body the viewer renders goes through here - the message's own HTML, a
+ * TNEF/winmail.dat extraction, an unwrapped message/rfc822, and crucially the
+ * HTML a plugin hands back from `onRenderEmailBody` (decrypted PGP or S/MIME).
+ * Plugin-provided bodies used to take a sanitize-only path, so a decrypted
+ * newsletter fetched its tracking pixels regardless of the user's
+ * external-content preference (#797). Enforcement lives here so no render path
+ * can opt out of it by accident.
+ *
+ * @param html Body HTML (cid: references already rewritten to blob URLs).
+ * @param blockExternal Whether the user's policy blocks external resources for
+ *   this message ('block', or 'ask' before the user allowed, and sender not
+ *   trusted).
+ */
+export function sanitizeEmailBodyForIframe(
+  html: string,
+  blockExternal: boolean,
+): IframeBodySanitizeResult {
+  const config = blockExternal
+    ? {
+        ...EMAIL_IFRAME_SANITIZE_CONFIG,
+        // <link rel=stylesheet> would pull a remote sheet the node walk can't see.
+        FORBID_TAGS: [...EMAIL_IFRAME_SANITIZE_CONFIG.FORBID_TAGS, 'link'],
+      }
+    : EMAIL_IFRAME_SANITIZE_CONFIG;
+
+  let blockedExternalContent = false;
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (blockExternal) {
+      // Blocks every external-resource vector (img src incl. whitespace/newline
+      // tricks, srcset, <source>, <video poster>, media src, background attr,
+      // inline style url() incl. CSS escapes, <style> block CSS). The strict
+      // iframe CSP the caller derives from `blockExternal` is the network backstop.
+      if (blockExternalResourcesOnNode(node)) {
+        blockedExternalContent = true;
+      }
+    }
+    // http(s) links open in a new tab; other schemes keep their default.
+    applyNewTabToAnchor(node);
+    // Re-apply the data:-URI allowlist DOMPurify skips on media tags.
+    restrictDataUriResourcesOnNode(node);
+  });
+
+  let clean: string;
+  try {
+    clean = DOMPurify.sanitize(html, config);
+  } finally {
+    DOMPurify.removeAllHooks();
+  }
+
+  // Collapse empty containers left behind by blocked images.
+  if (blockedExternalContent) {
+    clean = collapseBlockedImageContainers(clean);
+  }
+
+  return { html: clean, blockedExternalContent };
+}
+
 /**
  * Sanitize HTML signature with stricter rules
  * Allows basic formatting plus <img> for company logos, plus table-based

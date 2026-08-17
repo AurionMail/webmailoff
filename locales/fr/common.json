@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "Passer au persan"
+    "switch_to_farsi": "Passer au persan",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "Passer au mongol"
   },
   "settings": {
     "title": "Paramètres",
@@ -1104,12 +1107,27 @@
         "relay_label": "Relais push",
         "relay_locked": "Défini par l'administrateur",
         "relay_locked_desc": "L'URL du relais push a été définie par votre administrateur et ne peut pas être modifiée.",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "Actif sur cet appareil",
         "status_busy": "Traitement en cours…",
         "status_inactive": "Non activé sur cet appareil",
         "status_unsupported": "Ce navigateur ne prend pas en charge Web Push",
-        "title": "Notifications en arrière-plan"
+        "title": "Notifications en arrière-plan",
+        "devices_title": "Appareils enregistrés",
+        "devices_desc": "Tous les appareils enregistrés pour recevoir les notifications en arrière-plan de ce compte. Révoquer un appareil l’empêche immédiatement d’en recevoir.",
+        "devices_loading": "Chargement des appareils enregistrés…",
+        "devices_empty": "Aucun appareil n’est enregistré pour les notifications en arrière-plan.",
+        "devices_error": "Impossible de charger les appareils enregistrés.",
+        "devices_refresh": "Actualiser",
+        "device_this": "Cet appareil",
+        "device_other": "Autre appareil",
+        "device_status_active": "Distribue les notifications",
+        "device_status_inactive": "N’a jamais distribué de notification",
+        "device_status_unknown": "Inconnu de ce relais",
+        "device_expires": "Expire le {date}",
+        "revoke": "Révoquer",
+        "confirm_revoke_title": "Révoquer cet appareil ?",
+        "confirm_revoke_message": "Il cessera immédiatement de recevoir les notifications en arrière-plan. Réactiver les notifications push sur cet appareil l’enregistrera à nouveau.",
+        "confirm_revoke_message_this": "Cet appareil cessera immédiatement de recevoir les notifications en arrière-plan."
       }
     },
     "language_region": {
@@ -1188,6 +1206,12 @@
         "auto": "Automatique (recommandé)",
         "always": "Toujours ajouter un espacement",
         "edge": "Bord à bord"
+      },
+      "plain_text_font": {
+        "label": "Police du texte brut",
+        "description": "Police utilisée pour les e-mails en texte brut",
+        "mono": "À chasse fixe",
+        "sans": "Normale (comme l'application)"
       },
       "archive_mode": {
         "label": "Archiver dans",

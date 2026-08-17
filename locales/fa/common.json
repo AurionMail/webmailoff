@@ -855,7 +855,10 @@
     "zh": "简体中文",
     "fa": "فارسی",
     "farsi": "فارسی",
-    "switch_to_farsi": "تغییر به فارسی"
+    "switch_to_farsi": "تغییر به فارسی",
+    "mn": "Монгол",
+    "mongolian": "Монгол",
+    "switch_to_mongolian": "تغییر به مغولی"
   },
   "settings": {
     "title": "تنظیمات",
@@ -1077,7 +1080,6 @@
         "relay_desc": "پیش‌فرض رله میزبانی شده Bulwark",
         "relay_locked": "تنظیم شده توسط مدیر",
         "relay_locked_desc": "قابل تغییر نیست",
-        "relay_placeholder": "https://notifications.relay.example.com",
         "status_active": "فعال روی این دستگاه",
         "status_inactive": "فعال نشده",
         "status_unsupported": "مرورگر پشتیبانی نمی‌کند",
@@ -1088,7 +1090,23 @@
         "confirm_disable_title": "غیرفعال کردن اعلان‌های پس‌زمینه؟",
         "confirm_disable_message": "این دستگاه دیگر هشدار دریافت نمی‌کند",
         "dismiss_aria": "رد کردن پیشنهاد اعلان‌ها",
-        "ios_hint": "در iOS ابتدا سایت را به صفحه اصلی اضافه کنید"
+        "ios_hint": "در iOS ابتدا سایت را به صفحه اصلی اضافه کنید",
+        "devices_title": "دستگاه‌های ثبت‌شده",
+        "devices_desc": "همهٔ دستگاه‌هایی که برای دریافت اعلان‌های پس‌زمینهٔ این حساب ثبت شده‌اند. با لغو یک دستگاه، دریافت بی‌درنگ متوقف می‌شود.",
+        "devices_loading": "در حال بارگذاری دستگاه‌های ثبت‌شده…",
+        "devices_empty": "هیچ دستگاهی برای اعلان‌های پس‌زمینه ثبت نشده است.",
+        "devices_error": "بارگذاری دستگاه‌های ثبت‌شده ممکن نشد.",
+        "devices_refresh": "بازخوانی",
+        "device_this": "این دستگاه",
+        "device_other": "دستگاه دیگر",
+        "device_status_active": "در حال تحویل اعلان‌ها",
+        "device_status_inactive": "هرگز اعلانی تحویل نداده است",
+        "device_status_unknown": "برای این بازپخش ناشناس",
+        "device_expires": "انقضا در {date}",
+        "revoke": "لغو",
+        "confirm_revoke_title": "این دستگاه لغو شود؟",
+        "confirm_revoke_message": "بی‌درنگ دریافت اعلان‌های پس‌زمینه را متوقف می‌کند. با روشن‌کردن دوبارهٔ پوش روی آن دستگاه، دوباره ثبت می‌شود.",
+        "confirm_revoke_message_this": "این دستگاه بی‌درنگ دریافت اعلان‌های پس‌زمینه را متوقف می‌کند."
       },
       "sound_selection": {
         "title": "صدای اعلان",
@@ -1191,6 +1209,12 @@
         "auto": "خودکار (پیشنهادی)",
         "always": "همیشه فاصله اضافه شود",
         "edge": "لبه به لبه"
+      },
+      "plain_text_font": {
+        "label": "قلم متن ساده",
+        "description": "قلم مورد استفاده برای ایمیل‌های متن ساده",
+        "mono": "تک‌عرض",
+        "sans": "معمولی (مانند برنامه)"
       },
       "archive_mode": {
         "label": "بایگانی در",
