@@ -48,7 +48,8 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   // handler, so any untrusted plugin granted email:blob-read can read the
   // bytes of every file the user attaches. That grant is what the consent
   // dialog for email:blob-read now says out loud.
-  'crypto.getOrCreateWebAuthn',
+  'crypto.getWebAuthn',
+  'crypto.createWebauthn',
   'crypto.getPublicKeys',
   'crypto.createPublicKey',
   'crypto.removePublicKey',
@@ -96,7 +97,8 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   // behind email:blob-write AND the privileged tier.
   'upfiles.get' : 'email:blob-read',
   'upfiles.save' : 'email:blob-write',
-  'crypto.getOrCreateWebAuthn': 'crypto:full',
+  'crypto.getWebAuthn': 'crypto:full',
+  'crypto.createWebauthn' : 'crypto:full',
   'crypto.getPublicKeys': 'crypto:full',
   'crypto.createPublicKey': 'crypto:full',
   'crypto.removePublicKey': 'crypto:full',
@@ -425,7 +427,7 @@ async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: st
   if (typeof blobId !== 'string' || !blobId) throw new Error('jmap.fetchBlob: blobId required');
   const { client } = useAuthStore.getState();
   if (!client) throw new Error('jmap.fetchBlob: no active session');
-  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type, undefined, opts?.rangeHeader);
+  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type);
   return new Uint8Array(buf);
 }
 
@@ -589,112 +591,108 @@ async function doContactCreate(contact: ContactCard): Promise<ContactCard> {
 
 // ─── Crypto (privileged tier) ─────────────────────────────────────────────
 
+type PRFResult = 
+  | { success: true; credentialId: number[]; prfSecret: number[] }
+  | { success: false; reason: 'NEEDS_USER_ACTION'; credentialId: number[] }
+  | { success: false; reason: string };
+
 /**
- * Retrieves or creates a WebAuthn passkey and extracts its PRF secret.
- * This secret is typically used as a local master encryption key.
+ * Retrieves the PRF secret for an existing credential (Authentication).
+ * Must be called directly inside a user interaction handler (e.g., click event).
  */
-async function doGetOrCreatePRF(
-    masterCredentialIdBytes: number[] | undefined, 
+async function doGetPRF(
+    masterCredentialIdBytes: number[],
     pluginId: string,
-    name?: string, 
-    displayName?: string,
 ): Promise<{ credentialId: number[]; prfSecret: number[] } | string> {
+  const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1" + pluginId);
+  const rpId = window.location.hostname;
+  const credentialId = new Uint8Array(masterCredentialIdBytes);
 
-  // To avoid a privileged plugin to access secret created from another privileged plugin,
-  // we add the pluginID from manifest in salt.
-  const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1" + pluginId)
-    
-    // ─── CASE 1: Credential already exists (Authentication) ──────────────────
-    if (masterCredentialIdBytes && masterCredentialIdBytes.length > 0) {
-      const credentialId = new Uint8Array(masterCredentialIdBytes).buffer;
-      
-      // Request an assertion (login) while evaluating the PRF salt
-      const assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          allowCredentials: [{ type: "public-key", id: credentialId }],
-          userVerification: "required", // Required to ensure user presence & intent (biometrics/PIN)
-          extensions: { prf: { eval: { first: PRF_SALT } } }
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rpId: rpId,
+      allowCredentials: [{ type: "public-key", id: credentialId }],
+      userVerification: "required",
+      extensions: { prf: { eval: { first: PRF_SALT } } }
+    }
+  }) as PublicKeyCredential;
+
+  const outputs = assertion.getClientExtensionResults();
+  const prfSecret = outputs.prf?.results?.first;
+  if (!prfSecret) return 'Cannot get PRF secret from credential.';
+
+  return {
+    credentialId: masterCredentialIdBytes,
+    prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
+  };
+}
+
+/**
+ * Creates a WebAuthn passkey and attempts to extract its PRF secret (Registration).
+ * If the authenticator returns the secret during creation, it completes in one step.
+ * If Safari/iOS creates the key without evaluating PRF at creation time, it returns
+ * `NEEDS_USER_ACTION` so UI can prompt for a second click (user gesture) before calling `doGetPRFSecret`.
+ */
+async function doCreatePRF(
+    pluginId: string,
+    name: string, 
+    displayName: string,
+): Promise<PRFResult> {
+  const PRF_SALT = new TextEncoder().encode("bulwark-plugins-v1" + pluginId);
+  const rpId = window.location.hostname;
+
+  try {
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: "Bulwark Webmail", id: rpId },
+        user: {
+          id: crypto.getRandomValues(new Uint8Array(16)),
+          name: name,
+          displayName: displayName
+        },
+        pubKeyCredParams: [
+          { type: "public-key" as const, alg: -7 },   // ES256
+          { type: "public-key" as const, alg: -257 }  // RS256
+        ],
+        authenticatorSelection: {
+          residentKey: "preferred",
+          userVerification: "required"
+        },
+        extensions: { 
+          prf: { eval: { first: PRF_SALT } } 
         }
-      }) as PublicKeyCredential;
+      }
+    }) as PublicKeyCredential;
 
-      // Extract the derived symmetric key from the authenticator's output
-      const outputs = assertion.getClientExtensionResults();
-      const prfSecret = (outputs).prf?.results?.first;
-      if (!prfSecret) return 'Cannot get PRF secret from existing credential.';
+    const outputs = credential.getClientExtensionResults();
+    const prfSecret = outputs.prf?.results?.first;
+    const credentialId = Array.from(new Uint8Array(credential.rawId));
 
+    // Case 1: PRF evaluated during creation (1-click flow for supporting platforms)
+    if (prfSecret) {
       return {
-        credentialId: masterCredentialIdBytes,
+        success: true,
+        credentialId,
         prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
       };
     }
-    
-    // ─── CASE 2: No masterCredentialIdBytes passed, create a new key (Registration) ──────────
-    else if (name && displayName) {
-      // Create the new passkey credential
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          rp: { name: "Bulwark Webmail", id: window.location.hostname },
-          user: {
-            id: crypto.getRandomValues(new Uint8Array(16)),
-            name: name,
-            displayName: displayName
-          },
-          // Supported cryptographic algorithms
-          pubKeyCredParams: [
-            { type: "public-key" as const, alg: -7 },   // ES256 (Recommended)
-            { type: "public-key" as const, alg: -257 }  // RS256 (Compatibility fallback)
-          ],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform", // Forces the use of hardware/OS-bound passkeys (TouchID, Windows Hello, etc.)
-            userVerification: "required"
-          },
-          extensions: { prf: {} } // Request PRF extension support from the authenticator
-        }
-      }) as PublicKeyCredential;
-      
-      const outputs = credential.getClientExtensionResults();
 
-      // Ensure the authenticator successfully enabled and supports the PRF extension
-      const isPrfEnabled = (outputs).prf?.enabled;
-      if (!isPrfEnabled) {
-        return 'The authenticator does not support or has rejected the PRF extension.';
-      }
-      
-      // Note: Since many authenticators do not return the PRF evaluation results 
-      // directly during creation, we immediately run an assertion (get) to fetch the initial secret.
-      const assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          allowCredentials: [{
-            type: "public-key",
-            id: credential.rawId
-          }],
-          userVerification: "required",
-          extensions: {
-            prf: { eval: { first: PRF_SALT } }
-          }
-        }
-      }) as PublicKeyCredential;
+    // Case 2: Key created, but authenticators require a separate get() call.
+    // Returning 'NEEDS_USER_ACTION' allows the UI to request a fresh user gesture.
+    return {
+      success: false,
+      reason: 'NEEDS_USER_ACTION',
+      credentialId
+    };
 
-      const assertionOutputs = assertion.getClientExtensionResults();
-
-      const prfSecret = (assertionOutputs).prf?.results?.first;
-      if (!prfSecret) {
-        return 'Cannot get PRF secret from existing credential.';
-      }
-
-      return {
-        credentialId: Array.from(new Uint8Array(credential.rawId)),
-        prfSecret: Array.from(new Uint8Array(prfSecret as ArrayBuffer))
-      };
-    }
-    
-    // ─── CASE 3: Insufficient parameters provided ───────────────────────────
-    else {
-      throw new Error("Provide name and display name if you want to create a new PRF.");
-    }
+  } catch (err: any) {
+    return { 
+      success: false, 
+      reason: err.message || 'Error creating PRF key' 
+    };
+  }
 }
 
 async function getPublicKeys(): Promise<PublicKeyInfo[]> {
@@ -1201,7 +1199,8 @@ export async function dispatchApiCall(
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
 
-    case 'crypto.getOrCreateWebAuthn': return doGetOrCreatePRF(args[0] as number[] | undefined, args[1] as string, args[2] as string | undefined, args[3] as string | undefined);
+    case 'crypto.createWebAuthn': return doCreatePRF(args[1] as string, args[2] as string, args[3] as string);
+    case 'crypto.getWebAuthn': return doGetPRF(args[0] as number[], args[1] as string);
     case 'crypto.getPublicKeys': return getPublicKeys();
     case 'crypto.createPublicKey': return doCreatePublicKey(args[0] as PublicKeyInput);
     case 'crypto.removePublicKey': return doRemovePublicKey(args[0] as string);
