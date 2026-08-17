@@ -257,7 +257,7 @@ interface EmailStore {
   markThreadAsRead: (client: IJMAPClient, threadId: string) => Promise<void>;
 
   // Mailbox management
-  createMailbox: (client: IJMAPClient, name: string, parentId?: string) => Promise<void>;
+  createMailbox: (client: IJMAPClient, name: string, parentId?: string, accountId?: string) => Promise<void>;
   renameMailbox: (client: IJMAPClient, mailboxId: string, name: string) => Promise<void>;
   deleteMailbox: (client: IJMAPClient, mailboxId: string) => Promise<void>;
   setMailboxRole: (client: IJMAPClient, mailboxId: string, role: string | null) => Promise<void>;
@@ -389,6 +389,93 @@ function resolveViewAccountId(): string | undefined {
   const state = useEmailStore.getState();
   const mb = resolveActionMailboxes().find(m => m.id === state.selectedMailbox);
   return mb?.isShared ? mb.accountId : undefined;
+}
+
+/**
+ * Resolve a store-side mailbox id to the JMAP mutation target.
+ *
+ * Shared/group mailboxes use namespaced ids in the store (`accountId:id`) so
+ * ids from different accounts cannot collide. JMAP `Mailbox/set`, however,
+ * needs the owner's bare mailbox id plus the owner's accountId. The shared
+ * account is still reached through the active/viewing login client; it does
+ * not have a separately connected client of its own.
+ *
+ * If the owner also has a directly connected login on the same server, use that
+ * client's primary account. Otherwise (the usual delegated/group case), keep
+ * the active/viewing client and pass the owner's accountId explicitly.
+ */
+function resolveMailboxMutationContext(
+  passedClient: IJMAPClient,
+  storeMailboxId: string,
+): {
+  client: IJMAPClient;
+  mailboxId: string;
+  accountId: string | undefined;
+  ownerAccountId: string | undefined;
+} {
+  const state = useEmailStore.getState();
+  const actionMailboxes = resolveActionMailboxes();
+  const mailbox = actionMailboxes.find((mb) => mb.id === storeMailboxId)
+    ?? state.mailboxes.find((mb) => mb.id === storeMailboxId)
+    ?? Object.values(state.accountMailboxes).flat().find((mb) => mb.id === storeMailboxId);
+
+  // No live mailbox object (a concurrent refresh dropped the shared account
+  // while a rename/create prompt was open, or a caller passed a stale id):
+  // recover the owner and the bare id from the namespaced store id itself.
+  // Without this the raw `accountId:id` would be sent as a mailbox id AND the
+  // owner would be lost, so the mutation - including the role-clearing sweep
+  // in setMailboxRole - would be applied to the active personal account.
+  const parsed = mailbox ? undefined : parseNamespacedMailboxId(storeMailboxId);
+
+  const ownerAccountId = mailbox?.accountId ?? parsed?.accountId;
+  const accountTarget = resolveMailboxAccountTarget(passedClient, ownerAccountId);
+
+  return {
+    ...accountTarget,
+    mailboxId: mailbox?.originalId || parsed?.mailboxId || storeMailboxId,
+    ownerAccountId,
+  };
+}
+
+/**
+ * Split a namespaced shared-mailbox store id (`${accountId}:${mailboxId}`)
+ * back into its parts. Bare (personal) ids carry no separator and yield
+ * `undefined`, which keeps them on the personal path.
+ */
+function parseNamespacedMailboxId(
+  storeMailboxId: string,
+): { accountId: string; mailboxId: string } | undefined {
+  const separator = storeMailboxId.indexOf(':');
+  if (separator <= 0 || separator === storeMailboxId.length - 1) return undefined;
+  return {
+    accountId: storeMailboxId.slice(0, separator),
+    mailboxId: storeMailboxId.slice(separator + 1),
+  };
+}
+
+function resolveMailboxAccountTarget(
+  passedClient: IJMAPClient,
+  ownerAccountId?: string,
+): { client: IJMAPClient; accountId: string | undefined } {
+  const client = resolveActionClient(passedClient);
+  if (!ownerAccountId || client.getAccountId() === ownerAccountId) {
+    return { client, accountId: undefined };
+  }
+
+  // A directly connected owner login can act on its own primary account. Match
+  // it on server URL as well as account id: JMAP account ids are opaque
+  // per-server values, so two logins on different servers can share one id and
+  // matching on the id alone would route the mutation to a foreign server -
+  // where that bare mailbox id may well exist and belong to someone else.
+  const serverUrl = client.getServerUrl();
+  for (const candidate of useAuthStore.getState().getAllConnectedClients().values()) {
+    if (candidate.getAccountId() === ownerAccountId && candidate.getServerUrl() === serverUrl) {
+      return { client: candidate, accountId: undefined };
+    }
+  }
+
+  // The usual delegated/group case: reach the owner through the active client.
+  return { client, accountId: ownerAccountId };
 }
 
 /**
@@ -3572,9 +3659,15 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   },
 
   // Mailbox management
-  createMailbox: async (client, name, parentId) => {
+  createMailbox: async (client, name, parentId, accountId) => {
     try {
-      await resolveActionClient(client).createMailbox(name, parentId);
+      // Root creation is personal unless its UI caller explicitly supplies a
+      // shared/group account (the account header's context menu). Never infer
+      // a root target merely from whichever mailbox happens to be selected.
+      const target = parentId
+        ? resolveMailboxMutationContext(client, parentId)
+        : { ...resolveMailboxAccountTarget(client, accountId), mailboxId: undefined };
+      await target.client.createMailbox(name, target.mailboxId, target.accountId);
       if (get().viewingAccountId) {
         await refreshMailboxesForViewingAccount(client);
       } else {
@@ -3588,7 +3681,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
   renameMailbox: async (client, mailboxId, name) => {
     try {
-      await resolveActionClient(client).updateMailbox(mailboxId, { name });
+      const target = resolveMailboxMutationContext(client, mailboxId);
+      await target.client.updateMailbox(target.mailboxId, { name }, target.accountId);
       const viewingId = get().viewingAccountId;
       if (viewingId) {
         set((state) => ({
@@ -3614,7 +3708,8 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
   deleteMailbox: async (client, mailboxId) => {
     try {
-      await resolveActionClient(client).deleteMailbox(mailboxId);
+      const target = resolveMailboxMutationContext(client, mailboxId);
+      await target.client.deleteMailbox(target.mailboxId, target.accountId);
       const { selectedMailbox, viewingAccountId: viewingId } = get();
       if (viewingId) {
         const updatedList = (get().accountMailboxes[viewingId] ?? []).filter(mb => mb.id !== mailboxId);
@@ -3643,15 +3738,22 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
   setMailboxRole: async (client, mailboxId, role) => {
     try {
-      const effectiveClient = resolveActionClient(client);
-      // If assigning a role, first clear that role from ALL other mailboxes that have it
+      const target = resolveMailboxMutationContext(client, mailboxId);
+      // If assigning a role, first clear that role from every other mailbox in
+      // the SAME owning account. Never clear the active user's role while
+      // changing a shared/group mailbox (or vice versa).
       if (role) {
-        const existingMailboxes = resolveActionMailboxes().filter(mb => mb.role === role && !mb.isShared && mb.id !== mailboxId);
+        const existingMailboxes = resolveActionMailboxes().filter((mb) =>
+          mb.role === role
+          && mb.id !== mailboxId
+          && (target.ownerAccountId ? mb.accountId === target.ownerAccountId : !mb.isShared)
+        );
         for (const existing of existingMailboxes) {
-          await effectiveClient.updateMailbox(existing.id, { role: null });
+          const existingTarget = resolveMailboxMutationContext(client, existing.id);
+          await existingTarget.client.updateMailbox(existingTarget.mailboxId, { role: null }, existingTarget.accountId);
         }
       }
-      await effectiveClient.updateMailbox(mailboxId, { role });
+      await target.client.updateMailbox(target.mailboxId, { role }, target.accountId);
       if (get().viewingAccountId) {
         await refreshMailboxesForViewingAccount(client);
       } else {
@@ -3686,9 +3788,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       set({ mailboxes: applyLocal(get().mailboxes) });
     }
     try {
-      const effectiveClient = resolveActionClient(client);
       for (const u of updates) {
-        await effectiveClient.updateMailbox(u.id, { sortOrder: u.sortOrder });
+        const target = resolveMailboxMutationContext(client, u.id);
+        await target.client.updateMailbox(target.mailboxId, { sortOrder: u.sortOrder }, target.accountId);
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to reorder folders' });
