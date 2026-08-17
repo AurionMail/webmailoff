@@ -427,7 +427,7 @@ async function doJmapFetchBlob(blobId: string, opts?: { name?: string; type?: st
   if (typeof blobId !== 'string' || !blobId) throw new Error('jmap.fetchBlob: blobId required');
   const { client } = useAuthStore.getState();
   if (!client) throw new Error('jmap.fetchBlob: no active session');
-  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type);
+  const buf = await client.fetchBlobArrayBuffer(blobId, opts?.name, opts?.type, undefined, opts?.rangeHeader);
   return new Uint8Array(buf);
 }
 
