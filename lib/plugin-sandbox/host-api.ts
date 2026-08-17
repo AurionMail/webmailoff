@@ -49,7 +49,7 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   // bytes of every file the user attaches. That grant is what the consent
   // dialog for email:blob-read now says out loud.
   'crypto.getWebAuthn',
-  'crypto.createWebauthn',
+  'crypto.createWebAuthn',
   'crypto.getPublicKeys',
   'crypto.createPublicKey',
   'crypto.removePublicKey',
@@ -98,7 +98,7 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'upfiles.get' : 'email:blob-read',
   'upfiles.save' : 'email:blob-write',
   'crypto.getWebAuthn': 'crypto:full',
-  'crypto.createWebauthn' : 'crypto:full',
+  'crypto.createWebAuthn' : 'crypto:full',
   'crypto.getPublicKeys': 'crypto:full',
   'crypto.createPublicKey': 'crypto:full',
   'crypto.removePublicKey': 'crypto:full',
