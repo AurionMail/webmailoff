@@ -1199,7 +1199,7 @@ export async function dispatchApiCall(
     case 'upfiles.get' : return getFile(args[0] as string);
     case 'upfiles.save' : return saveFile(args[0] as string, args[1] as File);
 
-    case 'crypto.createWebAuthn': return doCreatePRF(args[1] as string, args[2] as string, args[3] as string);
+    case 'crypto.createWebAuthn': return doCreatePRF(args[0] as string, args[1] as string, args[2] as string);
     case 'crypto.getWebAuthn': return doGetPRF(args[0] as number[], args[1] as string);
     case 'crypto.getPublicKeys': return getPublicKeys();
     case 'crypto.createPublicKey': return doCreatePublicKey(args[0] as PublicKeyInput);
