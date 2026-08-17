@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { pointerTokenValue } from '@/lib/jmap/patch-pointer';
 
 /**
  * Mock JMAP server for local development.
@@ -1725,7 +1726,9 @@ function handleEmailSet(args: MethodArgs, callId: string): MethodResult {
       // Patch-style keyword updates: "keywords/$seen", "keywords/$flagged", etc.
       for (const [key, value] of Object.entries(changes)) {
         if (key.startsWith('keywords/')) {
-          const keyword = key.slice('keywords/'.length);
+          // The key is a JSON Pointer, so a nested tag arrives escaped
+          // (`$label:work~1clients`) and has to be read back to its real name.
+          const keyword = pointerTokenValue(key.slice('keywords/'.length));
           if (value) {
             email.keywords[keyword] = true;
           } else {
