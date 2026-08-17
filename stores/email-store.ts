@@ -391,9 +391,9 @@ function resolveViewAccountId(): string | undefined {
  * account is still reached through the active/viewing login client; it does
  * not have a separately connected client of its own.
  *
- * If the owner also has a directly connected login, use that client's primary
- * account. Otherwise (the usual delegated/group case), keep the active/viewing
- * client and pass the owner's accountId explicitly.
+ * If the owner also has a directly connected login on the same server, use that
+ * client's primary account. Otherwise (the usual delegated/group case), keep
+ * the active/viewing client and pass the owner's accountId explicitly.
  */
 function resolveMailboxMutationContext(
   passedClient: IJMAPClient,
@@ -410,13 +410,37 @@ function resolveMailboxMutationContext(
     ?? state.mailboxes.find((mb) => mb.id === storeMailboxId)
     ?? Object.values(state.accountMailboxes).flat().find((mb) => mb.id === storeMailboxId);
 
-  const ownerAccountId = mailbox?.accountId;
+  // No live mailbox object (a concurrent refresh dropped the shared account
+  // while a rename/create prompt was open, or a caller passed a stale id):
+  // recover the owner and the bare id from the namespaced store id itself.
+  // Without this the raw `accountId:id` would be sent as a mailbox id AND the
+  // owner would be lost, so the mutation - including the role-clearing sweep
+  // in setMailboxRole - would be applied to the active personal account.
+  const parsed = mailbox ? undefined : parseNamespacedMailboxId(storeMailboxId);
+
+  const ownerAccountId = mailbox?.accountId ?? parsed?.accountId;
   const accountTarget = resolveMailboxAccountTarget(passedClient, ownerAccountId);
 
   return {
     ...accountTarget,
-    mailboxId: mailbox?.originalId || storeMailboxId,
+    mailboxId: mailbox?.originalId || parsed?.mailboxId || storeMailboxId,
     ownerAccountId,
+  };
+}
+
+/**
+ * Split a namespaced shared-mailbox store id (`${accountId}:${mailboxId}`)
+ * back into its parts. Bare (personal) ids carry no separator and yield
+ * `undefined`, which keeps them on the personal path.
+ */
+function parseNamespacedMailboxId(
+  storeMailboxId: string,
+): { accountId: string; mailboxId: string } | undefined {
+  const separator = storeMailboxId.indexOf(':');
+  if (separator <= 0 || separator === storeMailboxId.length - 1) return undefined;
+  return {
+    accountId: storeMailboxId.slice(0, separator),
+    mailboxId: storeMailboxId.slice(separator + 1),
   };
 }
 
@@ -424,22 +448,25 @@ function resolveMailboxAccountTarget(
   passedClient: IJMAPClient,
   ownerAccountId?: string,
 ): { client: IJMAPClient; accountId: string | undefined } {
-  let client = resolveActionClient(passedClient);
-  if (ownerAccountId) {
-    for (const candidate of useAuthStore.getState().getAllConnectedClients().values()) {
-      if (candidate.getAccountId() === ownerAccountId) {
-        client = candidate;
-        break;
-      }
+  const client = resolveActionClient(passedClient);
+  if (!ownerAccountId || client.getAccountId() === ownerAccountId) {
+    return { client, accountId: undefined };
+  }
+
+  // A directly connected owner login can act on its own primary account. Match
+  // it on server URL as well as account id: JMAP account ids are opaque
+  // per-server values, so two logins on different servers can share one id and
+  // matching on the id alone would route the mutation to a foreign server -
+  // where that bare mailbox id may well exist and belong to someone else.
+  const serverUrl = client.getServerUrl();
+  for (const candidate of useAuthStore.getState().getAllConnectedClients().values()) {
+    if (candidate.getAccountId() === ownerAccountId && candidate.getServerUrl() === serverUrl) {
+      return { client: candidate, accountId: undefined };
     }
   }
 
-  return {
-    client,
-    accountId: ownerAccountId && client.getAccountId() !== ownerAccountId
-      ? ownerAccountId
-      : undefined,
-  };
+  // The usual delegated/group case: reach the owner through the active client.
+  return { client, accountId: ownerAccountId };
 }
 
 /**

@@ -1106,6 +1106,13 @@ export function Sidebar({
     openMailboxContextMenu(e, { kind: "folders-section" });
   };
 
+  // `buildMailboxTree()` groups shared mailboxes that carry no accountId under
+  // the placeholder id "unknown" (lib/utils.ts). Such a node cannot be a valid
+  // JMAP mutation target, so it gets no folder-creation menu at all rather than
+  // a menu that would create the folder in a non-existent account.
+  const sharedAccountMenuId = (accountId?: string) =>
+    accountId && accountId !== "unknown" ? accountId : undefined;
+
   const handleSharedAccountContextMenu = (e: React.MouseEvent, accountId: string) => {
     openMailboxContextMenu(e, { kind: "folders-section", accountId });
   };
@@ -1340,6 +1347,7 @@ export function Sidebar({
               <>
                 {sharedAccounts.map((account) => {
                   const accountExpanded = expandedSharedAccounts.has(account.id);
+                  const menuAccountId = sharedAccountMenuId(account.accountId);
                   return (
                     <div key={account.id}>
                       <SidebarSectionHeader
@@ -1350,7 +1358,9 @@ export function Sidebar({
                         sub
                         icon={<User className="w-3.5 h-3.5 text-muted-foreground" />}
                         testId="section-shared-account"
-                        onContextMenu={(e) => handleSharedAccountContextMenu(e, account.accountId!)}
+                        onContextMenu={menuAccountId
+                          ? (e) => handleSharedAccountContextMenu(e, menuAccountId)
+                          : undefined}
                       />
                       {accountExpanded && !isCollapsed && account.children.map((child) => (
                         <MailboxTreeItem

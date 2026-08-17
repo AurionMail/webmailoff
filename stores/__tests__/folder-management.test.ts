@@ -34,6 +34,7 @@ function makeMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
 function makeMockClient(overrides: Record<string, unknown> = {}) {
   return {
     getAccountId: vi.fn().mockReturnValue('account-a'),
+    getServerUrl: vi.fn().mockReturnValue('https://mail.example.test'),
     createMailbox: vi.fn().mockResolvedValue(makeMailbox({ id: 'mb-new' })),
     updateMailbox: vi.fn().mockResolvedValue(undefined),
     deleteMailbox: vi.fn().mockResolvedValue(undefined),
@@ -377,6 +378,45 @@ describe('email-store folder management', () => {
       expect(ownerClient.updateMailbox).toHaveBeenCalledWith('archive-x', { role: null }, undefined);
       expect(ownerClient.updateMailbox).toHaveBeenCalledWith('shared-1', { role: 'archive' }, undefined);
       expect(activeClient.updateMailbox).not.toHaveBeenCalled();
+    });
+
+    it('ignores a same-accountId client from a different server', async () => {
+      const activeClient = makeMockClient();
+      // Same opaque JMAP account id, different server: a collision, not the owner.
+      const foreignClient = makeMockClient({
+        getAccountId: vi.fn().mockReturnValue('owner-x'),
+        getServerUrl: vi.fn().mockReturnValue('https://other.example.test'),
+      });
+      useAuthStore.setState({
+        getAllConnectedClients: () => new Map([['other-login', foreignClient]]),
+      } as never);
+
+      await useEmailStore.getState().renameMailbox(activeClient, sharedFolder.id, 'Renamed Shared');
+
+      expect(foreignClient.updateMailbox).not.toHaveBeenCalled();
+      expect(activeClient.updateMailbox).toHaveBeenCalledWith('shared-1', { name: 'Renamed Shared' }, 'owner-x');
+    });
+
+    it('recovers the owner and bare id from a namespaced id that is no longer in the store', async () => {
+      // A concurrent refresh dropped the shared account while the rename prompt
+      // was open: the store id is all we have left.
+      useEmailStore.setState({ mailboxes: [inbox, sent, trash, custom] });
+      const client = makeMockClient();
+
+      await useEmailStore.getState().renameMailbox(client, 'owner-x:shared-1', 'Renamed Shared');
+
+      expect(client.updateMailbox).toHaveBeenCalledWith('shared-1', { name: 'Renamed Shared' }, 'owner-x');
+    });
+
+    it('does not clear a personal role when the shared mailbox object is missing', async () => {
+      const ownArchive = makeMailbox({ id: 'archive-a', name: 'Personal Archive', role: 'archive' });
+      useEmailStore.setState({ mailboxes: [inbox, sent, trash, custom, ownArchive] });
+      const client = makeMockClient();
+
+      await useEmailStore.getState().setMailboxRole(client, 'owner-x:shared-1', 'archive');
+
+      expect(client.updateMailbox).not.toHaveBeenCalledWith('archive-a', { role: null }, undefined);
+      expect(client.updateMailbox).toHaveBeenCalledWith('shared-1', { role: 'archive' }, 'owner-x');
     });
 
     it('reorders shared folders with bare ids inside the owner account', async () => {
