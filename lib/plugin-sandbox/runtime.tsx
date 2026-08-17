@@ -194,7 +194,8 @@ function buildPluginApi(manifest: PluginManifest) {
       removePublicKey: (keyId: string) => callApi('crypto.removePublicKey', [keyId]),
       setEncryptionAtRest: (config: EncryptionAtRestConfig) => callApi('crypto.setEncryptionAtRest', [config]),
       getEncryptionAtRest: () => callApi('crypto.getEncryptionAtRest', []),
-      getOrCreateWebAuthn: (masterCredentialIdBytes?: number[], name?: string, displayName?: string) => callApi('crypto.getOrCreateWebAuthn', [masterCredentialIdBytes, manifest.id, name, displayName], 0)
+      getWebAuthn: (masterCredentialIdBytes: number[]) => callApi('crypto.getWebAuthn', [masterCredentialIdBytes, manifest.id], 0),
+      createWebAuthn: (name: string, displayName: string) => callApi('crypto.createWebAuthn', [manifest.id, name, displayName], 0)
     },
     storage: {
       get: (key: string) => callApi('storage.get', [key]),
