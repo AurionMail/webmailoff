@@ -144,6 +144,8 @@ export type ProtocolOpenMode = 'active-session' | 'new-tab';
 const DEVICE_LOCAL_SETTING_KEYS = new Set<string>(['proInterface']);
 
 export type HoverAction = 'delete' | 'star' | 'markRead' | 'archive' | 'tag' | 'spam';
+/** Action fired by a mobile list-row swipe. 'none' disables that direction. */
+export type SwipeAction = 'none' | 'archive' | 'delete' | 'markRead' | 'star' | 'spam';
 export type HoverActionsMode = 'inline' | 'floating';
 export type HoverActionsCorner = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 
@@ -324,6 +326,8 @@ interface SettingsState {
   hoverActions: HoverAction[]; // Quick actions shown on hover in mail list
   hoverActionsMode: HoverActionsMode; // Display mode: inline (current) or floating corner
   hoverActionsCorner: HoverActionsCorner; // Corner for floating mode
+  swipeRightAction: SwipeAction; // Mobile: action when a list row is swiped right
+  swipeLeftAction: SwipeAction; // Mobile: action when a list row is swiped left
 
   // Composer
   autoSaveDraftInterval: number; // milliseconds
@@ -555,6 +559,8 @@ const DEFAULT_SETTINGS = {
   hoverActions: ['delete', 'star', 'markRead', 'archive'] as HoverAction[],
   hoverActionsMode: 'inline' as HoverActionsMode,
   hoverActionsCorner: 'top-right' as HoverActionsCorner,
+  swipeRightAction: 'archive' as SwipeAction,
+  swipeLeftAction: 'delete' as SwipeAction,
 
   // Composer
   autoSaveDraftInterval: 60000, // 1 minute
@@ -774,6 +780,8 @@ export const useSettingsStore = create<SettingsState>()(
           hoverActions: state.hoverActions,
           hoverActionsMode: state.hoverActionsMode,
           hoverActionsCorner: state.hoverActionsCorner,
+          swipeRightAction: state.swipeRightAction,
+          swipeLeftAction: state.swipeLeftAction,
           disableThreading: state.disableThreading,
           trustedSenders: state.trustedSenders,
           autoSaveDraftInterval: state.autoSaveDraftInterval,

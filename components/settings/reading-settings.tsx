@@ -23,6 +23,8 @@ export function ReadingSettings() {
     deleteAction,
     permanentlyDeleteJunk,
     returnToListAfterAction,
+    swipeRightAction,
+    swipeLeftAction,
     showPreview,
     mailLayout,
     disableThreading,
@@ -210,6 +212,36 @@ export function ReadingSettings() {
         <ToggleSwitch
           checked={returnToListAfterAction}
           onChange={(checked) => updateSetting('returnToListAfterAction', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('swipe_right_action.label')} description={t('swipe_right_action.description')}>
+        <Select
+          value={swipeRightAction}
+          onChange={(value) => updateSetting('swipeRightAction', value as typeof swipeRightAction)}
+          options={[
+            { value: 'none', label: t('swipe_actions.none') },
+            { value: 'archive', label: t('swipe_actions.archive') },
+            { value: 'delete', label: t('swipe_actions.delete') },
+            { value: 'markRead', label: t('swipe_actions.mark_read') },
+            { value: 'star', label: t('swipe_actions.star') },
+            { value: 'spam', label: t('swipe_actions.spam') },
+          ]}
+        />
+      </SettingItem>
+
+      <SettingItem label={t('swipe_left_action.label')} description={t('swipe_left_action.description')}>
+        <Select
+          value={swipeLeftAction}
+          onChange={(value) => updateSetting('swipeLeftAction', value as typeof swipeLeftAction)}
+          options={[
+            { value: 'none', label: t('swipe_actions.none') },
+            { value: 'archive', label: t('swipe_actions.archive') },
+            { value: 'delete', label: t('swipe_actions.delete') },
+            { value: 'markRead', label: t('swipe_actions.mark_read') },
+            { value: 'star', label: t('swipe_actions.star') },
+            { value: 'spam', label: t('swipe_actions.spam') },
+          ]}
         />
       </SettingItem>
 

@@ -1389,6 +1389,22 @@
         "label": "Return to list after delete or mark unread",
         "description": "After deleting or marking the open message unread, go back to the message list instead of opening the next message."
       },
+      "swipe_right_action": {
+        "label": "Swipe right action (mobile)",
+        "description": "On touch devices, the action performed when you swipe a message to the right in the list."
+      },
+      "swipe_left_action": {
+        "label": "Swipe left action (mobile)",
+        "description": "On touch devices, the action performed when you swipe a message to the left in the list."
+      },
+      "swipe_actions": {
+        "none": "None",
+        "archive": "Archive",
+        "delete": "Delete",
+        "mark_read": "Toggle read",
+        "star": "Toggle star",
+        "spam": "Mark as spam"
+      },
       "rtl_editing": {
         "label": "Right-to-left editing support",
         "description": "Adds a direction button to the composer toolbar so you can set paragraphs left-to-right or right-to-left"
