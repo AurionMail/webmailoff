@@ -574,6 +574,7 @@
     "read_receipt_on": "Læsekvittering anmodet (klik for at deaktivere)",
     "read_receipt_off": "Anmod om læsekvittering",
     "new_message": "Ny besked",
+    "signature_edit_hint": "Dobbeltklik for at redigere signaturen",
     "reply": "Svar",
     "reply_all": "Svar alle",
     "forward": "Videresend",

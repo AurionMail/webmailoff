@@ -574,6 +574,7 @@
     "read_receipt_on": "Leesbevestiging aangevraagd (klik om uit te schakelen)",
     "read_receipt_off": "Leesbevestiging aanvragen",
     "new_message": "Nieuw bericht",
+    "signature_edit_hint": "Dubbelklik om de handtekening te bewerken",
     "reply": "Beantwoorden",
     "reply_all": "Allen beantwoorden",
     "forward": "Doorsturen",

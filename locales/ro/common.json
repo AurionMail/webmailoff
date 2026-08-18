@@ -574,6 +574,7 @@
     "read_receipt_on": "Solicitare confirmare de citire (faceți clic pentru a dezactiva)",
     "read_receipt_off": "Solicitați o confirmare de citire",
     "new_message": "Mesaj nou",
+    "signature_edit_hint": "Dublu clic pentru a edita semnătura",
     "reply": "Răspunde",
     "reply_all": "Răspunde tuturor",
     "forward": "Redirecționează",

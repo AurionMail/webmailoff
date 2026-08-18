@@ -574,6 +574,7 @@
     "read_receipt_on": "Confirmació de lectura sol·licitada (feu clic per desactivar-la)",
     "read_receipt_off": "Sol·licita una confirmació de lectura",
     "new_message": "Missatge nou",
+    "signature_edit_hint": "Feu doble clic per editar la signatura",
     "reply": "Respon",
     "reply_all": "Respon a tots",
     "forward": "Reenvia",

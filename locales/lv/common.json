@@ -574,6 +574,7 @@
     "read_receipt_on": "Pieprasīts lasīšanas apstiprinājums (noklikšķiniet, lai atspējotu)",
     "read_receipt_off": "Pieprasīt lasīšanas apstiprinājumu",
     "new_message": "Jauns ziņojums",
+    "signature_edit_hint": "Veiciet dubultklikšķi, lai rediģētu parakstu",
     "reply": "Atbildēt",
     "reply_all": "Atbildēt visiem",
     "forward": "Pārsūtīt",

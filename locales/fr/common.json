@@ -574,6 +574,7 @@
     "read_receipt_on": "Accusé de lecture demandé (cliquez pour désactiver)",
     "read_receipt_off": "Demander un accusé de lecture",
     "new_message": "Nouveau message",
+    "signature_edit_hint": "Double-cliquez pour modifier la signature",
     "reply": "Répondre",
     "reply_all": "Répondre à tous",
     "forward": "Transférer",

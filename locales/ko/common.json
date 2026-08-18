@@ -574,6 +574,7 @@
     "read_receipt_on": "읽음 확인 요청됨 (클릭하여 해제)",
     "read_receipt_off": "읽음 확인 요청",
     "new_message": "새 메시지",
+    "signature_edit_hint": "서명을 편집하려면 두 번 클릭하세요",
     "reply": "답장",
     "reply_all": "전체 답장",
     "forward": "전달",

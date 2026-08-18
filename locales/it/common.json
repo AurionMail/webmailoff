@@ -574,6 +574,7 @@
     "read_receipt_on": "Conferma di lettura richiesta (clicca per disattivare)",
     "read_receipt_off": "Richiedi una conferma di lettura",
     "new_message": "Nuovo messaggio",
+    "signature_edit_hint": "Doppio clic per modificare la firma",
     "reply": "Rispondi",
     "reply_all": "Rispondi a tutti",
     "forward": "Inoltra",
