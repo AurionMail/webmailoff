@@ -115,8 +115,9 @@ export const SignatureBlock = TiptapNode.create({
         if (event.composedPath().some((t) => (t as Element).tagName === "A")) return;
         const pos = typeof getPos === "function" ? getPos() : undefined;
         if (pos == null) return;
-        event.preventDefault();
-        unlockSignatureBlock(editor, pos);
+        // Only claim the event when the unlock actually ran - in a read-only
+        // editor the default dblclick behaviour must stay untouched.
+        if (unlockSignatureBlock(editor, pos)) event.preventDefault();
       });
 
 
@@ -168,11 +169,13 @@ const NON_LINE_BLOCKS =
 // Inherited style properties hoisted from wrapper divs onto the generated
 // line paragraphs. Wrappers themselves have no schema node and are dropped by
 // the parse, so without hoisting the font/color the whole signature inherits
-// from its container would silently vanish on unlock. Non-inherited
-// properties (background, border, padding) are deliberately NOT hoisted -
-// per-line copies would render differently than the container did.
+// from its container would silently vanish on unlock. Longhands only: setting
+// the `font` shorthand would reset font longhands the line declares itself
+// (browsers expose shorthand values through the longhands anyway).
+// Non-inherited properties (background, border, padding) are deliberately NOT
+// hoisted - per-line copies would render differently than the container did.
 const INHERITED_STYLE_PROPS = [
-  "font", "font-family", "font-size", "font-style", "font-weight",
+  "font-family", "font-size", "font-style", "font-weight",
   "color", "line-height", "letter-spacing", "text-transform", "direction",
 ];
 

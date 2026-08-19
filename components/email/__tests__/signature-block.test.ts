@@ -227,6 +227,23 @@ describe('unlockSignatureBlock (#822)', () => {
   // Wrapper divs have no schema node and are dropped by the parse; their
   // inherited styles (the font/color the whole signature lives in) must move
   // onto the generated line paragraphs, with the line's own styles winning.
+  // A wrapper `font` SHORTHAND must not be hoisted as-is: setting it on the
+  // paragraph after the line's own styles would reset the line's
+  // font-family/size longhands (review note on #862).
+  it('never lets a wrapper font shorthand clobber the line\'s own font', () => {
+    const editor = makeEditor(bracketed(
+      '<div style="font: 12px Arial"><div style="font-family: Courier">Code line</div></div>'
+    ));
+    try {
+      unlockSignatureBlock(editor, findSignaturePos(editor));
+      const out = serializeEditorContent(editor);
+      expect(out).toContain('font-family: Courier');
+      expect(out).not.toMatch(/font: 12px/);
+    } finally {
+      editor.destroy();
+    }
+  });
+
   it('hoists inherited wrapper styles onto the line paragraphs', () => {
     const editor = makeEditor(bracketed(
       '<div style="font-family: Arial; color: rgb(51, 51, 51)">'
