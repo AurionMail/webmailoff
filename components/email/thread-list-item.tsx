@@ -278,8 +278,13 @@ const SingleEmailItem = React.forwardRef<HTMLDivElement, SingleEmailItemProps>(
         style={{ minHeight: isFocusedMailLayout ? undefined : 'var(--list-item-height)', touchAction: swipeEnabled ? 'pan-y' : undefined }}
       >
         {swipeEnabled && swipeMeta && (
+          // Decorative reveal on the physically exposed edge. That edge
+          // follows the (physical) translate direction, not text direction,
+          // so force LTR to keep justify-start/-end as physical left/right
+          // (otherwise the icon flips to the wrong side under RTL).
           <div
             aria-hidden
+            dir="ltr"
             className={cn('absolute inset-0 z-0 flex items-center px-5 text-white', swipeMeta.bg, swipeSide === 'right' ? 'justify-start' : 'justify-end')}
           >
             <swipeMeta.icon className={cn('h-5 w-5 transition-transform', willCommit ? 'scale-110' : 'scale-90 opacity-80')} />
