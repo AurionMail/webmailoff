@@ -1537,6 +1537,15 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       const result = await sendEmail(sendClient, data.to, data.subject, data.body, data.cc, data.bcc, data.identityId, data.fromEmail, data.draftId, data.fromName, data.htmlBody, data.attachments, data.inReplyTo, data.references, data.delayedUntil, data.envelopeMailFrom, { requestReadReceipt: data.requestReadReceipt, localAccountId: data.localAccountId });
       submitted = true;
       setShowComposer(false);
+      // Sending an edited draft destroys it server-side - and every autosave
+      // before that already replaced it under a fresh id (createDraft is a
+      // destroy+create). If the email on display is the draft this session
+      // was opened from, or its latest autosaved successor, clear the
+      // selection like a delete does.
+      if (selectedEmail && (selectedEmail.id === data.draftId || selectedEmail.id === pendingDraft?.draftId)) {
+        selectEmail(null);
+        if (isMobile) setActiveView('list');
+      }
       if (result.filingError) {
         // The mail went out, but a post-send step (filing to Sent /
         // removing the old draft) was rejected - warn instead of staying
