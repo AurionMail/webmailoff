@@ -1,8 +1,9 @@
 import type { Email, Mailbox, StateChange, AccountStates, Thread, Identity, EmailAddress, ContactCard, AddressBook, AddressBookRights, VacationResponse, Calendar, CalendarRights, CalendarEvent, CalendarEventFilter, CalendarTask, FileNode, FileNodeFilter, FileNodeRights, Principal, PushSubscription, EmailSubmission, ScheduledEmail, SendEmailResult, SharedAccount } from "./types";
 import type { SieveScript, SieveCapabilities } from "./sieve-types";
-import type { IJMAPClient, KeywordDiscoveryResult, KeywordInfo } from "./client-interface";
+import type { IJMAPClient, KeywordDiscoveryResult, KeywordInfo, KeywordMigration } from "./client-interface";
 import { toWildcardQuery } from "./search-utils";
 import { batched, itemsPerRequest } from "./request-limits";
+import { keywordPointer } from "./patch-pointer";
 import { debug } from "@/lib/debug";
 import { normalizeCalendarEventLike } from "@/lib/calendar-event-normalization";
 import { findTasksOnlyCalendarIds, isTaskLikeObject, type ScannedCalendarObject } from "@/lib/calendar-component-detection";
@@ -1756,7 +1757,7 @@ export class JMAPClient implements IJMAPClient {
         accountId: accountId || this.accountId,
         update: {
           [emailId]: {
-            [`keywords/${keyword}`]: true,
+            [keywordPointer(keyword)]: true,
           },
         },
       }, "0"],
@@ -1769,7 +1770,7 @@ export class JMAPClient implements IJMAPClient {
         accountId: accountId || this.accountId,
         update: {
           [emailId]: {
-            [`keywords/${keyword}`]: null,
+            [keywordPointer(keyword)]: null,
           },
         },
       }, "0"],
@@ -1791,11 +1792,18 @@ export class JMAPClient implements IJMAPClient {
     }
   }
 
-  async migrateKeyword(oldKeyword: string, newKeyword: string): Promise<number> {
+  async migrateKeyword(oldKeyword: string, newKeyword: string): Promise<KeywordMigration> {
     // Query all email IDs that have the old keyword
+    const seen = new Set<string>();
     const allIds: string[] = [];
     let position = 0;
     const batchSize = 100;
+    // Positions only line up within one queryState (RFC 8620 section 5.5).
+    // Mail arriving mid-walk shifts every later page, so a changed state
+    // restarts the walk - bounded, since a busy mailbox could change forever.
+    let queryState: string | undefined;
+    let restarts = 0;
+    const maxRestarts = 3;
 
     while (true) {
       const response = await this.request([
@@ -1807,35 +1815,106 @@ export class JMAPClient implements IJMAPClient {
         }, "0"],
       ]);
 
-      const queryResult = response.methodResponses?.[0]?.[1];
-      const ids: string[] = queryResult?.ids || [];
-      allIds.push(...ids);
+      const [queryMethod, queryResult] = response.methodResponses?.[0] || [];
+      if (queryMethod === "error") {
+        // Reading a refusal as "no messages carry the tag" would report a
+        // clean migration of mail that still has the old keyword.
+        throw new Error(queryResult?.description || "Failed to list emails with the keyword");
+      }
+      const state = queryResult?.queryState as string | undefined;
+      if (queryState === undefined) {
+        queryState = state;
+      } else if (state !== undefined && state !== queryState) {
+        if (restarts >= maxRestarts) {
+          // Carrying on would mix ids from states that no longer agree, and
+          // retagging a message the tag has since been taken off is worse than
+          // not retagging at all. Nothing has been written yet, so this is a
+          // clean failure the caller can simply repeat.
+          throw new Error("The mailbox kept changing while listing the messages to retag");
+        }
+        restarts++;
+        queryState = state;
+        seen.clear();
+        allIds.length = 0;
+        position = 0;
+        continue;
+      }
 
-      if (ids.length < batchSize) break;
+      const ids: string[] = queryResult?.ids || [];
+      const fresh = ids.filter(id => !seen.has(id));
+      for (const id of fresh) seen.add(id);
+      allIds.push(...fresh);
+
+      // A server may return fewer ids than the limit asked for (RFC 8620
+      // section 5.5 lets it clamp), so a short page does not end the walk.
+      // A page carrying nothing new under an unchanged state does: the walk
+      // is not advancing, and continuing would loop for as long as the server
+      // keeps answering. Position counts the server's own page, not the ids
+      // this walk had not seen before.
+      if (fresh.length === 0) break;
       position += ids.length;
     }
 
-    if (allIds.length === 0) return 0;
+    if (allIds.length === 0) return { migrated: 0, refused: 0 };
 
     // Batch update: remove old keyword, add new keyword using per-property patches
+    let migrated = 0;
+    let refusals = 0;
+    // A whole batch the server refused to take: it will not take the next one
+    // either. A single message it refused: the rest of the mail is unaffected,
+    // and only the reason is worth keeping.
+    let stopped: Error | null = null;
+    let refusal: Error | null = null;
     for (const batch of batched(allIds, this.getMaxObjectsInSet())) {
+      if (stopped) {
+        refusals += batch.length;
+        continue;
+      }
+
       const update: Record<string, Record<string, boolean | null>> = {};
       for (const id of batch) {
         update[id] = {
-          [`keywords/${oldKeyword}`]: null,
-          [`keywords/${newKeyword}`]: true,
+          [keywordPointer(oldKeyword)]: null,
+          [keywordPointer(newKeyword)]: true,
         };
       }
 
-      await this.request([
+      const response = await this.request([
         ["Email/set", {
           accountId: this.accountId,
           update,
         }, "0"],
       ]);
+
+      const [setMethod, setResult] = response.methodResponses?.[0] || [];
+      if (setMethod === "error") {
+        stopped = new Error(setResult?.description || "Failed to migrate keyword");
+        refusals += batch.length;
+        continue;
+      }
+      // Email/set applies per message, so a refusal is never all-or-nothing:
+      // throwing here would abandon messages this very call already migrated.
+      // Report instead - a message deleted since the query (notFound) is
+      // nothing to report, any other refusal leaves the old keyword in place
+      // on mail the caller would otherwise treat as migrated.
+      const notUpdated = (setResult?.notUpdated || {}) as Record<string, { type?: string; description?: string }>;
+      const failed = Object.entries(notUpdated);
+      const refused = failed.filter(([, error]) => error?.type !== 'notFound');
+      if (refused.length > 0) {
+        debug.warn('keywords', 'Keyword migration refused for', refused.length, 'message(s):', refused[0][1]);
+        refusal = refusal || new Error(refused[0][1]?.description || refused[0][1]?.type || "Failed to migrate keyword");
+      }
+      refusals += refused.length;
+      migrated += batch.length - failed.length;
     }
 
-    return allIds.length;
+    // Nothing moved: the caller must not rename the tag over messages that all
+    // kept the old keyword. Something moved: that is a partial migration the
+    // caller reports, not an error - the messages that did move are migrated
+    // and renaming the definition is what keeps them named.
+    if (migrated === 0 && (stopped || refusal)) throw (stopped || refusal) as Error;
+
+    return { migrated, refused: refusals };
   }
 
   async deleteEmail(emailId: string, accountId?: string): Promise<void> {
