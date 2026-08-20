@@ -2804,20 +2804,18 @@ export class JMAPClient implements IJMAPClient {
       }));
     }
 
-    // Use a single Email/set call with both destroy and create for atomicity
-    const setArgs: Record<string, unknown> = {
-      accountId: this.accountId,
-      create: { [emailId]: emailData },
-    };
-    if (draftId) {
-      setArgs.destroy = [draftId];
-    }
-
-    const methodCalls: JMAPMethodCall[] = [
-      ["Email/set", setArgs, "0"],
-    ];
-
-    const response = await this.request(methodCalls);
+    // Destroy the previous draft version only AFTER the replacement was
+    // created (#849). A combined `Email/set { create, destroy }` processes
+    // the two independently: when the create references part blobs of the
+    // previous version (re-opened draft with attachments) and fails with
+    // blobNotFound, the destroy still went through - deleting the last good
+    // copy of the draft. Worst case now is an orphaned old version.
+    const response = await this.request([
+      ["Email/set", {
+        accountId: this.accountId,
+        create: { [emailId]: emailData },
+      }, "0"],
+    ]);
 
     if (response.methodResponses?.[0]?.[0] === "Email/set") {
       const result = response.methodResponses[0][1];
@@ -2829,12 +2827,24 @@ export class JMAPClient implements IJMAPClient {
         throw new Error(firstError?.description || firstError?.type || 'Failed to save draft');
       }
 
-      if (draftId && result.notDestroyed) {
-        console.warn('Failed to destroy old draft:', result.notDestroyed);
-      }
-
       if (result.created?.[emailId]) {
-        return result.created[emailId].id;
+        const newDraftId = result.created[emailId].id;
+
+        if (draftId) {
+          try {
+            const destroyResponse = await this.request([
+              ["Email/set", { accountId: this.accountId, destroy: [draftId] }, "0"],
+            ]);
+            const destroyResult = destroyResponse.methodResponses?.[0]?.[1];
+            if (destroyResult?.notDestroyed) {
+              console.warn('Failed to destroy old draft:', destroyResult.notDestroyed);
+            }
+          } catch (err) {
+            console.warn('Failed to destroy old draft:', err);
+          }
+        }
+
+        return newDraftId;
       }
     }
 
@@ -2990,32 +3000,20 @@ export class JMAPClient implements IJMAPClient {
       return { [submissionId]: create };
     };
 
-    if (draftId) {
-      // Destroy the old draft and create a new email with the final body
-      methodCalls.push(["Email/set", {
-        accountId: this.accountId,
-        destroy: [draftId],
-      }, "0"]);
-      methodCalls.push(["Email/set", {
-        accountId: targetAccountId,
-        create: { [emailId]: emailCreate },
-      }, "1"]);
-      methodCalls.push(["EmailSubmission/set", {
-        accountId: this.getSubmissionAccountId(targetAccountId),
-        create: buildSubmissionCreate("1"),
-        onSuccessUpdateEmail,
-      }, "2"]);
-    } else {
-      methodCalls.push(["Email/set", {
-        accountId: targetAccountId,
-        create: { [emailId]: emailCreate },
-      }, "0"]);
-      methodCalls.push(["EmailSubmission/set", {
-        accountId: this.getSubmissionAccountId(targetAccountId),
-        create: buildSubmissionCreate("1"),
-        onSuccessUpdateEmail,
-      }, "1"]);
-    }
+    // The old draft is destroyed in a separate request only after the
+    // submission succeeded (see below, #849). Destroying it up front in the
+    // same request meant a failed create/submission - e.g. the outgoing email
+    // referencing part blobs of that very draft, which die with it - still
+    // deleted the user's only copy of the message.
+    methodCalls.push(["Email/set", {
+      accountId: targetAccountId,
+      create: { [emailId]: emailCreate },
+    }, "0"]);
+    methodCalls.push(["EmailSubmission/set", {
+      accountId: this.getSubmissionAccountId(targetAccountId),
+      create: buildSubmissionCreate("1"),
+      onSuccessUpdateEmail,
+    }, "1"]);
 
     const response = await this.request(methodCalls);
 
@@ -3081,6 +3079,26 @@ export class JMAPClient implements IJMAPClient {
           emailSubmissionId = result.created['1'].id;
           serverSendAt = result.created['1'].sendAt;
         }
+      }
+    }
+
+    // The message is out (or scheduled) - now it is safe to drop the old
+    // draft. A failure here leaves an orphan in Drafts, which is reported as
+    // a filing warning rather than a failed send (#849).
+    if (draftId && createdEmailId) {
+      try {
+        const destroyResponse = await this.request([
+          ["Email/set", { accountId: this.accountId, destroy: [draftId] }, "0"],
+        ]);
+        const destroyResult = destroyResponse.methodResponses?.[0]?.[1];
+        if (destroyResult?.notDestroyed && Object.keys(destroyResult.notDestroyed).length) {
+          console.error('[sendEmail] old draft cleanup notDestroyed:', JSON.stringify(destroyResult.notDestroyed, null, 2));
+          const first = Object.values(destroyResult.notDestroyed as Record<string, { type?: string; description?: string }>)[0];
+          filingError = filingError ?? (first?.description || first?.type || 'old draft cleanup failed');
+        }
+      } catch (err) {
+        console.error('[sendEmail] old draft cleanup failed:', err);
+        filingError = filingError ?? 'old draft cleanup failed';
       }
     }
 

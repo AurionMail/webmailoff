@@ -1757,6 +1757,19 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       subAddressTag: '',
       mode: 'compose',
       draftId: draft.id,
+      // Existing server-side attachments must ride along, or the composer
+      // starts empty and the next save/send silently rebuilds the draft
+      // without them (#849).
+      attachments: (draft.attachments ?? [])
+        .filter(a => !!a.blobId)
+        .map(a => ({
+          blobId: a.blobId,
+          name: a.name,
+          type: a.type,
+          size: a.size,
+          cid: a.cid,
+          disposition: a.disposition,
+        })),
     });
     setComposerMode('compose');
     setShowComposer(true);

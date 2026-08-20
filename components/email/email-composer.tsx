@@ -118,6 +118,12 @@ export interface ComposerDraftData {
   mode: 'compose' | 'reply' | 'replyAll' | 'forward';
   replyTo?: EmailComposerProps['replyTo'];
   draftId: string | null;
+  /**
+   * Server-side attachments of a re-opened draft (blobId references, no local
+   * File). Without these the composer starts with zero attachments and the
+   * next save/send rebuilds the draft without them - silent data loss (#849).
+   */
+  attachments?: Array<{ blobId: string; name?: string; type?: string; size: number; cid?: string; disposition?: string }>;
   /** When set, overrides the header From: - sent through the selected identity's envelope. */
   fromOverrideEmail?: string;
   fromOverrideName?: string;
@@ -213,6 +219,15 @@ type ComposerAttachment = {
   uploading?: boolean;
   error?: boolean;
   abortController?: AbortController;
+  // Carried through for parts hydrated from an existing draft so inline
+  // (cid-referenced) parts survive a save/send round-trip intact.
+  cid?: string;
+  disposition?: 'attachment' | 'inline';
+  // blobId points at a MIME part of the current server draft rather than a
+  // stable upload blob. Part blobs die with the draft version that owns them,
+  // so these must be re-resolved against the new version after every save -
+  // otherwise the next save references dead blobs and fails (#849).
+  fromDraftPart?: boolean;
 };
 
 type SignatureIdentityLike = {
@@ -522,6 +537,26 @@ export function EmailComposer({
   // so this is the only way to distinguish the two.
   const saveFailedRef = useRef(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>(() => {
+    // A re-opened draft (or a compose tab restored from saved state) brings
+    // its existing server-side attachments along as blobId references. They
+    // are all treated as draft-part blobs and re-resolved after the first
+    // save (see saveDraftOnce) - part blobs die with the draft version that
+    // owns them. Inline (cid) parts are kept, cid and all, rather than
+    // filtered: dropping them would strip the parts the body's cid: refs
+    // point at on the next save (#849).
+    if (initialData?.attachments?.length) {
+      return initialData.attachments
+        .filter(att => !!att.blobId)
+        .map(att => ({
+          name: att.name || 'attachment',
+          type: att.type || 'application/octet-stream',
+          size: att.size,
+          blobId: att.blobId,
+          ...(att.cid ? { cid: att.cid } : {}),
+          ...(att.disposition === 'inline' ? { disposition: 'inline' as const } : {}),
+          fromDraftPart: true,
+        }));
+    }
     if (mode === 'forward' && replyTo?.attachments?.length) {
       // cids the quoted body renders as <img>; those parts are re-attached
       // inline by the send path, so listing them here would duplicate them.
@@ -953,16 +988,33 @@ export function EmailComposer({
   const ccStr = formatRecipientList(withInput(cc, ccInput));
   const bccStr = formatRecipientList(withInput(bcc, bccInput));
 
+  // Uploaded/hydrated attachments in ComposerDraftData shape, so a state
+  // snapshot (pro tab move, unmount save) carries them across a remount
+  // instead of silently dropping them (#849). In-flight/failed uploads have
+  // no server blob yet, so only their absence can be recorded.
+  const snapshotAttachments = () => attachments
+    .filter(att => att.blobId && !att.uploading && !att.error)
+    .map(att => ({
+      blobId: att.blobId!,
+      name: att.name,
+      type: att.type,
+      size: att.size,
+      ...(att.cid ? { cid: att.cid } : {}),
+      ...(att.disposition ? { disposition: att.disposition } : {}),
+    }));
+
   // Keep a ref to current state for the unmount save
-  const stateRef = useRef({ to: toStr, cc: ccStr, bcc: bccStr, subject, body, showCc, showBcc, selectedIdentityId, subAddressTag, draftId, fromOverrideEnabled, fromOverrideEmail, fromOverrideName });
-  stateRef.current = { to: toStr, cc: ccStr, bcc: bccStr, subject, body, showCc, showBcc, selectedIdentityId, subAddressTag, draftId, fromOverrideEnabled, fromOverrideEmail, fromOverrideName };
+  const stateRef = useRef({ to: toStr, cc: ccStr, bcc: bccStr, subject, body, showCc, showBcc, selectedIdentityId, subAddressTag, draftId, fromOverrideEnabled, fromOverrideEmail, fromOverrideName, attachments: snapshotAttachments() });
+  stateRef.current = { to: toStr, cc: ccStr, bcc: bccStr, subject, body, showCc, showBcc, selectedIdentityId, subAddressTag, draftId, fromOverrideEnabled, fromOverrideEmail, fromOverrideName, attachments: snapshotAttachments() };
 
   // Track initial values for dirty detection (captured once on first render)
   const initialValuesRef = useRef({ to: toStr, cc: ccStr, bcc: bccStr, subject, body, attachmentCount: attachments.length });
   const isDirtyRef = useRef(false);
   isDirtyRef.current = toStr !== initialValuesRef.current.to || ccStr !== initialValuesRef.current.cc ||
     bccStr !== initialValuesRef.current.bcc || subject !== initialValuesRef.current.subject ||
-    body !== initialValuesRef.current.body || attachments.length > initialValuesRef.current.attachmentCount;
+    // `!==`, not `>`: a re-opened draft starts with hydrated attachments, and
+    // removing one must count as dirty or the removal never reaches the server.
+    body !== initialValuesRef.current.body || attachments.length !== initialValuesRef.current.attachmentCount;
 
   // Ref to latest saveDraft for use in event handlers with stale closures
   const saveDraftRef = useRef<() => Promise<string | null>>(() => Promise.resolve(null));
@@ -1545,7 +1597,8 @@ export function EmailComposer({
       return null;
     }
 
-    // Prepare attachments for draft
+    // Prepare attachments for draft. cid/disposition ride along so inline
+    // parts of a re-opened draft keep matching the body's cid: references.
     const uploadedAttachments = attachments
       .filter(att => att.blobId && !att.uploading)
       .map(att => ({
@@ -1553,6 +1606,8 @@ export function EmailComposer({
         name: att.name,
         type: att.type,
         size: att.size,
+        ...(att.cid ? { cid: att.cid } : {}),
+        ...(att.disposition ? { disposition: att.disposition } : {}),
       }));
 
     // A draft has to carry the signature just like a sent mail does. It is
@@ -1579,7 +1634,12 @@ export function EmailComposer({
     // composed bodies (not the raw editor body) means a signature that changed
     // under an unchanged body - switching identity, toggling the separator -
     // still triggers a re-save.
-    const currentData = JSON.stringify({ to: toAddresses, cc: ccAddresses, bcc: bccAddresses, subject, body: draftHtmlBody ?? draftTextBody, attachments: uploadedAttachments, identityId: selectedIdentityId, subAddressTag });
+    // blobIds are deliberately left out of the attachment hash: after every
+    // save, draft-part blobIds are re-resolved against the newly created
+    // draft version (below), and hashing them would mark each save dirty
+    // again - an endless save loop. Name+type+size identifies an attachment
+    // for change detection.
+    const currentData = JSON.stringify({ to: toAddresses, cc: ccAddresses, bcc: bccAddresses, subject, body: draftHtmlBody ?? draftTextBody, attachments: uploadedAttachments.map(({ name, type, size, cid }) => ({ name, type, size, cid })), identityId: selectedIdentityId, subAddressTag });
 
     // Only save if data has changed
     if (currentData === lastSavedDataRef.current) {
@@ -1641,6 +1701,40 @@ export function EmailComposer({
       draftIdRef.current = savedDraftId;
       setDraftId(savedDraftId);
       lastSavedDataRef.current = currentData;
+
+      // Attachments hydrated from a previous draft version reference part
+      // blobs that died when that version was destroyed. Re-point them at
+      // the matching parts (by name+size) of the version just created, so
+      // the next save/send references live blobs instead of failing with
+      // blobNotFound (#849).
+      if (uploadedAttachments.length && attachmentsRef.current.some(att => att.fromDraftPart && att.blobId)) {
+        try {
+          const freshDraft = await composerClient.getEmail(savedDraftId);
+          const freshParts = (freshDraft?.attachments ?? []).filter(p => !!p.blobId);
+          if (freshParts.length) {
+            const remap = (list: ComposerAttachment[]): ComposerAttachment[] => {
+              const claimed = new Set<number>();
+              return list.map(att => {
+                if (!att.fromDraftPart || !att.blobId || att.uploading) return att;
+                const idx = freshParts.findIndex((p, i) =>
+                  !claimed.has(i) && (p.name || 'attachment') === att.name && p.size === att.size);
+                if (idx === -1) return att;
+                claimed.add(idx);
+                return { ...att, blobId: freshParts[idx].blobId };
+              });
+            };
+            // Ref first, synchronously: a send that awaited this save reads
+            // attachmentsRef immediately, before React re-renders.
+            attachmentsRef.current = remap(attachmentsRef.current);
+            setAttachments(remap);
+          }
+        } catch (err) {
+          // Keep the old blobIds: with create-before-destroy the next save
+          // fails loudly instead of losing the draft.
+          debug.warn('email', 'Failed to re-resolve draft attachment blobs:', err);
+        }
+      }
+
       setSaveStatus('saved');
       saveFailedRef.current = false;
 
@@ -2050,7 +2144,7 @@ export function EmailComposer({
         attachments: [
           ...attachmentsRef.current
             .filter(att => att.blobId && !att.uploading && !att.error)
-            .map(a => ({ name: a.name, type: a.type || 'application/octet-stream', size: a.size, blobId: a.blobId })),
+            .map(a => ({ name: a.name, type: a.type || 'application/octet-stream', size: a.size, blobId: a.blobId, cid: a.cid })),
           ...inlineAttachments.map(a => ({ name: a.name, type: a.type, size: a.size, blobId: a.blobId, cid: a.cid })),
         ],
       };
@@ -2070,7 +2164,16 @@ export function EmailComposer({
         // Collect uploaded attachment blobIds for the send request
         const uploadedAttachments: Array<{ blobId: string; name: string; type: string; size: number; disposition?: 'attachment' | 'inline'; cid?: string }> = attachmentsRef.current
           .filter(att => att.blobId && !att.uploading && !att.error)
-          .map(att => ({ blobId: att.blobId!, name: att.name, type: att.type || 'application/octet-stream', size: att.size }));
+          .map(att => ({
+            blobId: att.blobId!,
+            name: att.name,
+            type: att.type || 'application/octet-stream',
+            size: att.size,
+            // Inline parts of a re-opened draft keep their cid so the body's
+            // cid: references still resolve in the sent mail (#849).
+            ...(att.cid ? { cid: att.cid } : {}),
+            ...(att.disposition ? { disposition: att.disposition } : {}),
+          }));
         uploadedAttachments.push(...inlineAttachments);
 
         // Let plugins (signatures, link-rewriting, encryption, AI rewrite, …)
@@ -2147,7 +2250,7 @@ export function EmailComposer({
       setScheduleValue('');
       setScheduleError('');
       // Clear ref so unmount effect doesn't re-save
-      stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
+      stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '', attachments: [] };
     } catch (err) {
       debug.error('Failed to send email:', err);
       // A timeout is not a clean failure: the submission may have reached the
@@ -2206,7 +2309,7 @@ export function EmailComposer({
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
+    stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '', attachments: [] };
     emitClose();
   };
 
@@ -2231,7 +2334,7 @@ export function EmailComposer({
         toast.error(t('save_failed'));
         explicitCloseRef.current = false;
       } else {
-        stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
+        stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '', attachments: [] };
       }
     } finally {
       emitClose();
@@ -2248,7 +2351,7 @@ export function EmailComposer({
     if (draftId && onDiscardDraft) {
       onDiscardDraft(draftId);
     }
-    stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '' };
+    stateRef.current = { to: '', cc: '', bcc: '', subject: '', body: '', showCc: false, showBcc: false, selectedIdentityId: null, subAddressTag: '', draftId: null, fromOverrideEnabled: false, fromOverrideEmail: '', fromOverrideName: '', attachments: [] };
     emitClose();
   };
 
