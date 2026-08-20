@@ -300,6 +300,10 @@
     "move": "انتقال",
     "print": "چاپ",
     "view_source": "مشاهده منبع",
+
+    "fullscreen": "تمام‌صفحه",
+
+    "exit_fullscreen": "خروج از تمام‌صفحه",
     "export_email": "خروجی .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "وارد کردن .eml یا .zip",

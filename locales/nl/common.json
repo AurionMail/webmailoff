@@ -300,6 +300,10 @@
     "move": "Verplaatsen",
     "print": "Afdrukken",
     "view_source": "Bron bekijken",
+
+    "fullscreen": "Volledig scherm",
+
+    "exit_fullscreen": "Volledig scherm sluiten",
     "export_email": "Exporteren als .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml of .zip importeren",

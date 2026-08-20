@@ -300,6 +300,10 @@
     "move": "이동",
     "print": "인쇄",
     "view_source": "원본 보기",
+
+    "fullscreen": "전체 화면",
+
+    "exit_fullscreen": "전체 화면 종료",
     "export_email": ".eml 파일로 내보내기",
     "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml 또는 .zip 가져오기",

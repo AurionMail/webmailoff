@@ -1384,13 +1384,41 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     }
   }, [fullscreenReading, selectedEmail, showComposer, conversationThread]);
 
+  // Keep the `?view=fullscreen` marker in step with the toggle. The history
+  // keeper only rewrites the URL when the nav snapshot (mailbox/message)
+  // changes, so toggling fullscreen on an open message would otherwise leave
+  // the address bar - and any reload of it - on the normal view.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isEmbedded || proInterfaceActive) return;
+    const { pathname, search } = window.location;
+    const params = new URLSearchParams(search);
+    const has = params.get("view") === "fullscreen";
+    const want = fullscreenReading && /\/mail\/message\//.test(pathname);
+    if (want === has) return;
+    if (want) params.set("view", "fullscreen");
+    else params.delete("view");
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, "", `${pathname}${qs ? `?${qs}` : ""}`);
+  }, [fullscreenReading, isEmbedded, proInterfaceActive, selectedEmail]);
+
+  // The URL keeper below (useBrowserNavigation) rewrites the address bar as
+  // soon as the view initializes - long before the deep-link effect gets to
+  // run (it waits for the session and mailbox list) - which strips one-shot
+  // entry params like `?view=fullscreen`. Capture the query the page was
+  // actually opened with on first client render.
+  const initialSearchRef = useRef<string | null>(null);
+  if (initialSearchRef.current === null && typeof window !== "undefined") {
+    initialSearchRef.current = window.location.search;
+  }
+
   useEffect(() => {
     if (deepLinkHandledRef.current) return;
     if (!isAuthenticated || !client) return;
     if (mailboxes.length === 0) return;
     if (!initialMailLoadDone) return;
 
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(initialSearchRef.current ?? window.location.search);
     // Inside the Pro shell the route is /pro, so the segments arrive through
     // the handoff the redirect parked them in rather than as route params.
     const segments = linkSegments ?? consumePendingDeepLink('mail') ?? [];
@@ -4003,6 +4031,8 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                     onBack={handleMobileBack}
                     onNavigateNext={handleNavigateNext}
                     onNavigatePrev={handleNavigatePrev}
+                    onToggleFullscreen={!isEmbedded && !isMobile ? () => setFullscreenReading((v) => !v) : undefined}
+                    isFullscreen={fullscreenReading}
                     onShowShortcuts={() => setShowShortcutsModal(true)}
                     onEditDraft={handleEditDraft}
                     onCancelScheduledForEdit={async () => {

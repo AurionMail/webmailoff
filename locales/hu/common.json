@@ -300,6 +300,10 @@
     "move": "Áthelyezés",
     "print": "Nyomtatás",
     "view_source": "Forrás megtekintése",
+
+    "fullscreen": "Teljes képernyő",
+
+    "exit_fullscreen": "Kilépés a teljes képernyőből",
     "export_email": "Exportálás .eml-ként",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importálás .eml vagy .zip fájlból",

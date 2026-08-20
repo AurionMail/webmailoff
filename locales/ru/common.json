@@ -300,6 +300,10 @@
     "move": "Переместить",
     "print": "Распечатать",
     "view_source": "Просмотреть исходный код",
+
+    "fullscreen": "Во весь экран",
+
+    "exit_fullscreen": "Выйти из полноэкранного режима",
     "export_email": "Экспортировать как .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Импортировать .eml или .zip",

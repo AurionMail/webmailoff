@@ -300,6 +300,10 @@
     "move": "Taşı",
     "print": "Yazdır",
     "view_source": "Kaynağı görüntüle",
+
+    "fullscreen": "Tam ekran",
+
+    "exit_fullscreen": "Tam ekrandan çık",
     "export_email": ".eml olarak dışa aktar",
     "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml veya .zip içe aktar",

@@ -300,6 +300,10 @@
     "move": "移動",
     "print": "印刷",
     "view_source": "ソースを表示",
+
+    "fullscreen": "全画面表示",
+
+    "exit_fullscreen": "全画面表示を終了",
     "export_email": ".emlとしてエクスポート",
     "forward_as_attachment": "Forward as attachment",
     "import_email": ".eml または .zip をインポート",

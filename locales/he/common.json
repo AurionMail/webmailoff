@@ -247,6 +247,10 @@
     "mark_read": "סמן כנקרא",
     "print": "הדפס",
     "view_source": "צפה במקור",
+
+    "fullscreen": "מסך מלא",
+
+    "exit_fullscreen": "יציאה ממסך מלא",
     "export_email": "ייצא כ-.eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "ייבוא .eml",

@@ -300,6 +300,10 @@
     "move": "Flyt",
     "print": "Udskriv",
     "view_source": "Vis kilde",
+
+    "fullscreen": "Fuld skærm",
+
+    "exit_fullscreen": "Afslut fuld skærm",
     "export_email": "Eksportér som .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importér .eml eller .zip",

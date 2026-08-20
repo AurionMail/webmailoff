@@ -300,6 +300,10 @@
     "move": "Pārvietot",
     "print": "Drukāt",
     "view_source": "Skatīt avota kodu",
+
+    "fullscreen": "Pilnekrāna režīms",
+
+    "exit_fullscreen": "Iziet no pilnekrāna režīma",
     "export_email": "Eksportēt kā .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importēt .eml vai .zip",

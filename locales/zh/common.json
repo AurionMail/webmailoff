@@ -300,6 +300,10 @@
     "move": "移动",
     "print": "打印",
     "view_source": "查看源码",
+
+    "fullscreen": "全屏",
+
+    "exit_fullscreen": "退出全屏",
     "export_email": "导出为 .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "导入 .eml 或 .zip",

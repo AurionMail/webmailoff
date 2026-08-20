@@ -300,6 +300,10 @@
     "move": "Хөдөлгөөн",
     "print": "Хэвлэх",
     "view_source": "Эх сурвалжийг харах",
+
+    "fullscreen": "Бүтэн дэлгэц",
+
+    "exit_fullscreen": "Бүтэн дэлгэцээс гарах",
     "export_email": ".eml",
     "forward_as_attachment": "Хавсралт болгон дамжуулах",
     "import_email": "Импорт .eml эсвэл .zip",

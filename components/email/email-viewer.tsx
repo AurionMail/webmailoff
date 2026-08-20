@@ -77,6 +77,8 @@ import {
   PenSquare,
   CalendarClock,
   Link as LinkIcon,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
@@ -144,6 +146,13 @@ interface EmailViewerProps {
   onCancelScheduledForEdit?: () => void;
   onRescheduleScheduled?: (delayedUntil: string) => void;
   onCompose?: () => void;
+  /**
+   * Fullscreen reading toggle (standard interface only - Pro email tabs are
+   * fullscreen by construction). When set, the toolbar shows a maximize /
+   * minimize button; `isFullscreen` reflects the host's current state.
+   */
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
   currentUserEmail?: string;
   currentUserName?: string;
   currentMailboxRole?: string;
@@ -643,6 +652,8 @@ export function EmailViewer({
   onCancelScheduledForEdit,
   onRescheduleScheduled,
   onCompose,
+  onToggleFullscreen,
+  isFullscreen = false,
   currentUserEmail,
   currentUserName,
   currentMailboxRole,
@@ -3187,6 +3198,22 @@ export function EmailViewer({
           title={isDark ? 'View in light mode' : 'View in dark mode'}
         >
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </Button>
+        )}
+
+        {/* Fullscreen toggle - hidden on mobile (already fullscreen there).
+            Never overflows into the More menu: in fullscreen this button is
+            the way back out, so it must stay visible. */}
+        {onToggleFullscreen && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggleFullscreen}
+          className="hidden sm:inline-flex h-8 gap-1.5"
+          title={isFullscreen ? t('exit_fullscreen') : t('fullscreen')}
+          aria-label={isFullscreen ? t('exit_fullscreen') : t('fullscreen')}
+        >
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </Button>
         )}
 

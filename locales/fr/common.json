@@ -300,6 +300,10 @@
     "move": "Déplacer",
     "print": "Imprimer",
     "view_source": "Voir la source",
+
+    "fullscreen": "Plein écran",
+
+    "exit_fullscreen": "Quitter le plein écran",
     "export_email": "Exporter en .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importer .eml ou .zip",

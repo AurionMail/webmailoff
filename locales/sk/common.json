@@ -300,6 +300,10 @@
     "move": "Presunúť",
     "print": "Tlačiť",
     "view_source": "Zobraziť zdrojový kód",
+
+    "fullscreen": "Celá obrazovka",
+
+    "exit_fullscreen": "Ukončiť režim celej obrazovky",
     "export_email": "Exportovať ako .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importovať .eml alebo .zip",

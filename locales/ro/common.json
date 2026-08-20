@@ -300,6 +300,10 @@
     "move": "Mutare",
     "print": "Imprimare",
     "view_source": "Vizualizați sursa",
+
+    "fullscreen": "Ecran complet",
+
+    "exit_fullscreen": "Ieșire din ecran complet",
     "export_email": "Exportați ca fișier .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importați fișiere .eml sau .zip",

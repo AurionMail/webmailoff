@@ -300,6 +300,10 @@
     "move": "Mover",
     "print": "Imprimir",
     "view_source": "Ver código-fonte",
+
+    "fullscreen": "Tela cheia",
+
+    "exit_fullscreen": "Sair da tela cheia",
     "export_email": "Exportar como .eml",
     "forward_as_attachment": "Forward as attachment",
     "import_email": "Importar .eml ou .zip",
