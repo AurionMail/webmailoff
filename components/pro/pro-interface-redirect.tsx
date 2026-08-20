@@ -48,10 +48,13 @@ export function ProInterfaceRedirect() {
     if (!proInterface || !isDesktop) return;
     const match = matchSurface(pathname);
     if (!match) return;
+    // Focus the tab before handing over the link: when the surface is already
+    // mounted the handoff delivers live, and its handler may itself open a
+    // tab (a message permalink opens an email tab) that must keep focus.
+    useProTabStore.getState().openTab(SURFACE_TO_TAB[match.surface]);
     if (match.segments.length > 0) {
       setPendingDeepLink(match.surface, match.segments);
     }
-    useProTabStore.getState().openTab(SURFACE_TO_TAB[match.surface]);
     router.replace('/pro');
   }, [proInterface, isDesktop, pathname, router]);
 

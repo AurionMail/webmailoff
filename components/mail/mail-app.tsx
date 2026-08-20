@@ -105,7 +105,7 @@ import {
   resolveFolderRef,
   type MailDeepLink,
 } from "@/lib/deep-links";
-import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
+import { consumePendingDeepLink, subscribePendingDeepLink } from "@/lib/deep-link-handoff";
 import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 import type { QuoteHeader } from "@/lib/plugin-types";
 
@@ -1277,6 +1277,17 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
     }
 
     if (link.kind === 'message') {
+      // In the Pro shell a message permalink opens as its own fullscreen
+      // email tab - the tab body fetches the message and retitles itself.
+      if (isEmbedded) {
+        useProTabStore.getState().openEmailTab({
+          accountId: '',
+          emailId: link.id,
+          mailboxId: null,
+          title: t('common.loading'),
+        });
+        return;
+      }
       setLoadingEmail(true);
       try {
         const email = await fetchEmailContent(activeClient, link.id);
@@ -1336,6 +1347,19 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
   // first-render ones by the time the session is up and the link is applied.
   const applyMailDeepLinkRef = useRef(applyMailDeepLink);
   applyMailDeepLinkRef.current = applyMailDeepLink;
+
+  // Pro shell only: this MailApp stays mounted for the whole session, so the
+  // mount-time consume below never sees a link that arrives later (an in-app
+  // navigation ProInterfaceRedirect intercepts). Subscribe for live delivery.
+  // Embedded-only: during a cold-load redirect the standard instance renders
+  // briefly and must not steal the link parked for the Pro one.
+  useEffect(() => {
+    if (!isEmbedded) return;
+    return subscribePendingDeepLink('mail', (segments) => {
+      const link = parseMailPath(segments, new URLSearchParams(window.location.search));
+      if (link) void applyMailDeepLinkRef.current(link);
+    });
+  }, [isEmbedded]);
 
   useEffect(() => {
     if (deepLinkHandledRef.current) return;

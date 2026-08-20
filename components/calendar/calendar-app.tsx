@@ -48,6 +48,7 @@ import { SidebarAppsModal } from "@/components/layout/sidebar-apps-modal";
 import { InlineAppView } from "@/components/layout/inline-app-view";
 import { useSidebarApps } from "@/hooks/use-sidebar-apps";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
+import { useIsFocusedProTab } from "@/hooks/use-pane-context";
 import { useProMultiAccountCalendars } from "@/hooks/use-pro-multi-account-calendars";
 import { ResizeHandle } from "@/components/layout/resize-handle";
 import { sanitizeOutgoingCalendarEventData } from "@/lib/calendar-event-normalization";
@@ -67,8 +68,8 @@ import { sharedCalendarColorKey, pickUnusedCalendarColor } from "@/lib/shared-ca
 import { debug } from "@/lib/debug";
 import { consumePendingWebcal, hasPendingWebcal, subscribeToPendingWebcal } from "@/lib/protocol-handlers/session";
 import type { ParsedWebcal } from "@/lib/protocol-handlers/webcal";
-import { appPath, buildCalendarPath, parseCalendarPath } from "@/lib/deep-links";
-import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
+import { appPath, buildCalendarPath, parseCalendarPath, type CalendarDeepLink } from "@/lib/deep-links";
+import { consumePendingDeepLink, subscribePendingDeepLink } from "@/lib/deep-link-handoff";
 import { useDeepLinkUrl } from "@/hooks/use-deep-link-url";
 import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 
@@ -591,22 +592,16 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
   // `/calendar/<view>/<date>` moves the grid; `/calendar/event/<id>` opens the
   // event's sidebar and parks the grid on the day it starts. Applied once the
   // JMAP session is up, then the URL becomes an output of the view (below).
-  const deepLinkHandledRef = useRef(false);
-  useEffect(() => {
-    if (deepLinkHandledRef.current) return;
-    if (!isAuthenticated || !client) return;
-
-    const segments = linkSegments ?? consumePendingDeepLink('calendar') ?? [];
-    const link = parseCalendarPath(segments, new URLSearchParams(window.location.search));
-    deepLinkHandledRef.current = true;
-    if (!link) return;
-
+  // Held in a ref so the live-delivery subscription (Pro shell) always calls
+  // the copy that closes over the current client and handlers.
+  const applyCalendarDeepLink = (link: CalendarDeepLink) => {
     if (link.kind === 'view') {
       setViewMode(link.view);
       if (link.date) setSelectedDate(link.date);
       return;
     }
 
+    if (!client) return;
     void (async () => {
       try {
         const event = await client.getCalendarEvent(link.id, link.accountId);
@@ -622,21 +617,50 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
         toast.error(tDeepLink('event_not_found'));
       }
     })();
-  }, [isAuthenticated, client, linkSegments, setViewMode, setSelectedDate, openEditModal, tDeepLink]);
+  };
+  const applyCalendarDeepLinkRef = useRef(applyCalendarDeepLink);
+  applyCalendarDeepLinkRef.current = applyCalendarDeepLink;
 
-  // The permalink for what the calendar is currently showing. Suppressed in
-  // the Pro shell, where /pro owns the address bar.
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    if (!isAuthenticated || !client) return;
+
+    const segments = linkSegments ?? consumePendingDeepLink('calendar') ?? [];
+    const link = parseCalendarPath(segments, new URLSearchParams(window.location.search));
+    deepLinkHandledRef.current = true;
+    if (!link) return;
+    applyCalendarDeepLinkRef.current(link);
+  }, [isAuthenticated, client, linkSegments]);
+
+  // Pro shell only: this surface stays mounted for the whole session, so links
+  // arriving after mount are delivered live instead of being parked forever.
+  // Embedded-only: during a cold-load redirect the standard instance renders
+  // briefly and must not steal the link parked for the Pro one.
+  useEffect(() => {
+    if (!isEmbedded) return;
+    return subscribePendingDeepLink('calendar', (segments) => {
+      const link = parseCalendarPath(segments, new URLSearchParams(window.location.search));
+      if (link) applyCalendarDeepLinkRef.current(link);
+    });
+  }, [isEmbedded]);
+
+  // The permalink for what the calendar is currently showing. In the Pro
+  // shell only the focused tab writes the address bar; the standard instance
+  // that renders while Pro takes over a route stays silent.
   const proInterfaceActive = useProInterfaceActive();
+  const isFocusedProTab = useIsFocusedProTab();
   const eventLinkId = showEventModal && editEvent ? editEvent.id : null;
+  const calendarLinkPath = appPath(buildCalendarPath({
+    view: normalizedViewMode,
+    date: selectedDate,
+    eventId: eventLinkId,
+    accountId: eventLinkId ? editEvent?.accountId : null,
+  }));
   useDeepLinkUrl(
-    isEmbedded || proInterfaceActive
-      ? null
-      : appPath(buildCalendarPath({
-          view: normalizedViewMode,
-          date: selectedDate,
-          eventId: eventLinkId,
-          accountId: eventLinkId ? editEvent?.accountId : null,
-        })),
+    isEmbedded
+      ? (isFocusedProTab ? calendarLinkPath : null)
+      : proInterfaceActive ? null : calendarLinkPath,
   );
 
   const handleEditFromDetail = useCallback(() => {

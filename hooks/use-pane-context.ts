@@ -17,6 +17,19 @@ export function usePaneId(): ProPaneId | null {
 }
 
 /**
+ * True when the current subtree is the *focused* Pro tab: the active tab of
+ * the focused pane. Exactly one tab body sees `true` at any time, which is
+ * what lets that tab own shared, single-instance concerns - currently the
+ * address bar, where the focused tab's permalink is reflected. Always false
+ * outside the Pro shell.
+ */
+export const ProTabFocusContext = createContext<boolean>(false);
+
+export function useIsFocusedProTab(): boolean {
+  return useContext(ProTabFocusContext);
+}
+
+/**
  * True when the current subtree renders inside a Pro pane.
  *
  * Overlays that go `fixed inset-0` in a mobile layout must switch to

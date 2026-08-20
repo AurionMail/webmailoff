@@ -18,6 +18,7 @@ import { SidebarAppsModal } from "@/components/layout/sidebar-apps-modal";
 import { InlineAppView } from "@/components/layout/inline-app-view";
 import { useSidebarApps } from "@/hooks/use-sidebar-apps";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
+import { useIsFocusedProTab } from "@/hooks/use-pane-context";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useRefreshGesture } from "@/hooks/use-refresh-gesture";
 import { usePolicyStore } from "@/stores/policy-store";
@@ -31,7 +32,7 @@ import { AppTopBannerSlot } from "@/components/plugins/app-top-banner-slot";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { isFilePreviewable } from "@/lib/file-preview";
 import { appPath, buildFilesPath, parseFilesPath, type FilesDeepLink } from "@/lib/deep-links";
-import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
+import { consumePendingDeepLink, subscribePendingDeepLink } from "@/lib/deep-link-handoff";
 import { useDeepLinkUrl } from "@/hooks/use-deep-link-url";
 import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 
@@ -211,6 +212,24 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
     if (link?.preview) pendingPreviewRef.current = link.preview;
     return link;
   }, []);
+
+  // Pro shell only: this surface stays mounted for the whole session, so links
+  // arriving after mount are delivered live instead of being parked forever.
+  // The bootstrap has already run by then - walk the drive directly and let
+  // the preview effect below claim `pendingPreviewRef` once the listing lands.
+  // Embedded-only: during a cold-load redirect the standard instance renders
+  // briefly and must not steal the link parked for the Pro one.
+  const navigateByPathRef = useRef(navigateByPath);
+  navigateByPathRef.current = navigateByPath;
+  useEffect(() => {
+    if (!isEmbedded) return;
+    return subscribePendingDeepLink('files', (segments) => {
+      const link = parseFilesPath(segments, new URLSearchParams(window.location.search));
+      if (!link) return;
+      if (link.preview) pendingPreviewRef.current = link.preview;
+      void navigateByPathRef.current(link.path);
+    });
+  }, [isEmbedded]);
 
   // Check support and load the first listing after the client is initialized.
   // One effect, run once: `checkSupport` publishes `supportsFiles` before it
@@ -480,13 +499,16 @@ export function FilesApp({ linkSegments }: FilesAppProps = {}) {
     setShowDetails(true);
   }, []);
 
-  // The permalink for the folder on screen. Suppressed inside the Pro shell,
-  // where /pro owns the address bar, and at the account picker (no path yet).
+  // The permalink for the folder on screen. In the Pro shell only the focused
+  // tab writes the address bar; the standard instance that renders while Pro
+  // takes over a route stays silent.
   const proInterfaceActive = useProInterfaceActive();
+  const isFocusedProTab = useIsFocusedProTab();
+  const filesLinkPath = appPath(buildFilesPath(currentPath, previewFile));
   useDeepLinkUrl(
-    isEmbedded || proInterfaceActive
-      ? null
-      : appPath(buildFilesPath(currentPath, previewFile)),
+    isEmbedded
+      ? (isFocusedProTab ? filesLinkPath : null)
+      : proInterfaceActive ? null : filesLinkPath,
   );
 
   const handleToggleDetails = useCallback(() => {

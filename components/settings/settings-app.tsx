@@ -70,7 +70,7 @@ import { PluginIframeSlot } from '@/components/plugins/plugin-iframe-slot';
 import { offersForSlot as pluginOffersForSlot, subscribe as pluginRegistrySubscribe, get as getActivePlugin } from '@/lib/plugin-sandbox/registry';
 import { ProtocolHandlerSettings } from '@/components/settings/protocol-handler-settings';
 import { appPath, buildSettingsPath, parseSettingsPath } from '@/lib/deep-links';
-import { consumePendingDeepLink } from '@/lib/deep-link-handoff';
+import { consumePendingDeepLink, subscribePendingDeepLink } from '@/lib/deep-link-handoff';
 import { useDeepLinkUrl } from '@/hooks/use-deep-link-url';
 import { useProInterfaceActive } from '@/components/pro/pro-interface-redirect';
 import { useAuthStore, redirectToLogin, saveRedirectAfterLogin } from '@/stores/auth-store';
@@ -85,6 +85,7 @@ import { SidebarAppsModal } from '@/components/layout/sidebar-apps-modal';
 import { InlineAppView } from '@/components/layout/inline-app-view';
 import { useSidebarApps } from '@/hooks/use-sidebar-apps';
 import { useIsEmbedded } from '@/hooks/use-is-embedded';
+import { useIsFocusedProTab } from '@/hooks/use-pane-context';
 import { ResizeHandle } from '@/components/layout/resize-handle';
 import { useConfig } from '@/hooks/use-config';
 import { usePolicyStore } from '@/stores/policy-store';
@@ -434,6 +435,16 @@ export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
     const tab = tabFromDeepLink(consumePendingDeepLink('settings'));
     if (tab) setActiveTab(tab);
   }, [linkSegments]);
+  // Pro shell only: this surface stays mounted for the whole session, so links
+  // arriving later (e.g. the sidebar's folder-settings gear) are delivered
+  // live instead of being parked for a mount that already happened.
+  useEffect(() => {
+    if (!isEmbedded) return;
+    return subscribePendingDeepLink('settings', (segments) => {
+      const tab = tabFromDeepLink(segments);
+      if (tab) setActiveTab(tab);
+    });
+  }, [isEmbedded]);
   const [mobileShowContent, setMobileShowContent] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingHighlight, setPendingHighlight] = useState<{ tab: SettingsTabId; label: string; pluginId?: string } | null>(null);
@@ -652,10 +663,14 @@ export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
   // so the tab is only in the URL once the user is looking at its content.
   // Must sit above the early return below - it is a hook.
   const proInterfaceActive = useProInterfaceActive();
+  const isFocusedProTab = useIsFocusedProTab();
+  const settingsLinkPath = appPath(buildSettingsPath(!isDesktop && !mobileShowContent ? null : activeTab));
   useDeepLinkUrl(
-    !isAuthenticated || isEmbedded || proInterfaceActive
+    !isAuthenticated
       ? null
-      : appPath(buildSettingsPath(!isDesktop && !mobileShowContent ? null : activeTab)),
+      : isEmbedded
+        ? (isFocusedProTab ? settingsLinkPath : null)
+        : proInterfaceActive ? null : settingsLinkPath,
   );
 
   // Park the content-pane scroll offset when the Pro toggle flips (the flip

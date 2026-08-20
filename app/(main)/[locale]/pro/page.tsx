@@ -13,7 +13,9 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useDeviceDetection } from "@/hooks/use-media-query";
 import { EmbeddedContext } from "@/hooks/use-is-embedded";
 import { PaneSizeContext } from "@/hooks/use-pane-size";
-import { PaneIdContext } from "@/hooks/use-pane-context";
+import { PaneIdContext, ProTabFocusContext } from "@/hooks/use-pane-context";
+import { useDeepLinkUrl } from "@/hooks/use-deep-link-url";
+import { appPath, buildMailPath } from "@/lib/deep-links";
 import { ProTabBar } from "@/components/pro/pro-tab-bar";
 import {
   PRO_TAB_DRAG_MIME,
@@ -163,7 +165,11 @@ function Pane({ paneId, tabs, activeTabId, loadedTabIds, onPaneFocus, isFocused 
                   className={cn("absolute inset-0 overflow-hidden", !isActive && "hidden")}
                   aria-hidden={!isActive}
                 >
-                  {renderTabBody(tab)}
+                  {/* Exactly one tab across both panes is "focused" - it owns
+                      shared single-instance concerns like the address bar. */}
+                  <ProTabFocusContext.Provider value={isActive && isFocused}>
+                    {renderTabBody(tab)}
+                  </ProTabFocusContext.Provider>
                 </div>
               );
             })}
@@ -261,6 +267,45 @@ export default function ProHome() {
     const id = focusedPaneId === 'main' ? activeMainTabId : activeSplitTabId;
     return tabs.find((t) => t.id === id) ?? null;
   }, [tabs, focusedPaneId, activeMainTabId, activeSplitTabId]);
+
+  // ---- Address bar: reflect the focused tab's permalink ----
+  // Mail-family tabs are reflected here (MailApp's own URL machinery is
+  // suppressed when embedded); calendar/contacts/files/settings write their
+  // own, more precise paths via useDeepLinkUrl gated on ProTabFocusContext.
+  // replaceState only, and ProInterfaceRedirect doesn't observe it - a reload
+  // of the shown URL goes through the redirect's handoff and restores the view.
+  const selectedMailbox = useEmailStore((s) => s.selectedMailbox);
+  const selectedEmailId = useEmailStore((s) => s.selectedEmail?.id ?? null);
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const accountMailboxes = useEmailStore((s) => s.accountMailboxes);
+  const reflectedPath = useMemo(() => {
+    if (!isAuthenticated || !client || !focusedActiveTab) return null;
+    switch (focusedActiveTab.kind) {
+      case 'mail':
+        return appPath(buildMailPath(
+          { mailboxId: selectedMailbox || null, emailId: selectedEmailId, threadId: null },
+          mailboxes,
+        ));
+      case 'email':
+        return focusedActiveTab.emailData
+          ? appPath(buildMailPath({ mailboxId: null, emailId: focusedActiveTab.emailData.emailId, threadId: null }))
+          : null;
+      case 'folder': {
+        const data = focusedActiveTab.folderData;
+        if (!data) return null;
+        const list = data.accountId ? accountMailboxes[data.accountId] ?? [] : mailboxes;
+        const path = appPath(buildMailPath({ mailboxId: data.mailboxId, emailId: null, threadId: null }, list));
+        return data.accountId ? `${path}?account=${encodeURIComponent(data.accountId)}` : path;
+      }
+      case 'compose':
+        // A draft has no permalink - fall back to the shell's own route so
+        // the bar never shows a message the user is no longer looking at.
+        return appPath('/pro');
+      default:
+        return null;
+    }
+  }, [isAuthenticated, client, focusedActiveTab, selectedMailbox, selectedEmailId, mailboxes, accountMailboxes]);
+  useDeepLinkUrl(reflectedPath);
 
   const handleRailNavigate = (itemId: 'mail' | 'calendar' | 'contacts' | 'files' | 'settings') => {
     openTab(itemId);
