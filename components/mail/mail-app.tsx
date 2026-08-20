@@ -593,15 +593,24 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
   // what the user is looking at. Suppressed inside the Pro shell: there the
   // route is /pro and the tab strip owns the URL.
   const proInterfaceActive = useProInterfaceActive();
+  // Fullscreen reading (#733): a `?view=fullscreen` message permalink - what a
+  // mail dragged out into a new browser tab opens as - shows the message
+  // alone, with the folder sidebar and list panes hidden. Cleared when the
+  // message is closed, which reveals the normal layout.
+  const [fullscreenReading, setFullscreenReading] = useState(false);
+
   const buildMailUrl = useCallback((state: NavSnapshot) => {
     if (isEmbedded || proInterfaceActive) return null;
-    return appPath(
+    const path = appPath(
       buildMailPath(
         { mailboxId: state.mailboxId, emailId: state.emailId, threadId: state.threadId },
         useEmailStore.getState().mailboxes,
       ),
     );
-  }, [isEmbedded, proInterfaceActive]);
+    // Keep the marker while fullscreen is active, so reloading the dragged-out
+    // tab reopens the message fullscreen instead of in the normal layout.
+    return fullscreenReading && state.emailId ? `${path}?view=fullscreen` : path;
+  }, [isEmbedded, proInterfaceActive, fullscreenReading]);
 
   useBrowserNavigation({
     mailboxId: selectedMailbox,
@@ -1309,6 +1318,12 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
             selectEmail(email);
           }
         }
+        if (link.fullscreen && !isMobile) {
+          // The owning-folder branch above may have skipped selecting (the
+          // folder was already current) - fullscreen needs the message open.
+          selectEmail(email);
+          setFullscreenReading(true);
+        }
         if (isMobile) setActiveView('viewer');
         if (isTablet) setTabletListVisible(false);
       } finally {
@@ -1360,6 +1375,14 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       if (link) void applyMailDeepLinkRef.current(link);
     });
   }, [isEmbedded]);
+
+  // Leaving fullscreen reading: once nothing is open in the viewer any more
+  // (message closed, composer closed), fall back to the normal layout.
+  useEffect(() => {
+    if (fullscreenReading && !selectedEmail && !showComposer && !conversationThread) {
+      setFullscreenReading(false);
+    }
+  }, [fullscreenReading, selectedEmail, showComposer, conversationThread]);
 
   useEffect(() => {
     if (deepLinkHandledRef.current) return;
@@ -3288,7 +3311,8 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
                   // Desktop: normal flow
                   "lg:relative lg:translate-x-0"
                 ),
-            inlineApp && "hidden"
+            inlineApp && "hidden",
+            fullscreenReading && "hidden"
           )}
           style={!isMobile && !isTablet ? { width: sidebarCollapsed ? 48 : sidebarWidth } : undefined}
         >
@@ -3336,7 +3360,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
         </div>
 
         {/* Sidebar resize handle (desktop only, hidden when collapsed) */}
-        {!isMobile && !isTablet && !sidebarCollapsed && !inlineApp && (
+        {!isMobile && !isTablet && !sidebarCollapsed && !inlineApp && !fullscreenReading && (
           <ResizeHandle
             onResizeStart={() => { dragStartWidth.current = sidebarWidth; setIsResizing(true); }}
             onResize={(delta) => setSidebarWidth(dragStartWidth.current + delta)}
@@ -3369,7 +3393,8 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
               isHorizontalMailLayout && !shouldHideHorizontalViewerPane && "md:shadow-[0_8px_12px_-6px_rgba(0,0,0,0.18)] dark:md:shadow-[0_8px_14px_-6px_rgba(0,0,0,0.55)]",
               !isHorizontalMailLayout && "md:shadow-sm",
               !isResizing && "transition-all duration-200 ease-out",
-              shouldCollapseListPane && "md:w-0 md:opacity-0 md:overflow-hidden md:border-e-0"
+              shouldCollapseListPane && "md:w-0 md:opacity-0 md:overflow-hidden md:border-e-0",
+              fullscreenReading && "hidden"
             )}
             style={
               isMobile
@@ -3770,7 +3795,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
           </div>
 
           {/* Email list resize handle (desktop only) */}
-          {!isMobile && !isTablet && !isFocusedMailLayout && !isHorizontalMailLayout && !shouldHideViewerPane && (
+          {!isMobile && !isTablet && !isFocusedMailLayout && !isHorizontalMailLayout && !shouldHideViewerPane && !fullscreenReading && (
             <ResizeHandle
               onResizeStart={() => { dragStartWidth.current = emailListWidth; setIsResizing(true); }}
               onResize={(delta) => setEmailListWidth(dragStartWidth.current + delta)}
@@ -3778,7 +3803,7 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
               onDoubleClick={resetEmailListWidth}
             />
           )}
-          {!isMobile && !isTablet && isHorizontalMailLayout && !shouldHideHorizontalViewerPane && (
+          {!isMobile && !isTablet && isHorizontalMailLayout && !shouldHideHorizontalViewerPane && !fullscreenReading && (
             <ResizeHandle
               orientation="horizontal"
               onResizeStart={() => { dragStartWidth.current = emailListHeight; setIsResizing(true); }}
