@@ -57,6 +57,7 @@ import { UNIFIED_MAILBOX_IDS, CROSS_VIEW_IDS } from '@/lib/jmap/types';
 import type { UnifiedMailboxRole } from '@/lib/jmap/types';
 import { useDragDropContext } from "@/contexts/drag-drop-context";
 import { useMailboxDrop } from "@/hooks/use-mailbox-drop";
+import { MAILBOX_DRAG_MIME } from "@/components/pro/pro-shell-drop";
 import { useTagDrop } from "@/hooks/use-tag-drop";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -476,6 +477,7 @@ function MailboxTreeItem({
   onUnreadFilterClick,
   colorful,
   onContextMenu,
+  dragAccountId = null,
 }: {
   node: MailboxNode;
   selectedMailbox: string;
@@ -486,6 +488,10 @@ function MailboxTreeItem({
   onUnreadFilterClick?: (mailboxId: string) => void;
   colorful: boolean;
   onContextMenu?: (e: React.MouseEvent, node: MailboxNode) => void;
+  /** Connected-account id this folder is listed under; null = active account.
+   *  Travels in the folder-drag payload so a folder tab fetches through the
+   *  right client. */
+  dragAccountId?: string | null;
 }) {
   const tNotifications = useTranslations('notifications');
   const tSidebar = useTranslations('sidebar');
@@ -496,6 +502,24 @@ function MailboxTreeItem({
   const isSelected = selectedMailbox === node.id;
   const roleKey = resolveRoleKey(node.role, node.name);
   const label = localizeMailboxName(node.role, node.name, (k) => tSidebar(`mailboxes.${k}`));
+
+  const isEmbedded = useIsEmbedded();
+  // Pro shell only: folder rows are drag sources so a folder can be dropped
+  // onto a tab strip / pane and open as its own tab. Native HTML5 DnD - the
+  // Pro shell's drop targets live outside any dnd-kit context.
+  const folderDragHandlers: Record<string, unknown> | undefined =
+    isEmbedded && !isVirtualNode
+      ? {
+          draggable: true,
+          onDragStart: (e: React.DragEvent) => {
+            e.dataTransfer.setData(
+              MAILBOX_DRAG_MIME,
+              JSON.stringify({ mailboxId: node.id, name: label, accountId: dragAccountId }),
+            );
+            e.dataTransfer.effectAllowed = 'copy';
+          },
+        }
+      : undefined;
 
   const { isDragging: globalDragging } = useDragDropContext();
   const { dropHandlers, isValidDropTarget, isInvalidDropTarget } = useMailboxDrop({
@@ -538,7 +562,14 @@ function MailboxTreeItem({
         onExpandToggle={() => onToggleExpand(node.id)}
         onUnreadClick={() => onUnreadFilterClick?.(node.id)}
         isCollapsed={isCollapsed}
-        dropHandlers={globalDragging ? (dropHandlers as Record<string, unknown>) : undefined}
+        dropHandlers={
+          folderDragHandlers || globalDragging
+            ? {
+                ...(folderDragHandlers ?? {}),
+                ...(globalDragging ? (dropHandlers as Record<string, unknown>) : {}),
+              }
+            : undefined
+        }
         isValidDropTarget={isValidDropTarget}
         isInvalidDropTarget={isInvalidDropTarget}
         onContextMenu={onContextMenu && !isVirtualNode ? (e) => onContextMenu(e, node) : undefined}
@@ -556,6 +587,7 @@ function MailboxTreeItem({
           onUnreadFilterClick={onUnreadFilterClick}
           colorful={colorful}
           onContextMenu={onContextMenu}
+          dragAccountId={dragAccountId}
         />
       ))}
     </>
@@ -1279,6 +1311,7 @@ export function Sidebar({
                               onUnreadFilterClick={isActive ? onUnreadFilterClick : undefined}
                               colorful={colorfulSidebarIcons}
                               onContextMenu={isActive ? handleMailboxContextMenu : undefined}
+                              dragAccountId={isActive ? null : account.id}
                             />
                             {isActive && node.role === 'drafts' && renderScheduledRow(`scheduled-${account.id}`)}
                           </Fragment>

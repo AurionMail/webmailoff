@@ -10,19 +10,35 @@ export const PRO_TAB_DRAG_MIME = "application/x-pro-tab-id";
  */
 export const EMAIL_IDS_DRAG_MIME = "application/x-email-ids";
 
+/**
+ * MIME type sidebar folder rows put on the drag (see MailboxTreeItem in
+ * components/layout/sidebar.tsx). Dropping it on a tab strip or a pane opens
+ * that folder in its own Pro tab. Payload: JSON `MailboxDragPayload`.
+ */
+export const MAILBOX_DRAG_MIME = "application/x-mailbox-id";
+
+export interface MailboxDragPayload {
+  mailboxId: string;
+  /** Display name at drag time - used as the initial tab title. */
+  name: string;
+  /** Connected-account id the folder was dragged from; null = active account. */
+  accountId: string | null;
+}
+
 /** Fraction of the body width on each side that acts as a "create split" edge zone. */
 export const SPLIT_EDGE_FRACTION = 0.2;
 
-export type ShellDragKind = "tab" | "email";
+export type ShellDragKind = "tab" | "email" | "folder";
 
 export type BodyDropTarget =
   | { type: "pane"; pane: ProPaneId; side: ProSplitSide }
   | { type: "create-split"; side: ProSplitSide }
   | null;
 
-/** Classify a drag by its payload types. Tab drags win over email drags. */
+/** Classify a drag by its payload types. Tab drags win over folder/email drags. */
 export function dragKindFromTypes(types: readonly string[]): ShellDragKind | null {
   if (types.includes(PRO_TAB_DRAG_MIME)) return "tab";
+  if (types.includes(MAILBOX_DRAG_MIME)) return "folder";
   if (types.includes(EMAIL_IDS_DRAG_MIME)) return "email";
   return null;
 }
@@ -79,5 +95,23 @@ export function parseEmailIdsPayload(raw: string): string[] {
     return parsed.filter((id): id is string => typeof id === "string" && id.length > 0);
   } catch {
     return [];
+  }
+}
+
+/** Parse the mailbox drag payload; returns null for anything malformed. */
+export function parseMailboxDragPayload(raw: string): MailboxDragPayload | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<MailboxDragPayload> | null;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.mailboxId !== "string" || parsed.mailboxId.length === 0) return null;
+    return {
+      mailboxId: parsed.mailboxId,
+      name: typeof parsed.name === "string" ? parsed.name : "",
+      accountId: typeof parsed.accountId === "string" && parsed.accountId.length > 0
+        ? parsed.accountId
+        : null,
+    };
+  } catch {
+    return null;
   }
 }

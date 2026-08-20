@@ -3,24 +3,56 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { EmailViewer } from "@/components/email/email-viewer";
-import { ErrorBoundary, EmailViewerErrorFallback } from "@/components/error";
+import { Sidebar } from "@/components/layout/sidebar";
+import { ErrorBoundary, EmailViewerErrorFallback, SidebarErrorFallback } from "@/components/error";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useIdentityStore } from "@/stores/identity-store";
+import { useUIStore } from "@/stores/ui-store";
 import { useProMultiAccountIdentities } from "@/hooks/use-pro-multi-account-identities";
+import { useDeviceDetection } from "@/hooks/use-media-query";
 import { findDraftIdentityId } from "@/lib/reply-identity";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "@/stores/toast-store";
 import { useProTabStore, type ProEmailTabData, type ProReplyContext } from "@/stores/pro-tab-store";
+import { requestProMailNavigation } from "@/lib/pro-mail-navigation";
+import { DragDropProvider } from "@/contexts/drag-drop-context";
 import type { Email } from "@/lib/jmap/types";
+import type { IJMAPClient } from "@/lib/jmap/client-interface";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
 import { getQuoteBodies } from "@/lib/email-composer-utils";
 import { buildForwardAsAttachmentPayload } from "@/lib/forward-as-attachment";
 import { KEYWORD_PREFIX, KEYWORD_PREFIX_LEGACY } from "@/lib/thread-utils";
+import { cn } from "@/lib/utils";
 
 interface ProEmailTabBodyProps {
   tabId: string;
   data: ProEmailTabData;
+}
+
+interface ProEmailViewProps {
+  emailId: string;
+  /**
+   * JMAP client to fetch/mutate through; defaults to the active account's.
+   * Folder tabs of another connected account pass that account's client.
+   */
+  client?: IJMAPClient | null;
+  /**
+   * Owner JMAP accountId for messages in shared/group folders. When set, the
+   * message is fetched via `getEmail(emailId, accountId)` directly -
+   * `fetchEmailContent`'s fallback derives the owner from the *globally*
+   * selected mailbox, which is unrelated to a folder tab's mailbox.
+   */
+  accountId?: string;
+  /** Fires once the full message is loaded (tab retitling, sidebar highlight). */
+  onLoaded?: (email: Email) => void;
+  /**
+   * The message left this view: deleted, archived, moved, or reopened in the
+   * composer. The host decides what that means (close the tab / clear the
+   * folder tab's selection).
+   */
+  onClose: () => void;
+  className?: string;
 }
 
 function buildReplyContext(email: Email): ProReplyContext {
@@ -42,15 +74,18 @@ function buildReplyContext(email: Email): ProReplyContext {
 }
 
 /**
- * Renders a single email in its own Pro tab. Fetches the email content on
- * mount via `email-store.fetchEmailContent` so the tab is self-sufficient -
- * it doesn't depend on what the Mail tab has selected.
+ * Self-sufficient single-message view for Pro surfaces. Fetches the email on
+ * mount via `email-store.fetchEmailContent`, so it doesn't depend on what the
+ * Mail tab has selected; compose actions open Pro compose tabs directly.
+ * Hosted by `ProEmailTabBody` (a dedicated email tab) and by the folder tab's
+ * reading pane.
  */
-export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
+export function ProEmailView({ emailId, client: clientOverride, accountId, onLoaded, onClose, className }: ProEmailViewProps) {
   const t = useTranslations();
   const tNotifications = useTranslations('notifications');
 
-  const client = useAuthStore((s) => s.client);
+  const activeClient = useAuthStore((s) => s.client);
+  const client = clientOverride ?? activeClient;
   const fetchEmailContent = useEmailStore((s) => s.fetchEmailContent);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
   const markAsRead = useEmailStore((s) => s.markAsRead);
@@ -61,25 +96,26 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
   const identities = useIdentityStore((s) => s.identities);
   const multiAccountIdentities = useProMultiAccountIdentities();
 
-  const closeTab = useProTabStore((s) => s.closeTab);
   const openComposeTab = useProTabStore((s) => s.openComposeTab);
-  const updateTabTitle = useProTabStore((s) => s.updateTabTitle);
 
   const [email, setEmail] = useState<Email | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const composerSessionIdRef = useRef(0);
 
+  // Held in a ref so a host passing an inline callback doesn't refetch the
+  // message on every render.
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
+
   useEffect(() => {
     let cancelled = false;
     if (!client) return;
     setIsLoading(true);
-    fetchEmailContent(client, data.emailId)
+    (accountId ? client.getEmail(emailId, accountId) : fetchEmailContent(client, emailId))
       .then((loaded) => {
         if (cancelled) return;
         setEmail(loaded);
-        if (loaded?.subject) {
-          updateTabTitle(tabId, loaded.subject);
-        }
+        if (loaded) onLoadedRef.current?.(loaded);
       })
       .catch((err) => {
         console.error('Failed to fetch email for Pro tab:', err);
@@ -90,7 +126,7 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     return () => {
       cancelled = true;
     };
-  }, [client, data.emailId, fetchEmailContent, tabId, updateTabTitle]);
+  }, [client, emailId, accountId, fetchEmailContent]);
 
   const currentMailboxRole = useMemo(() => {
     if (!email) return undefined;
@@ -185,12 +221,12 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     if (!client || !email) return;
     try {
       await deleteEmail(client, email.id);
-      closeTab(tabId);
+      onClose();
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error(tNotifications('error_deleting'));
     }
-  }, [client, email, deleteEmail, closeTab, tabId, tNotifications]);
+  }, [client, email, deleteEmail, onClose, tNotifications]);
 
   const handleArchive = useCallback(async () => {
     if (!client || !email) return;
@@ -199,11 +235,11 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     try {
       await moveToMailbox(client, email.id, archiveMb.id);
       toast.success(tNotifications('email_archived'));
-      closeTab(tabId);
+      onClose();
     } catch (err) {
       console.error('Archive failed:', err);
     }
-  }, [client, email, mailboxes, moveToMailbox, closeTab, tabId, tNotifications]);
+  }, [client, email, mailboxes, moveToMailbox, onClose, tNotifications]);
 
   const handleToggleStar = useCallback(async () => {
     if (!client || !email) return;
@@ -223,11 +259,11 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     }
   }, [client, email, toggleStar]);
 
-  const handleMarkAsRead = useCallback(async (emailId: string, read: boolean) => {
+  const handleMarkAsRead = useCallback(async (emailIdToMark: string, read: boolean) => {
     if (!client) return;
     try {
-      await markAsRead(client, emailId, read);
-      setEmail((prev) => prev && prev.id === emailId ? {
+      await markAsRead(client, emailIdToMark, read);
+      setEmail((prev) => prev && prev.id === emailIdToMark ? {
         ...prev,
         keywords: { ...prev.keywords, $seen: read },
       } : prev);
@@ -236,8 +272,8 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     }
   }, [client, markAsRead]);
 
-  const handleSetTag = useCallback((emailId: string, tagId: string | null) => {
-    if (!email || email.id !== emailId) return;
+  const handleSetTag = useCallback((emailIdToTag: string, tagId: string | null) => {
+    if (!email || email.id !== emailIdToTag) return;
     // Toggle one tag, or clear them all. Matches the mail page's local
     // optimistic update, down to reaching tags this client cannot name.
     const keywords = { ...(email.keywords ?? {}) };
@@ -258,7 +294,7 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
         keywords[KEYWORD_PREFIX + tagId] = true;
       }
     }
-    setEmailKeywordsLocal(emailId, keywords);
+    setEmailKeywordsLocal(emailIdToTag, keywords);
     setEmail({ ...email, keywords });
   }, [email, setEmailKeywordsLocal]);
 
@@ -266,11 +302,11 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     if (!client || !email) return;
     try {
       await moveToMailbox(client, email.id, mailboxId);
-      closeTab(tabId);
+      onClose();
     } catch (err) {
       console.error('Move failed:', err);
     }
-  }, [client, email, moveToMailbox, closeTab, tabId]);
+  }, [client, email, moveToMailbox, onClose]);
 
   const handleDownloadAttachment = useCallback(async (blobId: string, name: string, type?: string) => {
     if (!client) return;
@@ -326,11 +362,11 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
         draftId: email.id,
       },
     });
-    closeTab(tabId);
-  }, [email, identities, multiAccountIdentities, openComposeTab, closeTab, tabId, t]);
+    onClose();
+  }, [email, identities, multiAccountIdentities, openComposeTab, onClose, t]);
 
   return (
-    <div className="flex h-full w-full flex-col bg-background">
+    <div className={cn("flex h-full flex-col bg-background", className)}>
       <ErrorBoundary fallback={EmailViewerErrorFallback}>
         <EmailViewer
           email={email}
@@ -355,6 +391,100 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
           className="flex-1"
         />
       </ErrorBoundary>
+    </div>
+  );
+}
+
+/**
+ * Renders a single email in its own Pro tab, Roundcube-style: the folder
+ * sidebar on the left (wide panes only) with the message filling the rest -
+ * no list pane. Clicking a folder or tag in that sidebar steers the shared
+ * Mail tab (via the pro-mail-navigation bus) and focuses it.
+ */
+export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
+  const closeTab = useProTabStore((s) => s.closeTab);
+  const openTab = useProTabStore((s) => s.openTab);
+  const updateTabTitle = useProTabStore((s) => s.updateTabTitle);
+
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const accountMailboxes = useEmailStore((s) => s.accountMailboxes);
+  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  // Pane-scoped: a narrow split pane drops the sidebar and keeps the mail.
+  const { isMobile, isTablet } = useDeviceDetection();
+  const showSidebar = !isMobile && !isTablet;
+
+  const [loadedEmail, setLoadedEmail] = useState<Email | null>(null);
+
+  const handleLoaded = useCallback((email: Email) => {
+    setLoadedEmail(email);
+    if (email.subject) updateTabTitle(tabId, email.subject);
+  }, [tabId, updateTabTitle]);
+
+  const handleClose = useCallback(() => closeTab(tabId), [closeTab, tabId]);
+
+  // Messages opened out of a shared/group folder must be fetched with the
+  // owner's accountId - fetchEmailContent's fallback derives it from the
+  // globally selected mailbox, which is unrelated to this tab.
+  const ownerAccountId = useMemo(() => {
+    if (!data.mailboxId) return undefined;
+    const mb = mailboxes.find((m) => m.id === data.mailboxId);
+    return mb?.isShared ? mb.accountId : undefined;
+  }, [mailboxes, data.mailboxId]);
+
+  // Highlight the folder the message lives in; fall back to the mailbox the
+  // tab was opened from (may be null for drag/drop-opened tabs).
+  const highlightedMailbox = useMemo(() => {
+    if (loadedEmail?.mailboxIds) {
+      const inList = Object.keys(loadedEmail.mailboxIds).find((id) => mailboxes.some((m) => m.id === id));
+      if (inList) return inList;
+    }
+    return data.mailboxId ?? '';
+  }, [loadedEmail, mailboxes, data.mailboxId]);
+
+  const navigateToFolder = useCallback((accountId: string | null, mailboxId: string) => {
+    openTab('mail');
+    requestProMailNavigation({ kind: 'mailbox', accountId, mailboxId });
+  }, [openTab]);
+
+  const navigateToTag = useCallback((keywordId: string | null) => {
+    openTab('mail');
+    requestProMailNavigation({ kind: 'tag', keywordId });
+  }, [openTab]);
+
+  return (
+    <div className="flex h-full w-full bg-background">
+      {showSidebar && (
+        <div
+          className="h-full flex-shrink-0 overflow-hidden"
+          style={{ width: sidebarCollapsed ? 48 : sidebarWidth }}
+        >
+          <ErrorBoundary fallback={SidebarErrorFallback}>
+            {/* The sidebar's folder rows are email-drop targets and read the
+                drag context unconditionally - give them their own provider
+                (MailApp's lives in a different tab body). */}
+            <DragDropProvider>
+              <Sidebar
+                mailboxes={mailboxes}
+                selectedMailbox={highlightedMailbox}
+                onMailboxSelect={(mailboxId) => navigateToFolder(null, mailboxId)}
+                onTagSelect={navigateToTag}
+                multiAccountMode
+                accountMailboxes={accountMailboxes}
+                viewingAccountId={null}
+                onAccountMailboxSelect={navigateToFolder}
+              />
+            </DragDropProvider>
+          </ErrorBoundary>
+        </div>
+      )}
+      <ProEmailView
+        emailId={data.emailId}
+        accountId={ownerAccountId}
+        onLoaded={handleLoaded}
+        onClose={handleClose}
+        className="min-w-0 flex-1"
+      />
     </div>
   );
 }

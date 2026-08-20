@@ -197,6 +197,54 @@ describe('openEmailTab', () => {
   });
 });
 
+describe('openFolderTab', () => {
+  const data = (n: number, accountId: string | null = null) => ({
+    accountId,
+    mailboxId: `mb-${n}`,
+    title: `Folder ${n}`,
+  });
+
+  it('opens in the focused pane by default and activates the tab', () => {
+    const id = useProTabStore.getState().openFolderTab(data(1));
+    const s = useProTabStore.getState();
+    const tab = s.tabs.find((t) => t.id === id)!;
+    expect(tab.kind).toBe('folder');
+    expect(tab.folderData?.mailboxId).toBe('mb-1');
+    expect(tab.paneId).toBe('main');
+    expect(s.activeTabId).toBe(id);
+    assertInvariants();
+  });
+
+  it('focuses an already-open folder instead of opening it twice', () => {
+    const first = useProTabStore.getState().openFolderTab(data(2), { pane: 'split' });
+    useProTabStore.getState().setFocusedPane('main');
+    const second = useProTabStore.getState().openFolderTab(data(2));
+    const s = useProTabStore.getState();
+    expect(second).toBe(first);
+    expect(s.tabs.filter((t) => t.kind === 'folder')).toHaveLength(1);
+    expect(s.activeSplitTabId).toBe(first);
+    expect(s.focusedPaneId).toBe('split');
+    assertInvariants();
+  });
+
+  it('the same mailbox id under different accounts opens separate tabs', () => {
+    const a = useProTabStore.getState().openFolderTab(data(3, null));
+    const b = useProTabStore.getState().openFolderTab(data(3, 'acc-2'));
+    expect(b).not.toBe(a);
+    expect(useProTabStore.getState().tabs.filter((t) => t.kind === 'folder')).toHaveLength(2);
+    assertInvariants();
+  });
+
+  it("pane: 'split' with no split creates one", () => {
+    const id = useProTabStore.getState().openFolderTab(data(4), { pane: 'split' });
+    const s = useProTabStore.getState();
+    expect(s.tabs.find((t) => t.id === id)?.paneId).toBe('split');
+    expect(s.splitOrientation).toBe('vertical');
+    expect(s.activeSplitTabId).toBe(id);
+    assertInvariants();
+  });
+});
+
 describe('closeTab', () => {
   it('activates a neighbour when the active tab closes', () => {
     seed({ tabs: [homeTab(), appTab('a', 'calendar'), appTab('b', 'contacts')], activeTabId: 'a' });

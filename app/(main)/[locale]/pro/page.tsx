@@ -18,10 +18,13 @@ import { ProTabBar } from "@/components/pro/pro-tab-bar";
 import {
   PRO_TAB_DRAG_MIME,
   EMAIL_IDS_DRAG_MIME,
+  MAILBOX_DRAG_MIME,
   dragKindFromTypes,
   parseEmailIdsPayload,
+  parseMailboxDragPayload,
   resolveBodyDropTarget,
   type BodyDropTarget,
+  type MailboxDragPayload,
 } from "@/components/pro/pro-shell-drop";
 import { useProTabStore, type ProTab, type ProTabKind, type ProPaneId, type ProSplitSide } from "@/stores/pro-tab-store";
 import { cn } from "@/lib/utils";
@@ -34,6 +37,7 @@ import { FilesApp } from "@/components/files/files-app";
 import { SettingsApp } from "@/components/settings/settings-app";
 import { ProComposeTabBody } from "@/components/pro/pro-compose-tab-body";
 import { ProEmailTabBody } from "@/components/pro/pro-email-tab-body";
+import { ProFolderTabBody } from "@/components/pro/pro-folder-tab-body";
 
 // Each surface renders the same component the standard routes do. Deep links
 // reach them through the handoff ProInterfaceRedirect parks (#733), not as
@@ -52,6 +56,9 @@ function renderTabBody(tab: ProTab): React.ReactNode {
   }
   if (tab.kind === 'email' && tab.emailData) {
     return <ProEmailTabBody tabId={tab.id} data={tab.emailData} />;
+  }
+  if (tab.kind === 'folder' && tab.folderData) {
+    return <ProFolderTabBody tabId={tab.id} data={tab.folderData} />;
   }
   const Component = APP_TAB_COMPONENTS[tab.kind];
   return Component ? <Component /> : null;
@@ -89,6 +96,20 @@ function openDroppedEmails(
       { pane, reuseReader },
     );
   }
+}
+
+/** Open a dragged sidebar folder as a folder tab in `pane`. */
+function openDroppedFolder(
+  payload: MailboxDragPayload,
+  pane: ProPaneId,
+  side: ProSplitSide | undefined,
+) {
+  const { setSplitSide, openFolderTab } = useProTabStore.getState();
+  if (side) setSplitSide(side);
+  openFolderTab(
+    { accountId: payload.accountId, mailboxId: payload.mailboxId, title: payload.name },
+    { pane },
+  );
 }
 
 interface PaneProps {
@@ -268,8 +289,8 @@ export default function ProHome() {
       splitSide,
       kind,
       // A tab can only create a split if another tab stays behind; emails
-      // always can (the mail list keeps existing).
-      canCreateSplit: kind === 'email' ? true : tabs.length > 1,
+      // and folders always can (their source surface keeps existing).
+      canCreateSplit: kind === 'tab' ? tabs.length > 1 : true,
       draggedTabPane: kind === 'tab'
         ? (tabs.find((t) => t.id === draggedTabId)?.paneId ?? null)
         : null,
@@ -328,6 +349,17 @@ export default function ProHome() {
       return;
     }
 
+    if (kind === 'folder') {
+      const payload = parseMailboxDragPayload(e.dataTransfer.getData(MAILBOX_DRAG_MIME));
+      if (!payload) return;
+      if (target.type === 'create-split') {
+        openDroppedFolder(payload, 'split', target.side);
+      } else {
+        openDroppedFolder(payload, target.pane, undefined);
+      }
+      return;
+    }
+
     const ids = parseEmailIdsPayload(e.dataTransfer.getData(EMAIL_IDS_DRAG_MIME));
     if (ids.length === 0) return;
     if (target.type === 'create-split') {
@@ -372,6 +404,7 @@ export default function ProHome() {
         onClose={requestCloseTab}
         onDragStateChange={(dragging, tabId) => setDraggedTabId(dragging ? tabId : null)}
         onEmailDrop={(ids) => openDroppedEmails(ids, paneId, undefined, emailFallbackTitle)}
+        onFolderDrop={(payload) => openDroppedFolder(payload, paneId, undefined)}
       />
       <Pane
         paneId={paneId}

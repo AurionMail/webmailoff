@@ -4,11 +4,11 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { useProTabStore, type ProTabKind } from "@/stores/pro-tab-store";
+import { useProTabStore, type ProAppTabKind } from "@/stores/pro-tab-store";
 import { matchSurface, type AppSurface } from "@/lib/deep-links";
 import { setPendingDeepLink } from "@/lib/deep-link-handoff";
 
-const SURFACE_TO_TAB: Record<AppSurface, Exclude<ProTabKind, 'compose' | 'email'>> = {
+const SURFACE_TO_TAB: Record<AppSurface, ProAppTabKind> = {
   mail: 'mail',
   calendar: 'calendar',
   contacts: 'contacts',

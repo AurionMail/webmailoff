@@ -4,9 +4,9 @@ import type { ComposerDraftData } from '@/components/email/email-composer';
 
 export type ProTabKind =
   | 'mail' | 'calendar' | 'contacts' | 'files' | 'settings'
-  | 'compose' | 'email';
+  | 'compose' | 'email' | 'folder';
 
-export type ProAppTabKind = Exclude<ProTabKind, 'compose' | 'email'>;
+export type ProAppTabKind = Exclude<ProTabKind, 'compose' | 'email' | 'folder'>;
 
 export type ProPaneId = 'main' | 'split';
 
@@ -66,15 +66,27 @@ export interface ProEmailTabData {
   title: string;
 }
 
+export interface ProFolderTabData {
+  /**
+   * Connected-account id the folder belongs to (multi-account sidebar
+   * groups); null = the active account. Used to resolve the JMAP client the
+   * folder tab fetches through.
+   */
+  accountId: string | null;
+  mailboxId: string;
+  title: string;
+}
+
 export interface ProTab {
   id: string;
   kind: ProTabKind;
-  /** i18n key under `sidebar.*` for built-in app tabs. Empty for compose/email. */
+  /** i18n key under `sidebar.*` for built-in app tabs. Empty for compose/email/folder. */
   labelKey: string;
   title?: string;
   closeable: boolean;
   composeData?: ProComposeTabData;
   emailData?: ProEmailTabData;
+  folderData?: ProFolderTabData;
   /** Which pane this tab lives in. Defaults to 'main' for the single-pane case. */
   paneId: ProPaneId;
 }
@@ -117,6 +129,12 @@ interface ProTabState extends ProTabCoreState {
   openTab: (kind: ProAppTabKind) => string;
   openComposeTab: (data: ProComposeTabData) => string;
   openEmailTab: (data: ProEmailTabData, opts?: OpenEmailTabOptions) => string;
+  /**
+   * Open a mailbox in its own tab (sidebar folder dragged onto a tab strip
+   * or a pane). One tab per folder: opening an already-open folder focuses
+   * its tab instead of duplicating it.
+   */
+  openFolderTab: (data: ProFolderTabData, opts?: { pane?: ProPaneId }) => string;
   closeTab: (id: string) => void;
   /**
    * Request closing a tab, honouring any registered close interceptor (e.g. a
@@ -416,6 +434,33 @@ export const useProTabStore = create<ProTabState>()(
             tabs: [...s.tabs, newTab],
             readerTabId: opts?.reuseReader ? newTab.id : s.readerTabId,
           }, newTab));
+          return newTab.id;
+        },
+
+        openFolderTab: (data, opts) => {
+          const state = core(get());
+
+          // Same folder already open anywhere: focus it, never open twice.
+          const existing = state.tabs.find(
+            (tab) => tab.kind === 'folder'
+              && tab.folderData?.mailboxId === data.mailboxId
+              && (tab.folderData?.accountId ?? null) === (data.accountId ?? null)
+          );
+          if (existing) {
+            commit((s) => withTabActivated(s, existing));
+            return existing.id;
+          }
+
+          const newTab: ProTab = {
+            id: makeId(),
+            kind: 'folder',
+            labelKey: '',
+            title: data.title,
+            closeable: true,
+            folderData: data,
+            paneId: opts?.pane ?? state.focusedPaneId,
+          };
+          commit((s) => withTabActivated({ ...s, tabs: [...s.tabs, newTab] }, newTab));
           return newTab.id;
         },
 
