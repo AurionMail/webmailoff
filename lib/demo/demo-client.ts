@@ -1,4 +1,4 @@
-import type { IJMAPClient, KeywordDiscoveryResult } from '@/lib/jmap/client-interface';
+import type { IJMAPClient, KeywordDiscoveryResult, KeywordMigration } from '@/lib/jmap/client-interface';
 import type { Email, Mailbox, StateChange, AccountStates, Thread, Identity, EmailAddress, ContactCard, AddressBook, VacationResponse, Calendar, CalendarEvent, CalendarEventFilter, CalendarTask, FileNode, ScheduledEmail, SendEmailResult, SharedAccount } from '@/lib/jmap/types';
 import type { SieveScript, SieveCapabilities } from '@/lib/jmap/sieve-types';
 import { getDemoData, type DemoData } from './demo-data';
@@ -382,16 +382,16 @@ export class DemoJMAPClient implements IJMAPClient {
     }
   }
 
-  async migrateKeyword(oldKeyword: string, newKeyword: string): Promise<number> {
-    let count = 0;
+  async migrateKeyword(oldKeyword: string, newKeyword: string): Promise<KeywordMigration> {
+    let migrated = 0;
     for (const email of this.data.emails) {
       if (email.keywords[oldKeyword]) {
         delete email.keywords[oldKeyword];
         email.keywords[newKeyword] = true;
-        count++;
+        migrated++;
       }
     }
-    return count;
+    return { migrated, refused: 0 };
   }
 
   async deleteEmail(emailId: string): Promise<void> {

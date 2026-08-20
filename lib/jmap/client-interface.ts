@@ -1,6 +1,17 @@
 import type { Email, Mailbox, StateChange, AccountStates, Thread, Identity, EmailAddress, ContactCard, AddressBook, AddressBookRights, VacationResponse, Calendar, CalendarRights, CalendarEvent, CalendarEventFilter, CalendarTask, FileNode, FileNodeRights, Principal, PushSubscription, ScheduledEmail, SendEmailResult, SharedAccount } from "./types";
 import type { SieveScript, SieveCapabilities } from "./sieve-types";
 
+/** What `migrateKeyword` managed to do. */
+export interface KeywordMigration {
+  /** Messages now carrying the new keyword. */
+  migrated: number;
+  /**
+   * Messages the server refused to update for a reason other than being gone.
+   * Those still carry the old keyword.
+   */
+  refused: number;
+}
+
 export interface KeywordInfo {
   id: string;
   name: string;
@@ -153,7 +164,13 @@ export interface IJMAPClient {
   removeKeyword(emailId: string, keyword: string, accountId?: string): Promise<void>;
   /** Apply one `keywords/<name>` patch fragment (true=add, null=remove) to many messages in a single Email/set. */
   batchUpdateKeywords(emailIds: string[], patch: Record<string, boolean | null>, accountId?: string): Promise<void>;
-  migrateKeyword(oldKeyword: string, newKeyword: string): Promise<number>;
+  /**
+   * Rewrite one keyword to another on every message that carries it, in
+   * batches. Fails outright only when the server refuses the whole call;
+   * per-message refusals are reported in the result, since the messages
+   * migrated alongside them stay migrated.
+   */
+  migrateKeyword(oldKeyword: string, newKeyword: string): Promise<KeywordMigration>;
   deleteEmail(emailId: string, accountId?: string): Promise<void>;
   moveToTrash(emailId: string, trashMailboxId: string, accountId?: string, markAsRead?: boolean): Promise<void>;
   batchDeleteEmails(emailIds: string[], accountId?: string): Promise<void>;
