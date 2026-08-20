@@ -262,6 +262,7 @@ interface EmailStore {
   deleteMailbox: (client: IJMAPClient, mailboxId: string) => Promise<void>;
   setMailboxRole: (client: IJMAPClient, mailboxId: string, role: string | null) => Promise<void>;
   reorderMailboxes: (client: IJMAPClient, orderedIds: string[]) => Promise<void>;
+  moveMailbox: (client: IJMAPClient, mailboxId: string, newParentId: string | null, orderedSiblingIds?: string[]) => Promise<void>;
   emptyMailbox: (client: IJMAPClient, mailboxId: string) => Promise<void>;
   markMailboxAsRead: (client: IJMAPClient, mailboxId: string) => Promise<number>;
 
@@ -3801,6 +3802,66 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
         await get().fetchMailboxes(client);
       }
       throw error;
+    }
+  },
+
+  moveMailbox: async (client, mailboxId, newParentId, orderedSiblingIds) => {
+    const target = resolveMailboxMutationContext(client, mailboxId);
+    // The new parent may itself be a namespaced shared id; the server needs
+    // the owner's bare id. Cross-account moves are not supported by JMAP.
+    const parentTarget = newParentId ? resolveMailboxMutationContext(client, newParentId) : null;
+    const sortUpdates = (orderedSiblingIds ?? []).map((id, idx) => ({ id, sortOrder: idx + 1 }));
+    const movedSort = sortUpdates.find(u => u.id === mailboxId);
+
+    // Optimistic local update so the folder appears under its new parent
+    // immediately; the fetch below re-syncs with the server's view.
+    const applyLocal = (list: Mailbox[]) =>
+      list.map(mb => {
+        const patch: Partial<Mailbox> = {};
+        if (mb.id === mailboxId) patch.parentId = newParentId ?? undefined;
+        const u = sortUpdates.find(x => x.id === mb.id);
+        if (u) patch.sortOrder = u.sortOrder;
+        return Object.keys(patch).length > 0 ? { ...mb, ...patch } : mb;
+      });
+    const viewingId = get().viewingAccountId;
+    if (viewingId) {
+      set((state) => ({
+        accountMailboxes: {
+          ...state.accountMailboxes,
+          [viewingId]: applyLocal(state.accountMailboxes[viewingId] ?? []),
+        },
+      }));
+    } else {
+      set({ mailboxes: applyLocal(get().mailboxes) });
+    }
+
+    try {
+      await target.client.updateMailbox(
+        target.mailboxId,
+        { parentId: parentTarget ? parentTarget.mailboxId : null, ...(movedSort ? { sortOrder: movedSort.sortOrder } : {}) },
+        target.accountId,
+      );
+      for (const u of sortUpdates) {
+        if (u.id === mailboxId) continue;
+        const siblingTarget = resolveMailboxMutationContext(client, u.id);
+        await siblingTarget.client.updateMailbox(siblingTarget.mailboxId, { sortOrder: u.sortOrder }, siblingTarget.accountId);
+      }
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to move folder' });
+      // Re-sync from server so local state doesn't drift from the real hierarchy.
+      if (viewingId) {
+        await refreshMailboxesForViewingAccount(client);
+      } else {
+        await get().fetchMailboxes(client);
+      }
+      throw error;
+    }
+    // Reparenting changes the hierarchy, so always confirm against the server
+    // rather than trusting the optimistic patch (GitHub #855).
+    if (viewingId) {
+      await refreshMailboxesForViewingAccount(client);
+    } else {
+      await get().fetchMailboxes(client);
     }
   },
 
