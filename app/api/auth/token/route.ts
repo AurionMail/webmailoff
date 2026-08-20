@@ -8,7 +8,7 @@ import {
   encodeCachedAccessToken,
   decodeCachedAccessToken,
 } from '@/lib/oauth/tokens';
-import { exchangeCodeForTokens, buildOAuthParams, getMetadata, getTokenEndpoint } from '@/lib/oauth/token-exchange';
+import { exchangeCodeForTokens, buildOAuthParams, getMetadata, getTokenEndpoint, DEFAULT_CLIENT_ID } from '@/lib/oauth/token-exchange';
 import { getCookieOptions } from '@/lib/oauth/cookie-config';
 import { MAX_ACCOUNT_SLOTS } from '@/lib/account-utils';
 
@@ -117,12 +117,15 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const tokenEndpoint = await getTokenEndpoint(serverId);
+    // The refresh token may have been minted by the password+TOTP login route,
+    // which works without a configured OAuth client by falling back to the
+    // default client id - refreshing must fall back the same way (#873).
+    const tokenEndpoint = await getTokenEndpoint(serverId, { fallbackClientId: DEFAULT_CLIENT_ID });
 
     const params = buildOAuthParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-    }, serverId);
+    }, serverId, { fallbackClientId: DEFAULT_CLIENT_ID });
 
     const tokenResponse = await fetch(tokenEndpoint, {
       method: 'POST',
@@ -185,9 +188,9 @@ export async function DELETE(request: NextRequest) {
         if (token) {
           // Best-effort revocation
           try {
-            const metadata = await getMetadata(slotServerId).catch(() => null);
+            const metadata = await getMetadata(slotServerId, { fallbackClientId: DEFAULT_CLIENT_ID }).catch(() => null);
             if (metadata?.revocation_endpoint) {
-              const params = buildOAuthParams({ token, token_type_hint: 'refresh_token' }, slotServerId);
+              const params = buildOAuthParams({ token, token_type_hint: 'refresh_token' }, slotServerId, { fallbackClientId: DEFAULT_CLIENT_ID });
               await fetch(metadata.revocation_endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -208,7 +211,7 @@ export async function DELETE(request: NextRequest) {
     const cookieStore = await cookies();
     const refreshToken = cookieStore.get(cookieName)?.value;
     const slotServerId = cookieStore.get(refreshTokenServerCookieName(slot))?.value || null;
-    const metadata = await getMetadata(slotServerId).catch((err) => {
+    const metadata = await getMetadata(slotServerId, { fallbackClientId: DEFAULT_CLIENT_ID }).catch((err) => {
       logger.warn('Failed to discover OAuth metadata during logout', {
         error: err instanceof Error ? err.message : 'Unknown error',
       });
@@ -220,7 +223,7 @@ export async function DELETE(request: NextRequest) {
         const params = buildOAuthParams({
           token: refreshToken,
           token_type_hint: 'refresh_token',
-        }, slotServerId);
+        }, slotServerId, { fallbackClientId: DEFAULT_CLIENT_ID });
 
         try {
           const revocationResponse = await fetch(metadata.revocation_endpoint, {

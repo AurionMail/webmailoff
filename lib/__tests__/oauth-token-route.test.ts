@@ -26,6 +26,7 @@ vi.mock('@/lib/oauth/token-exchange', () => ({
   buildOAuthParams: (...args: unknown[]) => buildOAuthParams(...args),
   getMetadata: vi.fn().mockResolvedValue(null),
   getTokenEndpoint: (...args: unknown[]) => getTokenEndpoint(...args),
+  DEFAULT_CLIENT_ID: 'bulwark-webmail',
 }));
 
 /** Minimal in-memory stand-in for the Next.js cookie store. */
@@ -216,6 +217,27 @@ describe('oauth token route - access token cache (#552)', () => {
     // An outage must not cost the user their session.
     expect(cookieStore.deleted).not.toContain('jmap_at');
     expect(cookieStore.deleted).not.toContain('jmap_rt');
+  });
+
+  it('refreshes with the default client id fallback so TOTP sessions survive reloads (#873)', async () => {
+    cookieStore.set('jmap_rt', 'totp-minted-refresh-token');
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'fresh-token', expires_in: 1800 }),
+    });
+
+    const { status } = await callPut({ force: 'true' });
+
+    expect(status).toBe(200);
+    // Tokens minted by the TOTP login route exist even when no OAuth client is
+    // configured; the refresh must offer the same default client id instead of
+    // failing on the missing OAUTH_CLIENT_ID.
+    expect(getTokenEndpoint).toHaveBeenCalledWith(null, { fallbackClientId: 'bulwark-webmail' });
+    expect(buildOAuthParams).toHaveBeenCalledWith(
+      { grant_type: 'refresh_token', refresh_token: 'totp-minted-refresh-token' },
+      null,
+      { fallbackClientId: 'bulwark-webmail' },
+    );
   });
 
   it('does not serve a cached token once the refresh token is gone', async () => {
