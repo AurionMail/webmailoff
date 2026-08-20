@@ -217,9 +217,18 @@ export default function ProHome() {
     if (!initialCheckDone || typeof window === "undefined") return;
     // Pro is desktop-only, and only used when the user has explicitly
     // enabled it. If either precondition stops holding, hand the user back
-    // to the standard shell.
+    // to the standard shell - on the surface they were just using, so
+    // switching Pro off from Settings lands back in Settings rather than
+    // on the mail list. Read imperatively: the focused tab must not retrigger
+    // this effect, it only matters at the moment a precondition flips.
     if (isMobile || isTablet || !proInterface) {
-      window.location.replace(`${getPathPrefix()}/`);
+      const { tabs: allTabs, focusedPaneId: pane, activeTabId, activeSplitTabId } = useProTabStore.getState();
+      const focusedId = pane === 'split' ? activeSplitTabId : activeTabId;
+      const kind = allTabs.find((tab) => tab.id === focusedId)?.kind;
+      const surface = kind === 'calendar' || kind === 'contacts' || kind === 'files' || kind === 'settings'
+        ? `/${kind}`
+        : '/';
+      window.location.replace(`${getPathPrefix()}${surface}`);
     }
   }, [initialCheckDone, isMobile, isTablet, proInterface]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useTranslations, useMessages } from 'next-intl';
 import {
@@ -382,15 +382,17 @@ function tabFromDeepLink(segments: string[] | null | undefined): SettingsTabId |
   return null;
 }
 
-// Toggling the Pro interface remounts the whole settings surface (the
-// redirect replaces the route with /pro, which hosts its own SettingsApp).
-// The active tab survives via localStorage, but the content pane's scroll
-// offset would not - and the toggle itself sits at the bottom of a long tab,
-// so the user would land back at the top of the page they were just on.
-// Module scope survives the client-side navigation; a full page load (the
-// Pro→standard direction) wipes it, which is fine because that direction
-// lands on the mail surface anyway.
-let parkedContentScroll: { tab: SettingsTabId; top: number } | null = null;
+// Toggling the Pro interface remounts the whole settings surface (enabling
+// replaces the route with /pro, which hosts its own SettingsApp; disabling
+// leaves /pro through a full page load back to /settings). The active tab
+// survives via localStorage, but the content pane's scroll offset would not -
+// and the toggle itself sits at the bottom of a long tab, so the user would
+// land back at the top of the page they were just on. Module scope covers the
+// client-side navigation; sessionStorage carries the offset across the full
+// page load, with a TTL so a stray unconsumed entry can't scroll a visit
+// minutes later.
+let parkedContentScroll: { tab: SettingsTabId; top: number; ts: number } | null = null;
+const SCROLL_RESTORE_KEY = 'settings-scroll-restore';
 
 export interface SettingsAppProps {
   /** Path segments after `/settings` - `['<tabId>']`. */
@@ -657,26 +659,39 @@ export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
   );
 
   // Park the content-pane scroll offset when the Pro toggle flips (the flip
-  // navigates to /pro and remounts this component), and restore it on the
-  // remounted instance's first paint. The ref only exists in the desktop
-  // layout, which is also the only place the remount can happen - on mobile
-  // `el` stays null and nothing is parked.
+  // remounts this component - see parkedContentScroll above). The ref only
+  // exists in the desktop layout, which is also the only place the remount
+  // can happen - on mobile `el` stays null and nothing is parked.
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const prevProInterface = useRef(proInterface);
   useEffect(() => {
     if (prevProInterface.current === proInterface) return;
     prevProInterface.current = proInterface;
     const el = contentScrollRef.current;
-    if (el) parkedContentScroll = { tab: activeTab, top: el.scrollTop };
+    if (!el) return;
+    parkedContentScroll = { tab: activeTab, top: el.scrollTop, ts: Date.now() };
+    try { sessionStorage.setItem(SCROLL_RESTORE_KEY, JSON.stringify(parkedContentScroll)); } catch { /* ignore */ }
   }, [proInterface, activeTab]);
-  useLayoutEffect(() => {
-    const parked = parkedContentScroll;
+  // Restore when the container mounts. A callback ref rather than a mount
+  // effect: after the Pro-off reload this component first renders without the
+  // container (auth check pending), so a mount-time effect would consume the
+  // parked offset before there is anything to scroll.
+  const attachContentScroll = useCallback((el: HTMLDivElement | null) => {
+    contentScrollRef.current = el;
+    if (!el) return;
+    let parked = parkedContentScroll;
     parkedContentScroll = null;
-    if (!parked || parked.tab !== activeTab) return;
-    const el = contentScrollRef.current;
-    if (el) el.scrollTop = parked.top;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore exactly once, on mount
-  }, []);
+    try {
+      const raw = sessionStorage.getItem(SCROLL_RESTORE_KEY);
+      if (raw) {
+        sessionStorage.removeItem(SCROLL_RESTORE_KEY);
+        parked = parked ?? (JSON.parse(raw) as NonNullable<typeof parkedContentScroll>);
+      }
+    } catch { /* ignore */ }
+    if (parked && parked.tab === activeTab && Date.now() - parked.ts < 60_000) {
+      el.scrollTop = parked.top;
+    }
+  }, [activeTab]);
 
   if (!isAuthenticated) {
     return null;
@@ -1149,7 +1164,7 @@ export function SettingsApp({ linkSegments }: SettingsAppProps = {}) {
         onDoubleClick={() => { setSettingsSidebarWidth(256); localStorage.setItem('settings-sidebar-width', '256'); }}
       />
 
-      <div ref={contentScrollRef} className="flex-1 overflow-y-auto">
+      <div ref={attachContentScroll} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6">
           {renderTabContent()}
         </div>
