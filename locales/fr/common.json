@@ -752,7 +752,10 @@
     "rate_limited_title": "L'authentification du serveur est temporairement limitee.",
     "rate_limited_detail": "Bulwark a suspendu les requetes en arriere-plan pour eviter un blocage. Nouvelle tentative dans {seconds}s.",
     "rate_limited_action_title": "Requete suspendue pour eviter le blocage.",
-    "rate_limited_action_detail": "Bulwark attend la fin du delai impose par le serveur avant d'envoyer d'autres requetes authentifiees. Reessayez dans {seconds}s."
+    "rate_limited_action_detail": "Bulwark attend la fin du delai impose par le serveur avant d'envoyer d'autres requetes authentifiees. Reessayez dans {seconds}s.",
+    "pull_to_refresh": "Tirez pour actualiser",
+    "release_to_refresh": "Relâchez pour actualiser",
+    "refreshing": "Actualisation…"
   },
   "notifications": {
     "email_sent": "Email envoyé avec succès",
@@ -1689,6 +1692,7 @@
       "create_subfolder": "Créer un sous-dossier",
       "reorder": "Glissez pour réorganiser",
       "reorder_error": "Échec de la réorganisation des dossiers",
+      "move_error": "Échec du déplacement du dossier",
       "subfolder_of": "Dans {name}",
       "subfolder_name": "Nom du sous-dossier",
       "new_folder_name": "Nom du dossier",

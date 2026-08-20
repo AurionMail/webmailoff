@@ -752,7 +752,10 @@
     "rate_limited_title": "مصادقة الخادم مقيّدة مؤقتًا بحد المعدل.",
     "rate_limited_detail": "أوقف Bulwark الطلبات في الخلفية مؤقتًا لتجنب الحظر. ستتم إعادة المحاولة خلال {seconds} ثانية.",
     "rate_limited_action_title": "تم إيقاف الطلب مؤقتًا لتجنب الحظر.",
-    "rate_limited_action_detail": "ينتظر Bulwark انتهاء فترة تهدئة الخادم قبل إرسال المزيد من الطلبات الموثّقة. حاول مرة أخرى خلال {seconds} ثانية."
+    "rate_limited_action_detail": "ينتظر Bulwark انتهاء فترة تهدئة الخادم قبل إرسال المزيد من الطلبات الموثّقة. حاول مرة أخرى خلال {seconds} ثانية.",
+    "pull_to_refresh": "اسحب للتحديث",
+    "release_to_refresh": "أفلت للتحديث",
+    "refreshing": "جارٍ التحديث…"
   },
   "notifications": {
     "email_sent": "تم إرسال الرسالة بنجاح",
@@ -1696,6 +1699,7 @@
       "create_subfolder": "إنشاء مجلد فرعي",
       "reorder": "اسحب لإعادة الترتيب",
       "reorder_error": "فشل في إعادة ترتيب المجلدات",
+      "move_error": "فشل في نقل المجلد",
       "subfolder_of": "داخل {name}",
       "subfolder_name": "اسم المجلد الفرعي",
       "new_folder_name": "اسم المجلد",

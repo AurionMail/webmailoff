@@ -752,7 +752,10 @@
     "rate_limited_title": "Autentificarea pe server este temporar limitată ca frecvență.",
     "rate_limited_detail": "Bulwark A suspendat solicitările de fundal pentru a evita blocarea. Se va încerca din nou în câteva {seconds} s.",
     "rate_limited_action_title": "Solicitarea a fost pusă în așteptare pentru a evita blocarea contului.",
-    "rate_limited_action_detail": "Bulwark Așteaptă încheierea perioadei de așteptare a serverului înainte de a trimite alte cereri autentificate. Încercați din nou în câteva {seconds}."
+    "rate_limited_action_detail": "Bulwark Așteaptă încheierea perioadei de așteptare a serverului înainte de a trimite alte cereri autentificate. Încercați din nou în câteva {seconds}.",
+    "pull_to_refresh": "Trageți pentru a reîmprospăta",
+    "release_to_refresh": "Eliberați pentru a reîmprospăta",
+    "refreshing": "Se reîmprospătează…"
   },
   "notifications": {
     "email_sent": "E-mailul a fost trimis cu succes",
@@ -1696,6 +1699,7 @@
       "create_subfolder": "Creați un subfolder",
       "reorder": "Trageți pentru a reordona",
       "reorder_error": "Reordonarea dosarelor a eșuat",
+      "move_error": "Mutarea dosarului a eșuat",
       "subfolder_of": "În interiorul {name}",
       "subfolder_name": "Numele subfolderului",
       "new_folder_name": "Numele folderului",

@@ -752,7 +752,10 @@
     "rate_limited_title": "Overenie servera je dočasne obmedzené.",
     "rate_limited_detail": "Bulwark pozastavil požiadavky na pozadí, aby zabránil zablokovaniu. Opätovný pokus za {seconds} s.",
     "rate_limited_action_title": "Požiadavka pozastavená, aby sa zabránilo zablokovaniu.",
-    "rate_limited_action_detail": "Bulwark čaká na ukončenie doby blokovania servera. Skúste to znova za {seconds} s."
+    "rate_limited_action_detail": "Bulwark čaká na ukončenie doby blokovania servera. Skúste to znova za {seconds} s.",
+    "pull_to_refresh": "Potiahnutím obnovíte",
+    "release_to_refresh": "Uvoľnením obnovíte",
+    "refreshing": "Obnovuje sa…"
   },
   "notifications": {
     "email_sent": "E-mail bol úspešne odoslaný",
@@ -1696,6 +1699,7 @@
       "create_subfolder": "Vytvoriť podpriečinok",
       "reorder": "Potiahnutím zmeníte poradie",
       "reorder_error": "Nepodarilo sa zmeniť poradie priečinkov",
+      "move_error": "Nepodarilo sa presunúť priečinok",
       "subfolder_of": "V priečinku {name}",
       "subfolder_name": "Názov podpriečinka",
       "new_folder_name": "Názov priečinka",

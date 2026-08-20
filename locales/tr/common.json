@@ -752,7 +752,10 @@
     "rate_limited_title": "Sunucu kimlik doğrulaması geçici olarak hız sınırlamasına tabi.",
     "rate_limited_detail": "Hesap kilitlenmesini önlemek için Bulwark arka plan isteklerini duraklattı. {seconds} saniye içinde yeniden deneniyor.",
     "rate_limited_action_title": "Kilitlenmeyi önlemek için istek duraklatıldı.",
-    "rate_limited_action_detail": "Bulwark, daha fazla kimlik doğrulama isteği göndermeden önce sunucunun soğuma süresinin bitmesini bekliyor. {seconds} saniye içinde tekrar deneyin."
+    "rate_limited_action_detail": "Bulwark, daha fazla kimlik doğrulama isteği göndermeden önce sunucunun soğuma süresinin bitmesini bekliyor. {seconds} saniye içinde tekrar deneyin.",
+    "pull_to_refresh": "Yenilemek için çekin",
+    "release_to_refresh": "Yenilemek için bırakın",
+    "refreshing": "Yenileniyor…"
   },
   "notifications": {
     "email_sent": "E-posta başarıyla gönderildi",
@@ -1689,6 +1692,7 @@
       "create_subfolder": "Alt Klasör Oluştur",
       "reorder": "Yeniden sıralamak için sürükleyin",
       "reorder_error": "Klasörler yeniden sıralanamadı",
+      "move_error": "Klasör taşınamadı",
       "subfolder_of": "{name} içinde",
       "subfolder_name": "Alt klasör adı",
       "new_folder_name": "Klasör adı",

@@ -752,7 +752,10 @@
     "rate_limited_title": "Ověřování serveru je dočasně omezeno.",
     "rate_limited_detail": "Požadavky na pozadí byly pozastaveny, aby se zabránilo zablokování. Další pokus za {seconds} s.",
     "rate_limited_action_title": "Požadavek pozastaven, aby se zabránilo zablokování.",
-    "rate_limited_action_detail": "Aplikace čeká na ukončení doby blokování serveru před odesláním dalších ověřovaných požadavků. Zkuste to znovu za {seconds} s."
+    "rate_limited_action_detail": "Aplikace čeká na ukončení doby blokování serveru před odesláním dalších ověřovaných požadavků. Zkuste to znovu za {seconds} s.",
+    "pull_to_refresh": "Přetažením obnovíte",
+    "release_to_refresh": "Uvolněním obnovíte",
+    "refreshing": "Obnovování…"
   },
   "notifications": {
     "email_sent": "Zpráva byla úspěšně odeslána",
@@ -1689,6 +1692,7 @@
       "create_subfolder": "Vytvořit podsložku",
       "reorder": "Přetažením změníte pořadí",
       "reorder_error": "Nepodařilo se změnit pořadí složek",
+      "move_error": "Nepodařilo se přesunout složku",
       "subfolder_of": "Ve složce {name}",
       "subfolder_name": "Název podsložky",
       "new_folder_name": "Název složky",

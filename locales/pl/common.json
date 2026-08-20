@@ -752,7 +752,10 @@
     "rate_limited_title": "Uwierzytelnianie serwera jest tymczasowo ograniczone.",
     "rate_limited_detail": "Bulwark wstrzymał żądania w tle, aby uniknąć blokady. Ponowna próba za {seconds}s.",
     "rate_limited_action_title": "Żądanie wstrzymane, aby uniknąć blokady.",
-    "rate_limited_action_detail": "Bulwark czeka na zakończenie okresu blokady serwera przed wysłaniem kolejnych uwierzytelnionych żądań. Spróbuj ponownie za {seconds}s."
+    "rate_limited_action_detail": "Bulwark czeka na zakończenie okresu blokady serwera przed wysłaniem kolejnych uwierzytelnionych żądań. Spróbuj ponownie za {seconds}s.",
+    "pull_to_refresh": "Pociągnij, aby odświeżyć",
+    "release_to_refresh": "Puść, aby odświeżyć",
+    "refreshing": "Odświeżanie…"
   },
   "notifications": {
     "email_sent": "Wiadomość wysłana pomyślnie",
@@ -1689,6 +1692,7 @@
       "create_subfolder": "Utwórz podfolder",
       "reorder": "Przeciągnij, aby zmienić kolejność",
       "reorder_error": "Nie udało się zmienić kolejności folderów",
+      "move_error": "Nie udało się przenieść folderu",
       "subfolder_of": "W folderze {name}",
       "subfolder_name": "Nazwa podfolderu",
       "new_folder_name": "Nazwa folderu",
