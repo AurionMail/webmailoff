@@ -106,7 +106,6 @@ import {
   type MailDeepLink,
 } from "@/lib/deep-links";
 import { consumePendingDeepLink } from "@/lib/deep-link-handoff";
-import { onProMailNavigation } from "@/lib/pro-mail-navigation";
 import { useProInterfaceActive } from "@/components/pro/pro-interface-redirect";
 import type { QuoteHeader } from "@/lib/plugin-types";
 
@@ -2416,26 +2415,6 @@ export function MailApp({ linkSegments }: MailAppProps = {}) {
       await fetchEmails(client);
     }
   };
-
-  // Pro email tabs render their own sidebar; clicking a folder/tag there
-  // publishes a navigation request that this (always-mounted) embedded
-  // MailApp serves with its own selection handlers. Refs, not deps: the
-  // handlers close over client/mailboxes and are rebuilt every render.
-  const proNavHandlersRef = useRef({ handleMailboxSelect, handleAccountMailboxSelect, handleTagSelect });
-  proNavHandlersRef.current = { handleMailboxSelect, handleAccountMailboxSelect, handleTagSelect };
-  useEffect(() => {
-    if (!isEmbedded) return;
-    return onProMailNavigation((request) => {
-      const handlers = proNavHandlersRef.current;
-      if (request.kind === 'tag') {
-        void handlers.handleTagSelect(request.keywordId);
-      } else if (request.accountId) {
-        void handlers.handleAccountMailboxSelect(request.accountId, request.mailboxId);
-      } else {
-        void handlers.handleMailboxSelect(request.mailboxId);
-      }
-    });
-  }, [isEmbedded]);
 
   const handleUnreadFilterClick = async (mailboxId: string) => {
     const isTogglingOff = selectedMailbox === mailboxId && searchFilters.isUnread === true;

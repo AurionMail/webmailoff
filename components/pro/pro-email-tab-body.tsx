@@ -3,20 +3,15 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { EmailViewer } from "@/components/email/email-viewer";
-import { Sidebar } from "@/components/layout/sidebar";
-import { ErrorBoundary, EmailViewerErrorFallback, SidebarErrorFallback } from "@/components/error";
+import { ErrorBoundary, EmailViewerErrorFallback } from "@/components/error";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmailStore } from "@/stores/email-store";
 import { useIdentityStore } from "@/stores/identity-store";
-import { useUIStore } from "@/stores/ui-store";
 import { useProMultiAccountIdentities } from "@/hooks/use-pro-multi-account-identities";
-import { useDeviceDetection } from "@/hooks/use-media-query";
 import { findDraftIdentityId } from "@/lib/reply-identity";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "@/stores/toast-store";
 import { useProTabStore, type ProEmailTabData, type ProReplyContext } from "@/stores/pro-tab-store";
-import { requestProMailNavigation } from "@/lib/pro-mail-navigation";
-import { DragDropProvider } from "@/contexts/drag-drop-context";
 import type { Email } from "@/lib/jmap/types";
 import type { IJMAPClient } from "@/lib/jmap/client-interface";
 import { buildReplySubject, buildForwardSubject } from "@/lib/subject-prefix";
@@ -396,28 +391,15 @@ export function ProEmailView({ emailId, client: clientOverride, accountId, onLoa
 }
 
 /**
- * Renders a single email in its own Pro tab, Roundcube-style: the folder
- * sidebar on the left (wide panes only) with the message filling the rest -
- * no list pane. Clicking a folder or tag in that sidebar steers the shared
- * Mail tab (via the pro-mail-navigation bus) and focuses it.
+ * Renders a single email in its own Pro tab: a fullscreen mail view - just
+ * the message, no folder sidebar and no list pane.
  */
 export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
   const closeTab = useProTabStore((s) => s.closeTab);
-  const openTab = useProTabStore((s) => s.openTab);
   const updateTabTitle = useProTabStore((s) => s.updateTabTitle);
-
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  const accountMailboxes = useEmailStore((s) => s.accountMailboxes);
-  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
-  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
-  // Pane-scoped: a narrow split pane drops the sidebar and keeps the mail.
-  const { isMobile, isTablet } = useDeviceDetection();
-  const showSidebar = !isMobile && !isTablet;
-
-  const [loadedEmail, setLoadedEmail] = useState<Email | null>(null);
 
   const handleLoaded = useCallback((email: Email) => {
-    setLoadedEmail(email);
     if (email.subject) updateTabTitle(tabId, email.subject);
   }, [tabId, updateTabTitle]);
 
@@ -432,59 +414,13 @@ export function ProEmailTabBody({ tabId, data }: ProEmailTabBodyProps) {
     return mb?.isShared ? mb.accountId : undefined;
   }, [mailboxes, data.mailboxId]);
 
-  // Highlight the folder the message lives in; fall back to the mailbox the
-  // tab was opened from (may be null for drag/drop-opened tabs).
-  const highlightedMailbox = useMemo(() => {
-    if (loadedEmail?.mailboxIds) {
-      const inList = Object.keys(loadedEmail.mailboxIds).find((id) => mailboxes.some((m) => m.id === id));
-      if (inList) return inList;
-    }
-    return data.mailboxId ?? '';
-  }, [loadedEmail, mailboxes, data.mailboxId]);
-
-  const navigateToFolder = useCallback((accountId: string | null, mailboxId: string) => {
-    openTab('mail');
-    requestProMailNavigation({ kind: 'mailbox', accountId, mailboxId });
-  }, [openTab]);
-
-  const navigateToTag = useCallback((keywordId: string | null) => {
-    openTab('mail');
-    requestProMailNavigation({ kind: 'tag', keywordId });
-  }, [openTab]);
-
   return (
-    <div className="flex h-full w-full bg-background">
-      {showSidebar && (
-        <div
-          className="h-full flex-shrink-0 overflow-hidden"
-          style={{ width: sidebarCollapsed ? 48 : sidebarWidth }}
-        >
-          <ErrorBoundary fallback={SidebarErrorFallback}>
-            {/* The sidebar's folder rows are email-drop targets and read the
-                drag context unconditionally - give them their own provider
-                (MailApp's lives in a different tab body). */}
-            <DragDropProvider>
-              <Sidebar
-                mailboxes={mailboxes}
-                selectedMailbox={highlightedMailbox}
-                onMailboxSelect={(mailboxId) => navigateToFolder(null, mailboxId)}
-                onTagSelect={navigateToTag}
-                multiAccountMode
-                accountMailboxes={accountMailboxes}
-                viewingAccountId={null}
-                onAccountMailboxSelect={navigateToFolder}
-              />
-            </DragDropProvider>
-          </ErrorBoundary>
-        </div>
-      )}
-      <ProEmailView
-        emailId={data.emailId}
-        accountId={ownerAccountId}
-        onLoaded={handleLoaded}
-        onClose={handleClose}
-        className="min-w-0 flex-1"
-      />
-    </div>
+    <ProEmailView
+      emailId={data.emailId}
+      accountId={ownerAccountId}
+      onLoaded={handleLoaded}
+      onClose={handleClose}
+      className="w-full"
+    />
   );
 }
