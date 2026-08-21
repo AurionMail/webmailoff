@@ -1664,11 +1664,16 @@ export function CalendarApp({ linkSegments }: CalendarAppProps = {}) {
               const d = new Date(date);
               if (typeof hour === "number") {
                 d.setHours(hour, 0, 0, 0);
+                // Explicit end so the modal keeps the clicked hour instead of
+                // applying its next-hour fallback for date-only defaults (#435).
+                const end = new Date(date);
+                end.setHours(hour + 1, 0, 0, 0);
+                openCreateModal(d, end);
               } else {
                 const now = new Date();
                 d.setHours(now.getHours() + 1, 0, 0, 0);
+                openCreateModal(d);
               }
-              openCreateModal(d);
             }}
             onNewAllDayEvent={() => {
               const d = new Date(date);
