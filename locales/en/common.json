@@ -578,6 +578,7 @@
     "read_receipt_on": "Read receipt requested (click to disable)",
     "read_receipt_off": "Request a read receipt",
     "new_message": "New Message",
+    "signature_edit_hint": "Double-click to edit the signature",
     "reply": "Reply",
     "reply_all": "Reply All",
     "forward": "Forward",

@@ -578,6 +578,7 @@
     "read_receipt_on": "Potvrdenie o prečítaní požiadané (kliknutím vypnete)",
     "read_receipt_off": "Požiadať o potvrdenie o prečítaní",
     "new_message": "Nová správa",
+    "signature_edit_hint": "Dvojklikom upravíte podpis",
     "reply": "Odpovedať",
     "reply_all": "Odpovedať všetkým",
     "forward": "Preposlať",

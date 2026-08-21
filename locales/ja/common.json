@@ -578,6 +578,7 @@
     "read_receipt_on": "開封確認を要求中（クリックで無効化）",
     "read_receipt_off": "開封確認を要求する",
     "new_message": "新規メッセージ",
+    "signature_edit_hint": "ダブルクリックで署名を編集",
     "reply": "返信",
     "reply_all": "全員に返信",
     "forward": "転送",

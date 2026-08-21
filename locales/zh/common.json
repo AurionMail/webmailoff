@@ -578,6 +578,7 @@
     "read_receipt_on": "已请求已读回执（点击以关闭）",
     "read_receipt_off": "请求已读回执",
     "new_message": "新邮件",
+    "signature_edit_hint": "双击以编辑签名",
     "reply": "回复",
     "reply_all": "全部回复",
     "forward": "转发",

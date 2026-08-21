@@ -578,6 +578,7 @@
     "read_receipt_on": "Lesebestätigung angefordert (klicken zum Deaktivieren)",
     "read_receipt_off": "Lesebestätigung anfordern",
     "new_message": "Neue Nachricht",
+    "signature_edit_hint": "Doppelklick, um die Signatur zu bearbeiten",
     "reply": "Antworten",
     "reply_all": "Allen antworten",
     "forward": "Weiterleiten",

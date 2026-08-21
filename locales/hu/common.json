@@ -578,6 +578,7 @@
     "read_receipt_on": "Olvasási visszaigazolás kérve (kattints a letiltáshoz)",
     "read_receipt_off": "Olvasási visszaigazolás kérése",
     "new_message": "Új üzenet",
+    "signature_edit_hint": "Kattintson duplán az aláírás szerkesztéséhez",
     "reply": "Válasz",
     "reply_all": "Válasz mindenkinek",
     "forward": "Továbbítás",
