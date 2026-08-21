@@ -541,6 +541,7 @@
   },
   "email_composer": {
     "new_message": "הודעה חדשה",
+    "signature_edit_hint": "לחץ לחיצה כפולה לעריכת החתימה",
     "reply": "השב",
     "reply_all": "השב לכולם",
     "forward": "קדימה",

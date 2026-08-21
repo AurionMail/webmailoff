@@ -578,6 +578,7 @@
     "read_receipt_on": "Okundu bilgisi istendi (devre dışı bırakmak için tıklayın)",
     "read_receipt_off": "Okundu bilgisi iste",
     "new_message": "Yeni İleti",
+    "signature_edit_hint": "İmzayı düzenlemek için çift tıklayın",
     "reply": "Yanıtla",
     "reply_all": "Tümünü Yanıtla",
     "forward": "İlet",
