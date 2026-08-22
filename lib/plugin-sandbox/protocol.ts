@@ -241,7 +241,7 @@ export const SANDBOX_PRIVILEGED_PATH = '/plugin-sandbox-privileged';
 export const API_METHODS = [
   'storage.get', 'storage.set', 'storage.remove', 'storage.keys',
   'http.post', 'http.fetch',
-  'crypto.createWebAuthn', 'crypto.getWebAuthn', 'crypto.getPublicKeys', 'crypto.createPublicKey', 'crypto.removePublicKey', 'crypto.getEncryptionAtRest', 'crypto.setEncryptionAtRest',
+  'crypto.createWebAuthn', 'crypto.getWebAuthn', 'crypto.getPublicKeys', 'crypto.createPublicKey', 'crypto.removePublicKey', 'crypto.getEncryptionAtRest', 'crypto.setEncryptionAtRest', 'crypto.getPublicKeyFromWKD',
   'jmap.fetchBlob', 'jmap.uploadBlob', 'jmap.sendRaw',
   // Narrow keyword helpers. Unlike the raw-blob methods, these are available
   // to untrusted plugins with email:read/email:write as appropriate.

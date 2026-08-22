@@ -28,6 +28,7 @@ import { fileStorage } from '../plugin-storage';
 import { generateUUID } from '../utils';
 import { ContactCard, Identity } from '../jmap/types';
 import { EncryptionAtRestConfig, PublicKeyInfo, PublicKeyInput, useAccountSecurityStore } from '@/stores/account-security-store';
+import { createHash } from 'crypto';
 
 /**
  * Methods only callable from the privileged (same-origin) tier. These expose
@@ -55,6 +56,7 @@ const PRIVILEGED_ONLY_METHODS = new Set<string>([
   'crypto.removePublicKey',
   'crypto.getEncryptionAtRest',
   'crypto.setEncryptionAtRest',
+  'crypto.getPublicKeyFromWKD',
   // Replacing the bytes of a file the user is about to send is strictly more
   // dangerous than reading them, so the write stays privileged-only.
   // This entry used to read `upfiles.set`, which matches no dispatched method
@@ -104,6 +106,7 @@ const PERM_PER_METHOD: Record<string, Permission | null> = {
   'crypto.removePublicKey': 'crypto:full',
   'crypto.getEncryptionAtRest': 'crypto:full',
   'crypto.setEncryptionAtRest': 'crypto:full',
+  'crypto.getPublicKeyFromWKD': 'crypto:full',
   // contact
   'contact.get': 'contacts:read',
   'contact.update': 'contacts:write',
@@ -718,6 +721,138 @@ async function doSetEncryptionAtRest(config: EncryptionAtRestConfig): Promise<vo
   return await store.updateEncryptionAtRest(config);
 }
 
+// ----doGetPublicKeyFromWKD----------
+
+// (RFC 6186 / z-base-32 spec)
+const ZBASE32_ALPHABET = 'ybndrfg8ejkmcpqxot1uwisza345h769';
+
+function zBase32Encode(buffer: Uint8Array): string {
+  let bits = 0;
+  let value = 0;
+  const output: string[] = [];
+
+  for (let i = 0; i < buffer.length; i++) {
+    // Shift existing bits left by 8 and append the new byte
+    value = (value << 8) | buffer[i];
+    bits += 8;
+
+    // Extract all complete 5-bit chunks from MSB to LSB
+    while (bits >= 5) {
+      bits -= 5;
+      output.push(ZBASE32_ALPHABET[(value >>> bits) & 31]);
+    }
+
+    // Keep only the remaining unread bits (< 5) to prevent 32-bit integer overflow
+    value &= (1 << bits) - 1;
+  }
+
+  // Handle remaining trailing bits (1 to 4 bits left)
+  if (bits > 0) {
+    // Left-pad with zeros to complete the final 5-bit character
+    output.push(ZBASE32_ALPHABET[(value << (5 - bits)) & 31]);
+  }
+
+  return output.join('');
+}
+
+/**
+ * Generates the WKD hash (SHA-1 in z-base-32) from the local-part.
+ * RFC 9292: Lowercase in UTF-8 before hashing.
+ */
+function getWkdHash(localPart: string): string {
+  // NFC normalization + lowercasing
+  const normalizedLocal = localPart.normalize('NFC').toLowerCase();
+  
+  // Explicit TextEncoder usage to guarantee UTF-8 bytes
+  const utf8Bytes = new TextEncoder().encode(normalizedLocal);
+  const sha1Buffer = createHash('sha1').update(utf8Bytes).digest();
+  
+  return zBase32Encode(sha1Buffer);
+}
+
+/**
+ * Validates OpenPGP key format (Binary mandatory for WKD, ASCII tolerated).
+ */
+function isValidPgpKey(data: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(data);
+  if (bytes.length < 5) return false;
+
+  // Safe ASCII-Armored detection against binary decoding errors
+  const textHead = new TextDecoder('utf-8', { fatal: false }).decode(bytes.subarray(0, 200));
+  if (textHead.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----')) return true;
+
+  // Binary validation (RFC 4880 + RFC 9580)
+  const firstByte = bytes[0];
+  if ((firstByte & 0x80) === 0) return false; // Bit 7 must always be 1
+
+  const isOldFormat = (firstByte & 0x40) === 0;
+  const tag = isOldFormat ? (firstByte >> 2) & 0x0f : firstByte & 0x3f;
+
+  // Tag 6 = Public-Key Packet, Tag 14 = Public-Subkey Packet
+  return tag === 6 || tag === 14;
+}
+
+export interface WkdResult {
+  status: 'FOUND' | 'NOT_FOUND' | 'ERROR';
+  rawKey?: ArrayBuffer;
+  error?: string;
+}
+
+export async function doGetPublicKeyFromWKD(email: string): Promise<WkdResult> {
+  const cleanEmail = email.trim();
+  const atIndex = cleanEmail.lastIndexOf('@');
+  
+  if (atIndex <= 0 || atIndex === cleanEmail.length - 1) {
+    return { status: 'ERROR', error: 'Invalid email address' };
+  }
+
+  const localPart = cleanEmail.slice(0, atIndex);
+  const domain = cleanEmail.slice(atIndex + 1).toLowerCase();
+  const hash = getWkdHash(localPart);
+
+  const urls = [
+    `https://openpgpkey.${domain}/.well-known/openpgpkey/hu/${hash}?l=${encodeURIComponent(localPart)}`,
+    `https://${domain}/.well-known/openpgpkey/hu/${hash}?l=${encodeURIComponent(localPart)}`
+  ];
+
+  for (const url of urls) {
+    try {
+      // 5-second request timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'omit',
+        headers: { 'Accept': 'application/pgp-keys' },
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        // Size limitation protection (e.g., max 2 MB)
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength, 10) > 2 * 1024 * 1024) {
+          continue; 
+        }
+
+        const buffer = await response.arrayBuffer();
+
+        if (isValidPgpKey(buffer)) {
+          return { status: 'FOUND', rawKey: buffer };
+        }
+      }
+    } catch {
+      // Network error, timeout, : move to next URL
+      continue;
+    }
+  }
+
+  return { status: 'NOT_FOUND' };
+}
+
 // ─── Uploaded files in IndexedDB (privileged tier) ──────────────────────────
 
 async function getFile(fileID:string): Promise<File | null> {
@@ -1206,6 +1341,7 @@ export async function dispatchApiCall(
     case 'crypto.removePublicKey': return doRemovePublicKey(args[0] as string);
     case 'crypto.getEncryptionAtRest': return doGetEncryptionAtRest();
     case 'crypto.setEncryptionAtRest': return doSetEncryptionAtRest(args[0] as EncryptionAtRestConfig);
+    case 'crypto.getPublicKeyFromWKD': return doGetPublicKeyFromWKD(args[0] as string);
 
 
     case 'contact.get': return doContactGet(args[0] as string);
