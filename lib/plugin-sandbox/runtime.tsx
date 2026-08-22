@@ -195,7 +195,8 @@ function buildPluginApi(manifest: PluginManifest) {
       setEncryptionAtRest: (config: EncryptionAtRestConfig) => callApi('crypto.setEncryptionAtRest', [config]),
       getEncryptionAtRest: () => callApi('crypto.getEncryptionAtRest', []),
       getWebAuthn: (masterCredentialIdBytes: number[]) => callApi('crypto.getWebAuthn', [masterCredentialIdBytes, manifest.id], 0),
-      createWebAuthn: (name: string, displayName: string) => callApi('crypto.createWebAuthn', [manifest.id, name, displayName], 0)
+      createWebAuthn: (name: string, displayName: string) => callApi('crypto.createWebAuthn', [manifest.id, name, displayName], 0),
+      getPublicKeyFromWKD: (email: string) => callApi('crypto.getPublicKeyFromWKD', [email]),
     },
     storage: {
       get: (key: string) => callApi('storage.get', [key]),
