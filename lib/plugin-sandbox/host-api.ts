@@ -773,29 +773,30 @@ function getWkdHash(localPart: string): string {
 /**
  * Validates OpenPGP key format (Binary mandatory for WKD, ASCII tolerated).
  */
-function isValidPgpKey(data: ArrayBuffer): boolean {
+function isValidPgpKey(data: ArrayBuffer): { isValid: boolean, type: 'ARMORED' | 'BINARY' } {
   const bytes = new Uint8Array(data);
-  if (bytes.length < 5) return false;
+  if (bytes.length < 5) return { isValid: false, type: 'BINARY' };
 
   // Safe ASCII-Armored detection against binary decoding errors
   const textHead = new TextDecoder('utf-8', { fatal: false }).decode(bytes.subarray(0, 200));
-  if (textHead.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----')) return true;
+  if (textHead.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----')) return { isValid: true, type: 'ARMORED' };
 
   // Binary validation (RFC 4880 + RFC 9580)
   const firstByte = bytes[0];
-  if ((firstByte & 0x80) === 0) return false; // Bit 7 must always be 1
+  if ((firstByte & 0x80) === 0) return { isValid: false, type: 'BINARY' }; // Bit 7 must always be 1
 
   const isOldFormat = (firstByte & 0x40) === 0;
   const tag = isOldFormat ? (firstByte >> 2) & 0x0f : firstByte & 0x3f;
 
   // Tag 6 = Public-Key Packet, Tag 14 = Public-Subkey Packet
-  return tag === 6 || tag === 14;
+  return { isValid: tag === 6 || tag === 14, type: 'BINARY' };
 }
 
 export interface WkdResult {
   status: 'FOUND' | 'NOT_FOUND' | 'ERROR';
   rawKey?: ArrayBuffer;
   error?: string;
+  type?: 'ARMORED' | 'BINARY';
 }
 
 export async function doGetPublicKeyFromWKD(email: string): Promise<WkdResult> {
@@ -840,8 +841,9 @@ export async function doGetPublicKeyFromWKD(email: string): Promise<WkdResult> {
 
         const buffer = await response.arrayBuffer();
 
-        if (isValidPgpKey(buffer)) {
-          return { status: 'FOUND', rawKey: buffer };
+        const pgpKeyResult = isValidPgpKey(buffer);
+        if (pgpKeyResult.isValid) {
+          return { status: 'FOUND', rawKey: buffer, type: pgpKeyResult.type };
         }
       }
     } catch {
